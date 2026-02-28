@@ -34,7 +34,7 @@ server/            # Express backend
   store.ts         # JSON file-based persistence for projects and tickets
   solo-agents.ts   # Detects standalone Claude Code sessions
 server/screenshots.ts  # Post-PR screenshot capture & upload to GitHub
-  auditor.ts       # Local PR auditor — spawns Claude agent to review PRs
+  auditor.ts       # Local PR auditor — watchlist-based PR review agent
 scripts/           # Screenshot generation tooling (npm run screenshot)
 .github/           # PR template
 ```
@@ -71,15 +71,31 @@ When a ticket is dispatched:
 ## Local PR Auditor
 
 Instead of GitHub Action workflows, PR reviews are handled by a local Claude Code agent
-(`server/auditor.ts`). When a ticket enters `in_review` with a PR URL, the auditor
-automatically spawns a `claude` CLI process that:
-- Fetches the PR diff via `gh pr diff`
-- Reviews for code quality, security, completeness, and project convention adherence
-- Posts a structured review comment on the PR via `gh pr review`
-- Can approve, request changes, or leave a comment
+(`server/auditor.ts`). The auditor maintains a **watchlist** of PRs it actively monitors.
 
-The auditor can also be triggered manually via `POST /api/tickets/:id/audit`.
-Audit status is tracked on the ticket as `auditStatus` (pending/running/done/error).
+### How It Works
+- **Watchlist-based**: PRs are added to the watchlist via API or automatically when a ticket enters `in_review`
+- **Repo allowlist**: Only PRs from repos that have registered projects in Agent Kanban can be watched
+- **Rubric reviews**: Each review evaluates 6 aspects (Completeness, Code Quality, Test Coverage, Security, Project Conventions, PR Checklist) with pass/concern/fail ratings
+- **Polling**: The auditor polls active watchlist PRs every 30s, checking for merge/close status and re-review requests
+- **Re-review triggers**: Leave a comment on the PR containing `@auditor`, `re-review`, or `please review` to trigger a new review
+- **Auto-resolution**: PRs that are merged or closed are automatically removed from the active watchlist
+
+### Review Output
+The auditor posts a structured markdown review comment on the PR with:
+- Overall verdict (approve/request changes/comment)
+- Rubric table with per-aspect ratings and notes
+- Specific actionable feedback for concerns and failures
+
+### API Endpoints
+- `GET /api/auditor/watchlist` — Get active watchlist entries
+- `POST /api/auditor/watch` — Add a PR to the watchlist (`{ prUrl, ticketId? }`)
+- `POST /api/auditor/unwatch` — Remove a PR from the watchlist (`{ prUrl }`)
+- `POST /api/auditor/re-review` — Manually trigger a re-review (`{ prUrl }`)
+- `POST /api/tickets/:id/audit` — Trigger audit for a ticket (adds its PR to the watchlist)
+
+### Data
+Watchlist state is persisted to `data/auditor-watchlist.json`.
 
 ## UI Screenshots
 
