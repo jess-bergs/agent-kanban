@@ -26,7 +26,7 @@ import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, check
 import { detectSoloAgents } from './solo-agents.ts';
 import type { TeamWithData, WSEvent } from '../src/types.ts';
 
-const PORT = 3002;
+const PORT = 3003;
 
 const app = express();
 app.use(cors({ origin: 'http://localhost:5174' }));

@@ -713,10 +713,10 @@ async function recoverOrphanedTickets() {
   }
 }
 
-export function startDispatcher() {
+export async function startDispatcher() {
   console.log('[dispatcher] Started (polling every 3s, max concurrent: ' + MAX_CONCURRENT + ')');
   // Recover tickets orphaned by previous server shutdown
-  recoverOrphanedTickets();
+  await recoverOrphanedTickets();
   // Initial tick
   dispatcherTick();
   // Poll for new tickets
