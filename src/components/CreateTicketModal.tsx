@@ -91,7 +91,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
               value={instructions}
               onChange={e => setInstructions(e.target.value)}
               placeholder="Full prompt for the agent. Be specific about what you want built, changed, or fixed..."
-              rows={10}
+              rows={6}
               className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent-blue transition-colors font-mono leading-relaxed resize-y"
             />
             <p className="text-[10px] text-slate-500 mt-1">
@@ -99,109 +99,89 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
             </p>
           </div>
 
-          {/* Yolo mode toggle */}
-          <button
-            type="button"
-            onClick={() => setYolo(!yolo)}
-            className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg border transition-colors text-left ${
-              yolo
-                ? 'bg-accent-amber/10 border-accent-amber/30 text-accent-amber'
-                : 'bg-surface-900 border-surface-600 text-slate-400 hover:text-slate-200 hover:border-surface-500'
-            }`}
-          >
-            <Zap className={`w-5 h-5 shrink-0 ${yolo ? 'fill-accent-amber' : ''}`} />
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-medium ${yolo ? 'text-accent-amber' : 'text-slate-200'}`}>
-                YOLO Mode
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Skip all permission prompts. Agent runs fully autonomous — no file write, bash, or tool confirmations.
-              </p>
-            </div>
-            <div className={`w-10 h-6 rounded-full transition-colors flex items-center shrink-0 ${
-              yolo ? 'bg-accent-amber justify-end' : 'bg-surface-600 justify-start'
-            }`}>
-              <div className="w-4 h-4 bg-white rounded-full mx-1 shadow-sm" />
-            </div>
-          </button>
+          {/* Options grid */}
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              Options
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setYolo(!yolo)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
+                  yolo
+                    ? 'bg-accent-amber/10 border-accent-amber/30'
+                    : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                }`}
+                title="Skip all permission prompts. Agent runs fully autonomous."
+              >
+                <Zap className={`w-4 h-4 shrink-0 ${yolo ? 'fill-accent-amber text-accent-amber' : 'text-slate-500'}`} />
+                <span className={`text-xs font-medium ${yolo ? 'text-accent-amber' : 'text-slate-300'}`}>YOLO</span>
+                <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
+                  yolo ? 'bg-accent-amber justify-end' : 'bg-surface-600 justify-start'
+                }`}>
+                  <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
+                </div>
+              </button>
 
-          {/* Auto-merge toggle */}
-          <button
-            type="button"
-            onClick={() => setAutoMerge(!autoMerge)}
-            className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg border transition-colors text-left ${
-              autoMerge
-                ? 'bg-accent-purple/10 border-accent-purple/30 text-accent-purple'
-                : 'bg-surface-900 border-surface-600 text-slate-400 hover:text-slate-200 hover:border-surface-500'
-            }`}
-          >
-            <GitMerge className={`w-5 h-5 shrink-0 ${autoMerge ? 'text-accent-purple' : ''}`} />
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-medium ${autoMerge ? 'text-accent-purple' : 'text-slate-200'}`}>
-                Auto-Merge
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Automatically merge the PR when it has at least one approval and all checks pass.
-              </p>
-            </div>
-            <div className={`w-10 h-6 rounded-full transition-colors flex items-center shrink-0 ${
-              autoMerge ? 'bg-accent-purple justify-end' : 'bg-surface-600 justify-start'
-            }`}>
-              <div className="w-4 h-4 bg-white rounded-full mx-1 shadow-sm" />
-            </div>
-          </button>
+              <button
+                type="button"
+                onClick={() => setAutoMerge(!autoMerge)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
+                  autoMerge
+                    ? 'bg-accent-purple/10 border-accent-purple/30'
+                    : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                }`}
+                title="Automatically merge PR when approved and checks pass."
+              >
+                <GitMerge className={`w-4 h-4 shrink-0 ${autoMerge ? 'text-accent-purple' : 'text-slate-500'}`} />
+                <span className={`text-xs font-medium ${autoMerge ? 'text-accent-purple' : 'text-slate-300'}`}>Auto-Merge</span>
+                <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
+                  autoMerge ? 'bg-accent-purple justify-end' : 'bg-surface-600 justify-start'
+                }`}>
+                  <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
+                </div>
+              </button>
 
-          {/* Queue toggle */}
-          <button
-            type="button"
-            onClick={() => setQueued(!queued)}
-            className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg border transition-colors text-left ${
-              queued
-                ? 'bg-accent-cyan/10 border-accent-cyan/30 text-accent-cyan'
-                : 'bg-surface-900 border-surface-600 text-slate-400 hover:text-slate-200 hover:border-surface-500'
-            }`}
-          >
-            <Clock className={`w-5 h-5 shrink-0 ${queued ? 'text-accent-cyan' : ''}`} />
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-medium ${queued ? 'text-accent-cyan' : 'text-slate-200'}`}>
-                Queue for Later
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Don't start this ticket until all other non-queued tickets have finished processing.
-              </p>
-            </div>
-            <div className={`w-10 h-6 rounded-full transition-colors flex items-center shrink-0 ${
-              queued ? 'bg-accent-cyan justify-end' : 'bg-surface-600 justify-start'
-            }`}>
-              <div className="w-4 h-4 bg-white rounded-full mx-1 shadow-sm" />
-            </div>
-          </button>
+              <button
+                type="button"
+                onClick={() => setQueued(!queued)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
+                  queued
+                    ? 'bg-accent-cyan/10 border-accent-cyan/30'
+                    : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                }`}
+                title="Don't start until all other non-queued tickets finish."
+              >
+                <Clock className={`w-4 h-4 shrink-0 ${queued ? 'text-accent-cyan' : 'text-slate-500'}`} />
+                <span className={`text-xs font-medium ${queued ? 'text-accent-cyan' : 'text-slate-300'}`}>Queue</span>
+                <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
+                  queued ? 'bg-accent-cyan justify-end' : 'bg-surface-600 justify-start'
+                }`}>
+                  <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
+                </div>
+              </button>
 
-          {/* Ralph Wiggum toggle */}
-          <button
-            type="button"
-            onClick={() => setUseRalph(!useRalph)}
-            className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg border transition-colors text-left ${
-              useRalph
-                ? 'bg-accent-green/10 border-accent-green/30 text-accent-green'
-                : 'bg-surface-900 border-surface-600 text-slate-400 hover:text-slate-200 hover:border-surface-500'
-            }`}
-          >
-            <RefreshCw className={`w-5 h-5 shrink-0 ${useRalph ? 'text-accent-green' : ''}`} />
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-medium ${useRalph ? 'text-accent-green' : 'text-slate-200'}`}>
-                Ralph Wiggum Loop
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Use iterative self-improving loop. Agent repeats task until completion criteria met or max iterations reached.
-              </p>
+              <button
+                type="button"
+                onClick={() => setUseRalph(!useRalph)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
+                  useRalph
+                    ? 'bg-accent-green/10 border-accent-green/30'
+                    : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                }`}
+                title="Iterative self-improving loop until criteria met."
+              >
+                <RefreshCw className={`w-4 h-4 shrink-0 ${useRalph ? 'text-accent-green' : 'text-slate-500'}`} />
+                <span className={`text-xs font-medium ${useRalph ? 'text-accent-green' : 'text-slate-300'}`}>Ralph Loop</span>
+                <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
+                  useRalph ? 'bg-accent-green justify-end' : 'bg-surface-600 justify-start'
+                }`}>
+                  <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
+                </div>
+              </button>
             </div>
-            <div className={`w-10 h-6 rounded-full transition-colors flex items-center shrink-0 ${
-              useRalph ? 'bg-accent-green justify-end' : 'bg-surface-600 justify-start'
-            }`}>
-              <div className="w-4 h-4 bg-white rounded-full mx-1 shadow-sm" />
-            </div>
-          </button>
+          </div>
 
           <div className="flex justify-end gap-3 pt-2">
             <button
