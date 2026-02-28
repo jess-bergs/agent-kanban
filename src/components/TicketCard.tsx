@@ -1,4 +1,4 @@
-import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge, Clock, Brain, Terminal } from 'lucide-react';
+import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge, Clock, Brain, Terminal, ShieldAlert } from 'lucide-react';
 import type { Ticket, TicketStatus, TicketEffort } from '../types';
 import { formatDuration, formatTokenCount } from '../types';
 
@@ -58,6 +58,12 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         )}
         {ticket.effort && ticket.effort.turns > 0 && (
           <EffortBadge effort={ticket.effort} />
+        )}
+        {ticket.securityAlerts && ticket.securityAlerts.length > 0 && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded shrink-0">
+            <ShieldAlert className="w-3 h-3" />
+            {ticket.securityAlerts.length}
+          </span>
         )}
       </div>
 

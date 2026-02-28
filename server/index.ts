@@ -22,7 +22,7 @@ import {
   deleteTicket,
   getProjectsPayload,
 } from './store.ts';
-import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, checkPrStatus } from './dispatcher.ts';
+import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, checkPrStatus, fetchSecurityAlerts } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
 import type { TeamWithData, WSEvent } from '../src/types.ts';
 
@@ -254,6 +254,29 @@ app.post('/api/tickets/:id/refresh-status', async (req, res) => {
   } catch (err) {
     console.error('Error refreshing ticket status:', err);
     res.status(500).json({ error: 'Failed to refresh status' });
+  }
+});
+
+app.post('/api/tickets/:id/security-alerts', async (req, res) => {
+  const ticket = await getTicket(req.params.id);
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found' });
+    return;
+  }
+  if (!ticket.prUrl || !ticket.prNumber) {
+    res.status(400).json({ error: 'Ticket has no PR' });
+    return;
+  }
+  try {
+    const alerts = await fetchSecurityAlerts(ticket);
+    const updated = await updateTicket(ticket.id, {
+      securityAlerts: alerts.length > 0 ? alerts : undefined,
+    });
+    if (updated) broadcast({ type: 'ticket_updated', data: updated });
+    res.json({ alerts });
+  } catch (err) {
+    console.error('Error fetching security alerts:', err);
+    res.status(500).json({ error: 'Failed to fetch security alerts' });
   }
 });
 

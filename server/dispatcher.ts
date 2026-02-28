@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { execSync } from 'node:child_process';
 import { getProject, getTicket, updateTicket, listTickets } from './store.ts';
-import type { Ticket, AgentActivity, TicketEffort, WSEvent } from '../src/types.ts';
+import type { Ticket, AgentActivity, TicketEffort, SecurityAlert, WSEvent } from '../src/types.ts';
 
 const MAX_CONCURRENT = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
@@ -492,6 +492,85 @@ async function checkAutoMerge(ticket: Ticket) {
   }
 }
 
+// ─── Security Alert Detection ───────────────────────────────────
+
+/** Parse security alerts from PR review comments posted by bots */
+function parseSecurityAlerts(comments: Array<{
+  body: string;
+  path?: string;
+  line?: number;
+  html_url: string;
+  user?: { type?: string };
+}>): SecurityAlert[] {
+  const alerts: SecurityAlert[] = [];
+  for (const comment of comments) {
+    // Only look at bot comments
+    if (comment.user?.type !== 'Bot') continue;
+    const body = comment.body || '';
+    // Match the security review comment format:
+    // 🤖 **Security Issue: {summary}**
+    const summaryMatch = body.match(/\*\*Security Issue:\s*(.+?)\*\*/);
+    if (!summaryMatch) continue;
+    const severityMatch = body.match(/\*\*Severity:\*\*\s*(CRITICAL|HIGH|MEDIUM|LOW)/i);
+    const categoryMatch = body.match(/\*\*Category:\*\*\s*(\S+)/);
+    alerts.push({
+      severity: (severityMatch?.[1]?.toUpperCase() || 'MEDIUM') as SecurityAlert['severity'],
+      category: categoryMatch?.[1] || 'unknown',
+      summary: summaryMatch[1].trim(),
+      body,
+      path: comment.path,
+      line: comment.line ?? undefined,
+      htmlUrl: comment.html_url,
+    });
+  }
+  return alerts;
+}
+
+/** Fetch security alerts for a ticket's PR and update the ticket if changed */
+export async function fetchSecurityAlerts(ticket: Ticket): Promise<SecurityAlert[]> {
+  if (!ticket.prUrl || !ticket.prNumber) return [];
+
+  const project = await getProject(ticket.projectId);
+  if (!project?.remoteUrl) return [];
+
+  // Extract owner/repo from remote URL
+  const repoMatch = project.remoteUrl.match(/github\.com[/:]([^/]+\/[^/.]+)/);
+  if (!repoMatch) return [];
+  const repo = repoMatch[1].replace(/\.git$/, '');
+
+  try {
+    const json = execSync(
+      `gh api repos/${repo}/pulls/${ticket.prNumber}/comments --jq '[.[] | {body, path, line, html_url, user: {type: .user.type}}]'`,
+      { cwd: project.repoPath, encoding: 'utf-8', timeout: 15000 },
+    ).trim();
+    if (!json) return [];
+    const comments = JSON.parse(json);
+    return parseSecurityAlerts(comments);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[security] Error fetching PR comments for ticket #${ticket.id}: ${msg}`);
+    return [];
+  }
+}
+
+async function checkSecurityAlerts(ticket: Ticket) {
+  if (!ticket.prUrl || !ticket.prNumber) return;
+  if (ticket.status !== 'in_review') return;
+
+  const alerts = await fetchSecurityAlerts(ticket);
+  // Only update if alerts changed
+  const existing = ticket.securityAlerts || [];
+  if (alerts.length === existing.length &&
+      alerts.every((a, i) => a.htmlUrl === existing[i]?.htmlUrl)) {
+    return;
+  }
+  const updated = await updateTicket(ticket.id, { securityAlerts: alerts.length > 0 ? alerts : undefined });
+  if (updated) await broadcastTicket(updated);
+  if (alerts.length > 0) {
+    console.log(`[security] Ticket #${ticket.id} has ${alerts.length} security alert(s)`);
+  }
+}
+
 // ─── Dispatcher Tick ────────────────────────────────────────────
 
 export async function dispatcherTick() {
@@ -525,6 +604,9 @@ export async function dispatcherTick() {
   for (const ticket of inReviewTickets) {
     // Check if PR has been merged externally
     await checkPrStatus(ticket);
+
+    // Check for security alerts in PR comments
+    await checkSecurityAlerts(ticket);
 
     // Re-read ticket from DB since checkPrStatus may have updated status to 'merged'
     if (ticket.autoMerge) {

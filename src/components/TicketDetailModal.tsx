@@ -23,10 +23,10 @@ import {
   Activity,
   Gauge,
 } from 'lucide-react';
-import type { Ticket, TicketStatus, Project, AgentActivity } from '../types';
+import type { Ticket, TicketStatus, Project, AgentActivity, SecurityAlert } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount } from '../types';
 
-import { XCircle, GitMerge } from 'lucide-react';
+import { XCircle, GitMerge, ShieldAlert } from 'lucide-react';
 
 const STATUS_STYLE: Record<TicketStatus, { bg: string; text: string; icon: typeof Clock }> = {
   todo: { bg: 'bg-accent-amber/10', text: 'text-accent-amber', icon: Clock },
@@ -69,6 +69,13 @@ function ActivityLabel({ entry }: { entry: AgentActivity }) {
       return <span className="text-slate-400">Output</span>;
   }
 }
+
+const SEVERITY_STYLES: Record<SecurityAlert['severity'], { bg: string; text: string; border: string }> = {
+  CRITICAL: { bg: 'bg-red-500/15', text: 'text-red-400', border: 'border-red-500/30' },
+  HIGH: { bg: 'bg-accent-red/10', text: 'text-accent-red', border: 'border-accent-red/20' },
+  MEDIUM: { bg: 'bg-accent-amber/10', text: 'text-accent-amber', border: 'border-accent-amber/20' },
+  LOW: { bg: 'bg-slate-500/10', text: 'text-slate-400', border: 'border-slate-500/20' },
+};
 
 export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModalProps) {
   const style = STATUS_STYLE[ticket.status];
@@ -150,6 +157,12 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   Auto-Merge
                 </span>
               )}
+              {ticket.securityAlerts && ticket.securityAlerts.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-accent-red/10 text-accent-red">
+                  <ShieldAlert className="w-3 h-3" />
+                  {ticket.securityAlerts.length} Security {ticket.securityAlerts.length === 1 ? 'Alert' : 'Alerts'}
+                </span>
+              )}
             </div>
             <h2 className="text-lg font-bold text-slate-100">{ticket.subject}</h2>
           </div>
@@ -177,6 +190,44 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
               </div>
               <ExternalLink className="w-4 h-4 text-accent-green" />
             </a>
+          )}
+
+          {/* Security Alerts */}
+          {ticket.securityAlerts && ticket.securityAlerts.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-accent-red shrink-0" />
+                <p className="text-sm font-medium text-accent-red">
+                  {ticket.securityAlerts.length} Security {ticket.securityAlerts.length === 1 ? 'Alert' : 'Alerts'}
+                </p>
+              </div>
+              {ticket.securityAlerts.map((alert, idx) => {
+                const sev = SEVERITY_STYLES[alert.severity] || SEVERITY_STYLES.MEDIUM;
+                return (
+                  <a
+                    key={idx}
+                    href={alert.htmlUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`block rounded-lg p-3 border ${sev.border} ${sev.bg} hover:brightness-110 transition-all`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${sev.bg} ${sev.text} border ${sev.border}`}>
+                        {alert.severity}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-500">{alert.category}</span>
+                      {alert.path && (
+                        <span className="text-[10px] font-mono text-slate-500 truncate">
+                          {alert.path}{alert.line ? `:${alert.line}` : ''}
+                        </span>
+                      )}
+                      <ExternalLink className="w-3 h-3 text-slate-500 ml-auto shrink-0" />
+                    </div>
+                    <p className={`text-xs ${sev.text}`}>{alert.summary}</p>
+                  </a>
+                );
+              })}
+            </div>
           )}
 
           {/* Project info */}

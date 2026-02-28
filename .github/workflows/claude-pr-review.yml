@@ -48,8 +48,17 @@ jobs:
           fetch-depth: 2
 
       - name: Run Claude Security Review
+        id: security-scan
         uses: anthropics/claude-code-security-review@main
         with:
           comment-pr: true
           claude-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           exclude-directories: "node_modules,dist,build"
+
+      - name: Fail on security findings
+        if: steps.security-scan.outputs.findings-count > 0
+        env:
+          FINDINGS_COUNT: ${{ steps.security-scan.outputs.findings-count }}
+        run: |
+          echo "::error::Security review found $FINDINGS_COUNT issue(s). See PR comments for details."
+          exit 1

@@ -159,6 +159,26 @@ export interface Ticket {
   lastThinking?: string;
   /** Effort metrics collected from agent stream output */
   effort?: TicketEffort;
+  /** Security alerts from PR review bot comments */
+  securityAlerts?: SecurityAlert[];
+}
+
+/** A security alert found in PR review comments */
+export interface SecurityAlert {
+  /** Severity level from the security review */
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  /** Category of the issue (e.g. data_corruption, injection, xss) */
+  category: string;
+  /** One-line summary of the issue */
+  summary: string;
+  /** Full body of the comment */
+  body: string;
+  /** File path the comment references */
+  path?: string;
+  /** Line number in the file */
+  line?: number;
+  /** URL to the comment on GitHub */
+  htmlUrl: string;
 }
 
 /** Effort metrics describing how much work an agent put into a ticket */
