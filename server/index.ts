@@ -22,7 +22,7 @@ import {
   deleteTicket,
   getProjectsPayload,
 } from './store.ts';
-import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, checkPrStatus } from './dispatcher.ts';
+import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, checkPrStatus, conflictCheckTick } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
 import type { TeamWithData, WSEvent } from '../src/types.ts';
 
@@ -254,6 +254,16 @@ app.post('/api/tickets/:id/refresh-status', async (req, res) => {
   } catch (err) {
     console.error('Error refreshing ticket status:', err);
     res.status(500).json({ error: 'Failed to refresh status' });
+  }
+});
+
+app.post('/api/tickets/check-conflicts', async (_req, res) => {
+  try {
+    await conflictCheckTick();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error running conflict check:', err);
+    res.status(500).json({ error: 'Failed to check conflicts' });
   }
 });
 

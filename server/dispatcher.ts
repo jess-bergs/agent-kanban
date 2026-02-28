@@ -456,16 +456,33 @@ export async function checkPrStatus(ticket: Ticket) {
 
   try {
     const prJson = execSync(
-      `gh pr view "${ticket.prUrl}" --json state`,
+      `gh pr view "${ticket.prUrl}" --json state,mergeable`,
       { cwd: project.repoPath, encoding: 'utf-8', timeout: 15000 },
     ).trim();
 
-    const pr: { state: string } = JSON.parse(prJson);
+    const pr: { state: string; mergeable: string } = JSON.parse(prJson);
 
     if (pr.state === 'MERGED') {
-      const merged = await updateTicket(ticket.id, { status: 'merged' });
+      const merged = await updateTicket(ticket.id, { status: 'merged', hasConflict: false });
       if (merged) await broadcastTicket(merged);
       console.log(`[pr-monitor] Ticket #${ticket.id} PR has been merged`);
+      return;
+    }
+
+    // Update conflict status on every PR status check
+    const isConflicting = pr.mergeable === 'CONFLICTING';
+    if (isConflicting !== !!ticket.hasConflict) {
+      const updates: Partial<Ticket> = { hasConflict: isConflicting };
+      if (isConflicting) {
+        updates.conflictDetectedAt = ticket.conflictDetectedAt || Date.now();
+      } else {
+        updates.conflictDetectedAt = undefined;
+      }
+      const updated = await updateTicket(ticket.id, updates);
+      if (updated) {
+        await broadcastTicket(updated);
+        console.log(`[pr-monitor] Ticket #${ticket.id} conflict status: ${isConflicting}`);
+      }
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -525,6 +542,63 @@ async function checkAutoMerge(ticket: Ticket) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[auto-merge] Error checking ticket #${ticket.id}: ${msg}`);
+  }
+}
+
+// ─── Hourly Conflict Detection ──────────────────────────────────
+
+async function checkPrConflicts(ticket: Ticket) {
+  if (!ticket.prUrl || ticket.status !== 'in_review') return;
+
+  const project = await getProject(ticket.projectId);
+  if (!project) return;
+
+  try {
+    const prJson = execSync(
+      `gh pr view "${ticket.prUrl}" --json mergeable,state`,
+      { cwd: project.repoPath, encoding: 'utf-8', timeout: 15000 },
+    ).trim();
+
+    const pr: { mergeable: string; state: string } = JSON.parse(prJson);
+
+    // Skip closed/merged PRs
+    if (pr.state === 'MERGED' || pr.state === 'CLOSED') return;
+
+    const isConflicting = pr.mergeable === 'CONFLICTING';
+
+    if (isConflicting && !ticket.hasConflict) {
+      // Newly detected conflict
+      const updated = await updateTicket(ticket.id, {
+        hasConflict: true,
+        conflictDetectedAt: Date.now(),
+      });
+      if (updated) {
+        await broadcastTicket(updated);
+        console.log(`[conflict-check] Ticket #${ticket.id} PR has merge conflicts`);
+      }
+    } else if (!isConflicting && ticket.hasConflict) {
+      // Conflict resolved
+      const updated = await updateTicket(ticket.id, {
+        hasConflict: false,
+        conflictDetectedAt: undefined,
+      });
+      if (updated) {
+        await broadcastTicket(updated);
+        console.log(`[conflict-check] Ticket #${ticket.id} conflicts resolved`);
+      }
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[conflict-check] Error checking ticket #${ticket.id}: ${msg}`);
+  }
+}
+
+export async function conflictCheckTick() {
+  const tickets = await listTickets();
+  const inReview = tickets.filter(t => t.status === 'in_review' && t.prUrl);
+
+  for (const ticket of inReview) {
+    await checkPrConflicts(ticket);
   }
 }
 
@@ -600,6 +674,9 @@ export function killAgent(ticketId: string): boolean {
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
+let conflictIntervalId: ReturnType<typeof setInterval> | null = null;
+
+const CONFLICT_CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 export function startDispatcher() {
   console.log('[dispatcher] Started (polling every 3s, max concurrent: ' + MAX_CONCURRENT + ')');
@@ -607,10 +684,15 @@ export function startDispatcher() {
   dispatcherTick();
   // Poll for new tickets
   intervalId = setInterval(dispatcherTick, 3000);
+  // Hourly conflict check for all in-review PRs
+  conflictCheckTick();
+  conflictIntervalId = setInterval(conflictCheckTick, CONFLICT_CHECK_INTERVAL_MS);
+  console.log('[dispatcher] Conflict check scheduled (every 1h)');
 }
 
 export function stopDispatcher() {
   if (intervalId) clearInterval(intervalId);
+  if (conflictIntervalId) clearInterval(conflictIntervalId);
   // Kill running agents
   for (const [id, proc] of running) {
     console.log(`[dispatcher] Killing agent for ticket #${id}`);
