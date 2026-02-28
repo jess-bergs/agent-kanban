@@ -93,16 +93,11 @@ export async function createTicket(data: {
   yolo?: boolean;
   autoMerge?: boolean;
   queued?: boolean;
+  useRalph?: boolean;
 }): Promise<Ticket> {
   await ensureDirs();
-  // Auto-increment ticket ID
-  const existing = await listTickets();
-  const maxId = existing.reduce((max, t) => {
-    const num = parseInt(t.id, 10);
-    return isNaN(num) ? max : Math.max(max, num);
-  }, 0);
   const ticket: Ticket = {
-    id: String(maxId + 1),
+    id: randomUUID().slice(0, 8),
     status: 'todo',
     createdAt: Date.now(),
     ...data,
