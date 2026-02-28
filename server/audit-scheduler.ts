@@ -6,10 +6,14 @@ import {
   createRun,
   updateRun,
   listRuns,
+  listRunsBySchedule,
   getRun,
   computeNextRun,
 } from './audit-store.ts';
 import { getProject, createTicket, getTicket } from './store.ts';
+import { getTemplate } from './audit-templates.ts';
+import { parseStructuredReport, writeMarkdownReport } from './audit-report-parser.ts';
+import { computeTrend } from './audit-trend.ts';
 import { envWithNvmNode } from './nvm.ts';
 import type { AuditSchedule, AuditRun, WSEvent } from '../src/types.ts';
 
@@ -24,6 +28,72 @@ export function setSchedulerBroadcast(fn: BroadcastFn) {
 }
 
 const runningAudits = new Map<string, ChildProcess>(); // runId -> process
+
+// ─── Rubric Prompt Construction ─────────────────────────────────
+
+function buildRubricInstructions(schedule: AuditSchedule): string {
+  const template = schedule.templateId ? getTemplate(schedule.templateId) : null;
+  if (!template) return '';
+
+  const aspectList = template.rubric
+    .map((r, i) => `${i + 1}. **${r.aspect}**: ${r.description} (weight: ${r.weight})`)
+    .join('\n');
+
+  const verdicts = template.verdictLabels.join(' / ');
+
+  return `
+
+---
+
+## REQUIRED: Structured Output
+
+After completing your analysis, you MUST output a JSON block wrapped in \`\`\`json fences with this exact structure:
+
+\`\`\`json
+{
+  "overallScore": 7.5,
+  "overallVerdict": "${template.verdictLabels[0]}",
+  "summary": "One-paragraph summary of findings",
+  "rubric": [
+    {
+      "aspect": "Aspect Name",
+      "score": 8.0,
+      "summary": "Brief explanation of this score",
+      "findingCount": 2
+    }
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "aspect": "Aspect Name",
+      "location": "src/file.ts:42",
+      "title": "One-line summary of finding",
+      "description": "Detailed explanation",
+      "recommendation": "Suggested fix"
+    }
+  ]
+}
+\`\`\`
+
+## Evaluation Rubric
+
+Score each of these aspects from 0 (terrible) to 10 (perfect):
+
+${aspectList}
+
+Scoring guide:
+- 9-10: No issues found, exemplary
+- 7-8: Minor issues only, good overall
+- 4-6: Notable concerns that should be addressed
+- 1-3: Serious problems requiring immediate attention
+- 0: Critical failures or complete absence
+
+The overallScore should be the weighted average of aspect scores.
+The overallVerdict should be one of: ${verdicts}
+
+Severity levels for findings: critical, high, medium, low, info
+Each finding must reference one of the rubric aspects above.`;
+}
 
 // ─── Report Mode Execution ──────────────────────────────────────
 
@@ -64,6 +134,7 @@ async function executeReportAudit(schedule: AuditSchedule, run: AuditRun): Promi
     'IMPORTANT: This is a READ-ONLY audit. Do NOT modify any files.',
     'Do NOT create branches, commits, or PRs.',
     'Produce a detailed report of your findings as your final output.',
+    buildRubricInstructions(schedule),
   ].join('\n');
 
   const args = [
@@ -142,9 +213,45 @@ async function executeReportAudit(schedule: AuditSchedule, run: AuditRun): Promi
       });
       if (failedRun) broadcastFn({ type: 'audit_run_updated', data: failedRun });
     } else {
+      // Parse structured report from agent output
+      const structuredReport = parseStructuredReport(fullText);
+
+      let reportPath: string | undefined;
+      let trend: typeof run.trend;
+
+      if (structuredReport) {
+        // Write markdown report to data/reports/
+        try {
+          reportPath = await writeMarkdownReport(run, structuredReport, schedule.name, project.name);
+          console.log(`[audit-scheduler] Report written to ${reportPath}`);
+        } catch (err) {
+          console.error(`[audit-scheduler] Failed to write markdown report:`, err);
+        }
+
+        // Compute trend against previous completed run for same schedule
+        try {
+          const previousRuns = (await listRunsBySchedule(schedule.id))
+            .filter(r => r.id !== run.id && r.status === 'completed' && r.structuredReport)
+            .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+
+          if (previousRuns.length > 0 && previousRuns[0].structuredReport) {
+            trend = computeTrend(structuredReport, previousRuns[0].structuredReport, previousRuns[0].id);
+            console.log(`[audit-scheduler] Trend: ${trend.direction} (${trend.delta > 0 ? '+' : ''}${trend.delta.toFixed(1)})`);
+          }
+        } catch (err) {
+          console.error(`[audit-scheduler] Trend computation failed:`, err);
+        }
+      } else {
+        console.log(`[audit-scheduler] No structured JSON found in output — storing raw text only`);
+      }
+
       const completedRun = await updateRun(run.id, {
         status: 'completed',
         report: fullText,
+        reportPath,
+        structuredReport: structuredReport || undefined,
+        severityCounts: structuredReport?.severityCounts,
+        trend,
         completedAt,
         agentPid: undefined,
       });

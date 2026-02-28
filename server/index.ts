@@ -505,6 +505,50 @@ app.get('/api/audit-runs/:id', async (req, res) => {
   }
 });
 
+// Serve the markdown report file for a run
+app.get('/api/audit-runs/:id/report', async (req, res) => {
+  const run = await getAuditRun(req.params.id);
+  if (!run) {
+    res.status(404).json({ error: 'Audit run not found' });
+    return;
+  }
+  if (!run.reportPath) {
+    res.status(404).json({ error: 'No structured report available for this run' });
+    return;
+  }
+  try {
+    const { readFile } = await import('node:fs/promises');
+    const content = await readFile(run.reportPath, 'utf-8');
+    res.type('text/markdown').send(content);
+  } catch {
+    res.status(404).json({ error: 'Report file not found on disk' });
+  }
+});
+
+// Trend data for a schedule's completed runs (for charting)
+app.get('/api/audit-schedules/:id/trends', async (req, res) => {
+  try {
+    const runs = await listRunsBySchedule(req.params.id);
+    const completedRuns = runs
+      .filter(r => r.status === 'completed' && r.structuredReport)
+      .sort((a, b) => a.startedAt - b.startedAt);
+
+    const trendData = completedRuns.map(r => ({
+      runId: r.id,
+      completedAt: r.completedAt,
+      overallScore: r.structuredReport!.overallScore,
+      overallVerdict: r.structuredReport!.overallVerdict,
+      severityCounts: r.severityCounts,
+      trend: r.trend,
+    }));
+
+    res.json(trendData);
+  } catch (err) {
+    console.error('Error fetching trends:', err);
+    res.status(500).json({ error: 'Failed to fetch trend data' });
+  }
+});
+
 // ─── Conflict Check ─────────────────────────────────────────────
 
 app.post('/api/tickets/check-conflicts', async (_req, res) => {

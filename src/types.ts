@@ -211,10 +211,77 @@ export interface AuditRun {
   status: AuditRunStatus;
   ticketId?: string;
   report?: string;
+  reportPath?: string;
+  structuredReport?: AuditReport;
+  severityCounts?: SeverityCounts;
+  trend?: AuditTrend;
   agentPid?: number;
   error?: string;
   startedAt: number;
   completedAt?: number;
+}
+
+// ─── Structured Audit Reports ─────────────────────────────────────
+
+export type FindingSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+
+export interface SeverityCounts {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  info: number;
+}
+
+export interface AuditFinding {
+  id: string;
+  severity: FindingSeverity;
+  aspect: string;
+  location?: string;
+  title: string;
+  description: string;
+  recommendation?: string;
+}
+
+export interface AuditRubricScore {
+  aspect: string;
+  score: number;
+  rating: 'pass' | 'concern' | 'fail';
+  summary: string;
+  findingCount: number;
+}
+
+export interface AuditReport {
+  overallScore: number;
+  overallVerdict: string;
+  summary: string;
+  rubric: AuditRubricScore[];
+  findings: AuditFinding[];
+  severityCounts: SeverityCounts;
+  generatedAt: number;
+}
+
+export interface AuditTrend {
+  previousRunId: string;
+  previousScore: number;
+  currentScore: number;
+  delta: number;
+  direction: 'improving' | 'stable' | 'declining';
+  newFindings: string[];
+  resolvedFindings: string[];
+  recurringFindings: string[];
+  aspectDeltas: Array<{
+    aspect: string;
+    previousScore: number;
+    currentScore: number;
+    delta: number;
+  }>;
+}
+
+export interface RubricAspectDefinition {
+  aspect: string;
+  description: string;
+  weight: number;
 }
 
 /** Effort metrics describing how much work an agent put into a ticket */
