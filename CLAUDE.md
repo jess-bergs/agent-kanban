@@ -35,6 +35,9 @@ server/            # Express backend
   solo-agents.ts   # Detects standalone Claude Code sessions
 server/screenshots.ts  # Post-PR screenshot capture & upload to GitHub
   auditor.ts       # Local PR auditor — watchlist-based PR review agent
+  audit-scheduler.ts # Scheduled codebase audits — recurring agent-based reviews
+  audit-store.ts   # Persistence for audit schedules and run results
+  audit-templates.ts # Built-in audit prompt templates
 scripts/           # Screenshot generation tooling (npm run screenshot)
 .github/           # PR template
 ```
@@ -104,3 +107,41 @@ using headless Chromium (Playwright) and uploads it to the PR body. This happens
 `server/screenshots.ts` and is best-effort — failures don't block the ticket.
 
 To capture screenshots manually: `npm run screenshot`
+
+## Scheduled Codebase Audits
+
+The audit scheduler (`server/audit-scheduler.ts`) runs recurring agent-based audits on
+registered projects. It polls every 5 minutes and spawns Claude agents when audits are due.
+
+### Modes
+- **report**: Runs the agent read-only in the project repo. Output is captured and stored as
+  the audit report. No branches, commits, or PRs are created.
+- **fix**: Creates a ticket with the audit instructions. The existing dispatcher handles
+  worktree creation, agent execution, and PR creation.
+
+### Built-in Templates
+Five audit templates are available in `server/audit-templates.ts`:
+- `readme-freshness` — Checks docs match the codebase (default: weekly, report)
+- `architecture-review` — Coupling, consistency, tech debt analysis (default: monthly, report)
+- `improvement-opportunities` — Dead code, duplication, quick wins (default: weekly, report)
+- `dependency-review` — Outdated/vulnerable/unused packages (default: monthly, report)
+- `security-scan` — Secrets, injection, unsafe patterns (default: weekly, report)
+
+### Cadence
+Schedules support `daily`, `weekly`, `monthly`, or `manual` cadence. The scheduler computes
+`nextRunAt` from the last run time. Manual schedules only run when triggered via API.
+
+### API Endpoints
+- `GET /api/audit-templates` — List built-in templates
+- `GET /api/audit-schedules` — List all schedules (filter with `?projectId=`)
+- `POST /api/audit-schedules` — Create a schedule (`{ projectId, name, templateId|prompt, cadence, mode }`)
+- `GET /api/audit-schedules/:id` — Get a schedule
+- `PATCH /api/audit-schedules/:id` — Update (e.g. `{ "status": "paused" }`)
+- `DELETE /api/audit-schedules/:id` — Delete a schedule
+- `POST /api/audit-schedules/:id/trigger` — Manually trigger a run
+- `GET /api/audit-runs` — List runs (filter with `?scheduleId=`)
+- `GET /api/audit-runs/:id` — Get a run (includes `report` field for completed report-mode runs)
+
+### Data
+- Schedules: `data/audit-schedules/{uuid}.json`
+- Runs: `data/audit-runs/{uuid}.json`
