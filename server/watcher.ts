@@ -7,6 +7,8 @@ export interface ChangeEvent {
   teamName: string;
   /** For tasks, the task filename; for inboxes, the agent name */
   detail?: string;
+  /** True when the file was deleted (unlink event) */
+  isUnlink?: boolean;
 }
 
 export type ChangeCallback = (event: ChangeEvent) => void;
@@ -71,7 +73,7 @@ export function startWatcher(callback: ChangeCallback): FSWatcher {
     );
   }
 
-  function handleChange(filePath: string) {
+  function handleChange(filePath: string, isUnlink = false) {
     if (shouldIgnore(filePath)) return;
 
     // Try classifying as a teams/ change
@@ -79,6 +81,7 @@ export function startWatcher(callback: ChangeCallback): FSWatcher {
     if (!relToTeams.startsWith('..')) {
       const event = classifyTeamsChange(relToTeams);
       if (event) {
+        if (isUnlink) event.isUnlink = true;
         debouncedEmit(`${event.kind}:${event.teamName}:${event.detail ?? ''}`, event);
         return;
       }
@@ -89,6 +92,7 @@ export function startWatcher(callback: ChangeCallback): FSWatcher {
     if (!relToTasks.startsWith('..')) {
       const event = classifyTasksChange(relToTasks);
       if (event) {
+        if (isUnlink) event.isUnlink = true;
         debouncedEmit(`${event.kind}:${event.teamName}:${event.detail ?? ''}`, event);
         return;
       }
@@ -102,9 +106,9 @@ export function startWatcher(callback: ChangeCallback): FSWatcher {
     awaitWriteFinish: { stabilityThreshold: 50, pollInterval: 20 },
   });
 
-  watcher.on('add', handleChange);
-  watcher.on('change', handleChange);
-  watcher.on('unlink', handleChange);
+  watcher.on('add', (p) => handleChange(p));
+  watcher.on('change', (p) => handleChange(p));
+  watcher.on('unlink', (p) => handleChange(p, true));
 
   return watcher;
 }

@@ -786,6 +786,11 @@ async function handleFileChange(event: ChangeEvent) {
   try {
     switch (event.kind) {
       case 'team_config': {
+        if (event.isUnlink) {
+          console.log(`[watcher] Team config deleted: ${event.teamName}`);
+          broadcast({ type: 'team_removed', data: { name: event.teamName } });
+          return;
+        }
         const config = await readTeamConfig(event.teamName);
         if (!config) return;
         const [tasks, inboxes] = await Promise.all([
