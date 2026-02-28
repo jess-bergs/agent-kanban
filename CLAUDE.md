@@ -34,8 +34,9 @@ server/            # Express backend
   store.ts         # JSON file-based persistence for projects and tickets
   solo-agents.ts   # Detects standalone Claude Code sessions
 server/screenshots.ts  # Post-PR screenshot capture & upload to GitHub
+  auditor.ts       # Local PR auditor — spawns Claude agent to review PRs
 scripts/           # Screenshot generation tooling (npm run screenshot)
-.github/           # PR template, Claude PR review workflow
+.github/           # PR template
 ```
 
 ## Architecture
@@ -64,7 +65,21 @@ When a ticket is dispatched:
 3. The agent works, commits, pushes, and creates a PR
 4. The dispatcher detects the PR URL and moves the ticket to `in_review`
 5. The dispatcher captures a UI screenshot via Playwright and attaches it to the PR
-6. Optional auto-merge when PR checks pass and reviews are approved
+6. A local auditor agent reviews the PR for code quality, security, PR checklist adherence, and AGENTS.md compliance
+7. Optional auto-merge when PR checks pass and reviews are approved
+
+## Local PR Auditor
+
+Instead of GitHub Action workflows, PR reviews are handled by a local Claude Code agent
+(`server/auditor.ts`). When a ticket enters `in_review` with a PR URL, the auditor
+automatically spawns a `claude` CLI process that:
+- Fetches the PR diff via `gh pr diff`
+- Reviews for code quality, security, completeness, and project convention adherence
+- Posts a structured review comment on the PR via `gh pr review`
+- Can approve, request changes, or leave a comment
+
+The auditor can also be triggered manually via `POST /api/tickets/:id/audit`.
+Audit status is tracked on the ticket as `auditStatus` (pending/running/done/error).
 
 ## UI Screenshots
 

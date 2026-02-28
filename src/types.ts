@@ -163,6 +163,10 @@ export interface Ticket {
   lastThinking?: string;
   /** Effort metrics collected from agent stream output */
   effort?: TicketEffort;
+  /** Status of the local auditor review */
+  auditStatus?: 'pending' | 'running' | 'done' | 'error';
+  /** Auditor review result text */
+  auditResult?: string;
 }
 
 /** Effort metrics describing how much work an agent put into a ticket */
