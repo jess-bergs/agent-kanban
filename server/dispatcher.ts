@@ -1,9 +1,10 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { execSync } from 'node:child_process';
 import { getProject, getTicket, updateTicket, listTickets } from './store.ts';
-import type { Ticket, WSEvent } from '../src/types.ts';
+import type { Ticket, AgentActivity, WSEvent } from '../src/types.ts';
 
 const MAX_CONCURRENT = 5;
+const MAX_ACTIVITY_ENTRIES = 20;
 const running = new Map<string, ChildProcess>();
 
 type BroadcastFn = (event: WSEvent) => void;
@@ -166,7 +167,7 @@ async function startAgent(ticket: Ticket) {
     prompt = taskDescription;
   }
 
-  const args = ['-p', prompt, '--output-format', 'text'];
+  const args = ['-p', prompt, '--output-format', 'stream-json', '--verbose'];
   if (ticket.yolo) {
     args.push('--dangerously-skip-permissions');
   }
@@ -187,16 +188,98 @@ async function startAgent(ticket: Ticket) {
   const pidUpdate = await updateTicket(ticket.id, { agentPid: proc.pid });
   if (pidUpdate) await broadcastTicket(pidUpdate);
 
-  let stdout = '';
   let stderr = '';
+  // Accumulated text output (for PR URL detection and final lastOutput)
+  let fullText = '';
+  // Live activity feed and reasoning state
+  const activity: AgentActivity[] = [];
+  let lastThinking = '';
+  let lineBuffer = '';
 
-  proc.stdout.on('data', (chunk: Buffer) => {
-    stdout += chunk.toString();
-    // Periodically update lastOutput (last 500 chars)
-    const last = stdout.slice(-500);
-    updateTicket(ticket.id, { lastOutput: last }).then(t => {
+  function pushActivity(entry: AgentActivity) {
+    activity.push(entry);
+    if (activity.length > MAX_ACTIVITY_ENTRIES) {
+      activity.splice(0, activity.length - MAX_ACTIVITY_ENTRIES);
+    }
+  }
+
+  function processStreamLine(line: string) {
+    if (!line.trim()) return;
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      fullText += line + '\n';
+      return;
+    }
+
+    const type = event.type as string;
+    const now = Date.now();
+
+    if (type === 'assistant') {
+      const msg = event.message as { content?: Array<Record<string, unknown>> } | undefined;
+      const contentBlocks = msg?.content;
+      if (Array.isArray(contentBlocks)) {
+        for (const block of contentBlocks) {
+          if (block.type === 'thinking' && typeof block.thinking === 'string') {
+            lastThinking = (block.thinking as string).slice(-1000);
+            pushActivity({
+              type: 'thinking',
+              content: (block.thinking as string).slice(-200),
+              timestamp: now,
+            });
+          } else if (block.type === 'text' && typeof block.text === 'string') {
+            const text = block.text as string;
+            fullText += text + '\n';
+            pushActivity({
+              type: 'text',
+              content: text.slice(-200),
+              timestamp: now,
+            });
+          } else if (block.type === 'tool_use') {
+            const toolName = (block.name as string) || 'unknown';
+            const input = block.input ? JSON.stringify(block.input).slice(0, 150) : '';
+            pushActivity({
+              type: 'tool_use',
+              tool: toolName,
+              content: input,
+              timestamp: now,
+            });
+          } else if (block.type === 'tool_result') {
+            const content = typeof block.content === 'string'
+              ? block.content.slice(0, 150)
+              : '';
+            pushActivity({
+              type: 'tool_result',
+              content,
+              timestamp: now,
+            });
+          }
+        }
+      }
+    } else if (type === 'result') {
+      const resultText = event.result as string | undefined;
+      if (resultText) {
+        fullText += resultText + '\n';
+      }
+    }
+
+    updateTicket(ticket.id, {
+      lastOutput: fullText.slice(-500),
+      agentActivity: [...activity],
+      lastThinking: lastThinking || undefined,
+    }).then(t => {
       if (t) broadcastTicket(t);
     });
+  }
+
+  proc.stdout.on('data', (chunk: Buffer) => {
+    lineBuffer += chunk.toString();
+    const lines = lineBuffer.split('\n');
+    lineBuffer = lines.pop() || '';
+    for (const line of lines) {
+      processStreamLine(line);
+    }
   });
 
   proc.stderr.on('data', (chunk: Buffer) => {
@@ -204,6 +287,10 @@ async function startAgent(ticket: Ticket) {
   });
 
   proc.on('close', async (code) => {
+    if (lineBuffer.trim()) {
+      processStreamLine(lineBuffer);
+    }
+
     running.delete(ticket.id);
     console.log(`[dispatcher] Agent for ticket #${ticket.id} exited with code ${code}`);
 
@@ -219,12 +306,10 @@ async function startAgent(ticket: Ticket) {
       return;
     }
 
-    // Try to find PR URL in output
     let prUrl: string | undefined;
     let prNumber: number | undefined;
 
-    // Look for github PR URL in stdout
-    const prUrlMatch = stdout.match(
+    const prUrlMatch = fullText.match(
       /https:\/\/github\.com\/[^\s]+\/pull\/(\d+)/,
     );
     if (prUrlMatch) {
@@ -232,7 +317,6 @@ async function startAgent(ticket: Ticket) {
       prNumber = parseInt(prUrlMatch[1], 10);
     }
 
-    // If no PR found in output, try gh CLI
     if (!prUrl) {
       try {
         const ghResult = execSync(
@@ -254,7 +338,9 @@ async function startAgent(ticket: Ticket) {
       prUrl,
       prNumber,
       completedAt: Date.now(),
-      lastOutput: stdout.slice(-1000),
+      lastOutput: fullText.slice(-1000),
+      agentActivity: [...activity],
+      lastThinking: lastThinking || undefined,
       agentPid: undefined,
     });
     if (reviewTicket) await broadcastTicket(reviewTicket);
@@ -264,7 +350,6 @@ async function startAgent(ticket: Ticket) {
         (prUrl ? ` — PR: ${prUrl}` : ' (no PR detected)'),
     );
 
-    // Clean up worktree (keep the branch for the PR)
     cleanupWorktree(project.repoPath, worktreePath);
   });
 }
