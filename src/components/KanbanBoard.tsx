@@ -41,9 +41,9 @@ export function KanbanBoard({ tasks, members }: KanbanBoardProps) {
     }
   }
 
-  // Sort by id within each column
+  // Sort by id within each column, newest first
   for (const status of COLUMNS) {
-    grouped[status].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    grouped[status].sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }));
   }
 
   return (
