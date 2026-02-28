@@ -7,8 +7,8 @@ import {
   GitMerge,
   GitPullRequest,
   Images,
-  Info,
   Loader2,
+  Users,
   ShieldAlert,
   Terminal,
   Zap
@@ -69,6 +69,12 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
           <span className="flex items-center gap-1 text-[10px] font-medium text-accent-amber bg-accent-amber/10 px-1.5 py-0.5 rounded shrink-0">
             <Zap className="w-3 h-3 fill-accent-amber" />
             YOLO
+          </span>
+        )}
+        {ticket.useTeam && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded shrink-0">
+            <Users className="w-3 h-3" />
+            TEAM
           </span>
         )}
         {ticket.images && ticket.images.length > 0 && (

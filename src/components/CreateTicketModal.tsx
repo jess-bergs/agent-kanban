@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Send, Zap, GitMerge, Clock, RefreshCw, ImagePlus } from 'lucide-react';
+import { X, Send, Zap, GitMerge, Clock, RefreshCw, Users, ImagePlus } from 'lucide-react';
 import type { Project } from '../types';
 
 interface PendingImage {
@@ -23,6 +23,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
   const [autoMerge, setAutoMerge] = useState(true);
   const [queued, setQueued] = useState(false);
   const [useRalph, setUseRalph] = useState(false);
+  const [useTeam, setUseTeam] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [images, setImages] = useState<PendingImage[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -86,6 +87,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
           autoMerge,
           queued,
           useRalph,
+          useTeam,
         }),
       });
       if (!res.ok) return;
@@ -227,7 +229,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
             <label className="block text-xs font-medium text-slate-400 mb-1.5">
               Options
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setYolo(!yolo)}
@@ -299,6 +301,25 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
                 <span className={`text-xs font-medium ${useRalph ? 'text-accent-green' : 'text-slate-300'}`}>Ralph Loop</span>
                 <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
                   useRalph ? 'bg-accent-green justify-end' : 'bg-surface-600 justify-start'
+                }`}>
+                  <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setUseTeam(!useTeam)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
+                  useTeam
+                    ? 'bg-accent-blue/10 border-accent-blue/30'
+                    : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                }`}
+                title="Agent spawns a team of sub-agents for heavy-lifting tasks."
+              >
+                <Users className={`w-4 h-4 shrink-0 ${useTeam ? 'text-accent-blue' : 'text-slate-500'}`} />
+                <span className={`text-xs font-medium ${useTeam ? 'text-accent-blue' : 'text-slate-300'}`}>Team</span>
+                <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
+                  useTeam ? 'bg-accent-blue justify-end' : 'bg-surface-600 justify-start'
                 }`}>
                   <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
                 </div>

@@ -196,9 +196,19 @@ async function startAgent(ticket: Ticket) {
     );
   }
 
+  if (ticket.useTeam) {
+    taskLines.push(
+      '',
+      'IMPORTANT: You should spawn a team of sub-agents to help you accomplish this task. Use the TeamCreate and Agent tools to coordinate parallel work across teammates. This is a heavy-lifting task that benefits from multiple agents working together.',
+    );
+  }
+
   const taskDescription = taskLines.join('\n');
 
   console.log(`[dispatcher] Starting agent for ticket #${ticket.id}: ${ticket.subject}`);
+  if (ticket.useTeam) {
+    console.log(`[dispatcher] Team mode enabled (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1)`);
+  }
   console.log(`[dispatcher] Working dir: ${agentCwd}${useWorktree ? ' (worktree)' : ' (direct)'}`);
 
   let prompt: string;
@@ -222,6 +232,9 @@ async function startAgent(ticket: Ticket) {
   delete cleanEnv.CLAUDECODE;
   delete cleanEnv.CLAUDE_CODE;
   delete cleanEnv.ANTHROPIC_API_KEY;
+
+  // Enable or disable agent teams based on ticket option
+  cleanEnv.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = ticket.useTeam ? '1' : '0';
 
   const proc = spawn('claude', args, {
     cwd: agentCwd,

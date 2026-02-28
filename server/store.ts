@@ -130,6 +130,7 @@ export async function createTicket(data: {
   autoMerge?: boolean;
   queued?: boolean;
   useRalph?: boolean;
+  useTeam?: boolean;
 }): Promise<Ticket> {
   await ensureDirs();
   const now = Date.now();

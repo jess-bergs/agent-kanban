@@ -172,6 +172,7 @@ export interface Ticket {
   autoMerge?: boolean;
   queued?: boolean;
   useRalph?: boolean;
+  useTeam?: boolean;
   branchName?: string;
   worktreePath?: string;
   prUrl?: string;
