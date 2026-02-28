@@ -176,7 +176,7 @@ app.get('/api/tickets', async (req, res) => {
 
 app.post('/api/tickets', async (req, res) => {
   try {
-    const { projectId, subject, instructions, yolo, autoMerge, queued } = req.body;
+    const { projectId, subject, instructions, yolo, autoMerge, queued, useRalph } = req.body;
     if (!projectId || !subject || !instructions) {
       res.status(400).json({ error: 'projectId, subject, and instructions are required' });
       return;
@@ -186,6 +186,7 @@ app.post('/api/tickets', async (req, res) => {
       yolo: !!yolo,
       autoMerge: !!autoMerge,
       queued: !!queued,
+      useRalph: !!useRalph,
     });
     broadcast({ type: 'ticket_updated', data: ticket });
     res.status(201).json(ticket);

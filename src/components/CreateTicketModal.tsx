@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Send, Zap, GitMerge, Clock } from 'lucide-react';
+import { X, Send, Zap, GitMerge, Clock, RefreshCw } from 'lucide-react';
 import type { Project } from '../types';
 
 interface CreateTicketModalProps {
@@ -14,6 +14,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
   const [yolo, setYolo] = useState(false);
   const [autoMerge, setAutoMerge] = useState(false);
   const [queued, setQueued] = useState(false);
+  const [useRalph, setUseRalph] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -32,6 +33,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
           yolo,
           autoMerge,
           queued,
+          useRalph,
         }),
       });
       if (res.ok) {
@@ -170,6 +172,32 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
             </div>
             <div className={`w-10 h-6 rounded-full transition-colors flex items-center shrink-0 ${
               queued ? 'bg-accent-cyan justify-end' : 'bg-surface-600 justify-start'
+            }`}>
+              <div className="w-4 h-4 bg-white rounded-full mx-1 shadow-sm" />
+            </div>
+          </button>
+
+          {/* Ralph Wiggum toggle */}
+          <button
+            type="button"
+            onClick={() => setUseRalph(!useRalph)}
+            className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg border transition-colors text-left ${
+              useRalph
+                ? 'bg-accent-green/10 border-accent-green/30 text-accent-green'
+                : 'bg-surface-900 border-surface-600 text-slate-400 hover:text-slate-200 hover:border-surface-500'
+            }`}
+          >
+            <RefreshCw className={`w-5 h-5 shrink-0 ${useRalph ? 'text-accent-green' : ''}`} />
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium ${useRalph ? 'text-accent-green' : 'text-slate-200'}`}>
+                Ralph Wiggum Loop
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Use iterative self-improving loop. Agent repeats task until completion criteria met or max iterations reached.
+              </p>
+            </div>
+            <div className={`w-10 h-6 rounded-full transition-colors flex items-center shrink-0 ${
+              useRalph ? 'bg-accent-green justify-end' : 'bg-surface-600 justify-start'
             }`}>
               <div className="w-4 h-4 bg-white rounded-full mx-1 shadow-sm" />
             </div>

@@ -131,6 +131,7 @@ export interface Ticket {
   yolo?: boolean;
   autoMerge?: boolean;
   queued?: boolean;
+  useRalph?: boolean;
   branchName?: string;
   worktreePath?: string;
   prUrl?: string;
