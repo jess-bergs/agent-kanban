@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process';
 import { getProject, getTicket, updateTicket, listTickets } from './store.ts';
 import type { Ticket, WSEvent } from '../src/types.ts';
 
-const MAX_CONCURRENT = 2;
+const MAX_CONCURRENT = 5;
 const running = new Map<string, ChildProcess>();
 
 type BroadcastFn = (event: WSEvent) => void;
