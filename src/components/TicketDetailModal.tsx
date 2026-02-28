@@ -221,7 +221,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           </div>
 
           {/* Actions */}
-          {(ticket.status === 'error' || ticket.status === 'failed' || ticket.status === 'in_review' || ticket.status === 'merged' || ticket.status === 'todo') && (
+          {(ticket.status === 'error' || ticket.status === 'failed' || ticket.status === 'in_review' || ticket.status === 'done' || ticket.status === 'merged' || ticket.status === 'todo') && (
             <div className="flex items-center gap-3 pt-3 border-t border-surface-700">
               {(ticket.status === 'error' || ticket.status === 'failed') && (
                 <button
