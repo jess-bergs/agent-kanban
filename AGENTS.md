@@ -1,26 +1,10 @@
 # Agents
 
-See [CLAUDE.md](./CLAUDE.md) for project conventions, architecture, and development instructions.
+See [CLAUDE.md](./CLAUDE.md) for a project overview and quick start.
 
-## Security
+## Agent Guidance
 
-Before working on server-side code, read [SECURITY.md](./SECURITY.md) for:
-- Threat model and known risks
-- Shell command safety guidelines (prefer `execFileSync`/`spawn` with argument arrays)
-- Route parameter validation requirements
-- Checklist for agents touching the API or dispatcher
-
-## Architecture Documentation
-
-When adding a significant new feature or subsystem, add an architecture doc to
-`docs/architecture/`. This should cover:
-- High-level overview and where it fits in the system
-- Data model (types, persistence)
-- Execution flow (sequence/data flow diagrams welcome)
-- Concurrency and lifecycle considerations
-- File layout
-
-Existing architecture docs:
-- [Audit Scheduler](./docs/architecture/scheduler.md) — recurring codebase audits
-
-Include a link to the new architecture doc in your PR description.
+- [Conventions](./docs/AGENTS/conventions.md) — build commands, project structure, coding standards
+- [Workflow](./docs/AGENTS/workflow.md) — PR rules, ticket lifecycle, auditor, scheduled audits
+- [Security](./docs/AGENTS/security.md) — checklist for server-side code
+- [Architecture Guide](./docs/AGENTS/architecture.md) — how to add architecture docs, index of existing docs

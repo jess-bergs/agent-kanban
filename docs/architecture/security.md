@@ -1,6 +1,4 @@
-# Security Considerations
-
-This log tracks security-related aspects agents should consider when working on tickets in this codebase. It is referenced from [AGENTS.md](./AGENTS.md).
+# Security Architecture
 
 ## Threat Model
 
@@ -28,27 +26,14 @@ All `:id` route parameters are validated against a UUID format regex before reac
 
 Multiple calls in `dispatcher.ts` and `screenshots.ts` build command strings via template literals. While current inputs are sanitized upstream (slugified branch names, UUID-based paths), this pattern is fragile. Prefer `spawn()` or `execFileSync()` with argument arrays — these are safe by construction since arguments bypass the shell.
 
-**Recommendation for agents:** When adding new shell commands, always use `spawn()` or `execFileSync()` with argument arrays. Never pass untrusted strings through template-literal shell commands.
-
 ### 2. Unvalidated PATCH body
 
-`PATCH /api/tickets/:id` passes `req.body` directly to `updateTicket()` with no field allowlist. This means any JSON field can be written to the ticket, including internal fields like `agentPid`, `worktreePath`, or `status`. While this is acceptable for a local dev tool, agents adding new endpoints should validate and allowlist update fields.
+`PATCH /api/tickets/:id` passes `req.body` directly to `updateTicket()` with no field allowlist. This means any JSON field can be written to the ticket, including internal fields like `agentPid`, `worktreePath`, or `status`. While this is acceptable for a local dev tool, new endpoints should validate and allowlist update fields.
 
 ### 3. No authentication
 
-There is no auth on the API. This is by design (local tool), but agents should not add endpoints that expose sensitive data (environment variables, API keys, file contents outside the project) without considering this.
+There is no auth on the API. This is by design (local tool), but endpoints should not expose sensitive data (environment variables, API keys, file contents outside the project) without considering this.
 
 ### 4. Screenshots and file operations
 
-`screenshots.ts` uses `execFileSync` for most operations (good), but runs `npm run dev` via `spawn` with `shell: true`. Agents modifying screenshot logic should avoid introducing new `shell: true` usage.
-
-## Checklist for Agents
-
-When working on tickets that touch the server:
-
-- [ ] **Never interpolate untrusted input into shell command strings** — use `execFileSync()` or `spawn()` with args arrays
-- [ ] **Validate route parameters** — ensure `:id` params match expected formats before using them
-- [ ] **Allowlist update fields** on PATCH/PUT endpoints when possible
-- [ ] **Don't expose sensitive data** — no env vars, API keys, or arbitrary file reads through the API
-- [ ] **Sanitize data before shell use** — if a user-provided string must go to a shell, strip or escape metacharacters
-- [ ] **Prefer `execFileSync` over string-interpolated commands** — argument arrays prevent injection by construction
+`screenshots.ts` uses `execFileSync` for most operations (good), but runs `npm run dev` via `spawn` with `shell: true`. Avoid introducing new `shell: true` usage.
