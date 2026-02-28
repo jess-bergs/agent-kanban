@@ -197,6 +197,11 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   {ticket.conflictDetectedAt && (
                     <> Detected {formatTimestamp(ticket.conflictDetectedAt)}.</>
                   )}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Needs approval banner */}
           {ticket.status === 'needs_approval' && (
             <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent-orange/5 border border-accent-orange/20">
