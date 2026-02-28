@@ -547,7 +547,7 @@ interface PrStatus {
   state: string;
   mergeable: string;
   reviewDecision: string;
-  statusCheckRollup: { state: string }[];
+  statusCheckRollup: { status: string; conclusion: string }[];
 }
 
 export async function checkPrStatus(ticket: Ticket) {
@@ -623,7 +623,7 @@ async function checkAutoMerge(ticket: Ticket) {
       pr.reviewDecision === 'REVIEW_REQUIRED';
     const checks = pr.statusCheckRollup || [];
     const checksPassed = checks.length === 0 ||
-      checks.every(c => c.state === 'SUCCESS');
+      checks.every(c => c.conclusion === 'SUCCESS' || c.conclusion === 'NEUTRAL');
     const isMergeable = pr.mergeable === 'MERGEABLE';
 
     if (!reviewBlocking && checksPassed && isMergeable) {
