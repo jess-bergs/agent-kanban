@@ -54,6 +54,23 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
+  // Cmd+N / Ctrl+N to open the create ticket modal
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        // Don't trigger when typing in an input or textarea
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        // Don't trigger if another modal is already open
+        if (selectedTicket || showCreate) return;
+        e.preventDefault();
+        setShowCreate(true);
+      }
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [selectedTicket, showCreate]);
+
   // Auto-open ticket when navigated from agents view
   useEffect(() => {
     if (openTicketId) {
@@ -117,7 +134,7 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
                     <button
                       onClick={() => setShowCreate(true)}
                       className="p-0.5 rounded hover:bg-white/10 transition-colors"
-                      title="New ticket"
+                      title="New ticket (⌘N)"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
