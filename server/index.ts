@@ -24,6 +24,7 @@ import {
 } from './store.ts';
 import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, checkPrStatus, conflictCheckTick } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
+import { runAudit, isAuditRunning, setAuditorBroadcast } from './auditor.ts';
 import type { TeamWithData, WSEvent } from '../src/types.ts';
 
 const PORT = 3003;
@@ -257,6 +258,27 @@ app.post('/api/tickets/:id/refresh-status', async (req, res) => {
   }
 });
 
+app.post('/api/tickets/:id/audit', async (req, res) => {
+  const ticket = await getTicket(req.params.id);
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found' });
+    return;
+  }
+  if (!ticket.prUrl) {
+    res.status(400).json({ error: 'Ticket has no PR URL' });
+    return;
+  }
+  if (isAuditRunning(ticket.id)) {
+    res.status(409).json({ error: 'Audit already running for this ticket' });
+    return;
+  }
+  // Fire and forget — audit runs asynchronously
+  runAudit(ticket).catch(err => {
+    console.error(`[api] Audit failed for ticket #${ticket.id}:`, err);
+  });
+  res.json({ success: true, message: 'Audit started' });
+});
+
 app.post('/api/tickets/check-conflicts', async (_req, res) => {
   try {
     await conflictCheckTick();
@@ -294,8 +316,9 @@ function broadcast(event: WSEvent) {
   }
 }
 
-// Wire dispatcher broadcasts to WebSocket
+// Wire dispatcher and auditor broadcasts to WebSocket
 setDispatchBroadcast(broadcast);
+setAuditorBroadcast(broadcast);
 
 wss.on('connection', async (ws) => {
   console.log(`[ws] Client connected (total: ${wss.clients.size})`);

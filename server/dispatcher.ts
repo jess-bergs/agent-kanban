@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { execSync } from 'node:child_process';
 import { getProject, getTicket, updateTicket, listTickets } from './store.ts';
 import { captureAndUploadScreenshots } from './screenshots.ts';
+import { runAudit } from './auditor.ts';
 import type { Ticket, AgentActivity, TicketEffort, WSEvent } from '../src/types.ts';
 
 const MAX_CONCURRENT = 5;
@@ -426,6 +427,16 @@ async function startAgent(ticket: Ticket) {
     }
 
     cleanupWorktree(project.repoPath, worktreePath);
+
+    // Run local auditor review on the PR (best-effort, non-blocking)
+    if (prUrl) {
+      const auditTicket = await getTicket(ticket.id);
+      if (auditTicket) {
+        runAudit(auditTicket).catch(err => {
+          console.error(`[dispatcher] Auditor failed for ticket #${ticket.id}:`, err);
+        });
+      }
+    }
   });
 }
 
