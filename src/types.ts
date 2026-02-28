@@ -157,6 +157,24 @@ export interface Ticket {
   agentActivity?: AgentActivity[];
   /** Current reasoning/thinking text (most recent) */
   lastThinking?: string;
+  /** Effort metrics collected from agent stream output */
+  effort?: TicketEffort;
+}
+
+/** Effort metrics describing how much work an agent put into a ticket */
+export interface TicketEffort {
+  /** Number of API round-trips (assistant events) */
+  turns: number;
+  /** Number of tool calls made */
+  toolCalls: number;
+  /** Total input tokens consumed (may be approximate due to stream-json duplication) */
+  inputTokens?: number;
+  /** Total output tokens produced */
+  outputTokens?: number;
+  /** Cost in USD if reported */
+  costUsd?: number;
+  /** Duration in milliseconds (computed from startedAt/completedAt) */
+  durationMs?: number;
 }
 
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
@@ -225,6 +243,20 @@ export function formatTimestamp(ts: string | number): string {
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
   return date.toLocaleDateString();
+}
+
+export function formatDuration(ms: number): string {
+  if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
+  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.round((ms % 3_600_000) / 60_000);
+  return `${h}h ${m}m`;
+}
+
+export function formatTokenCount(tokens: number): string {
+  if (tokens < 1000) return String(tokens);
+  if (tokens < 1_000_000) return `${(tokens / 1000).toFixed(1)}k`;
+  return `${(tokens / 1_000_000).toFixed(2)}M`;
 }
 
 export function isIdleNotification(text: string): boolean {

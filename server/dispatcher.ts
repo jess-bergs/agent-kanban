@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { execSync } from 'node:child_process';
 import { getProject, getTicket, updateTicket, listTickets } from './store.ts';
-import type { Ticket, AgentActivity, WSEvent } from '../src/types.ts';
+import type { Ticket, AgentActivity, TicketEffort, WSEvent } from '../src/types.ts';
 
 const MAX_CONCURRENT = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
@@ -195,6 +195,10 @@ async function startAgent(ticket: Ticket) {
   const activity: AgentActivity[] = [];
   let lastThinking = '';
   let lineBuffer = '';
+  // Effort tracking
+  const effort: TicketEffort = { turns: 0, toolCalls: 0 };
+  // Track message IDs to deduplicate usage stats (stream-json duplicates per content block)
+  const seenMessageIds = new Set<string>();
 
   function pushActivity(entry: AgentActivity) {
     activity.push(entry);
@@ -217,7 +221,19 @@ async function startAgent(ticket: Ticket) {
     const now = Date.now();
 
     if (type === 'assistant') {
-      const msg = event.message as { content?: Array<Record<string, unknown>> } | undefined;
+      const msg = event.message as { id?: string; content?: Array<Record<string, unknown>>; usage?: Record<string, number> } | undefined;
+      const msgId = msg?.id as string | undefined;
+      // Count each unique assistant message as one API turn
+      if (msgId && !seenMessageIds.has(msgId)) {
+        seenMessageIds.add(msgId);
+        effort.turns++;
+        // Capture usage only once per message to avoid stream-json duplication
+        const usage = msg?.usage;
+        if (usage) {
+          effort.inputTokens = (effort.inputTokens || 0) + (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0) + (usage.cache_creation_input_tokens || 0);
+          effort.outputTokens = (effort.outputTokens || 0) + (usage.output_tokens || 0);
+        }
+      }
       const contentBlocks = msg?.content;
       if (Array.isArray(contentBlocks)) {
         for (const block of contentBlocks) {
@@ -237,6 +253,7 @@ async function startAgent(ticket: Ticket) {
               timestamp: now,
             });
           } else if (block.type === 'tool_use') {
+            effort.toolCalls++;
             const toolName = (block.name as string) || 'unknown';
             const input = block.input ? JSON.stringify(block.input).slice(0, 150) : '';
             pushActivity({
@@ -262,12 +279,24 @@ async function startAgent(ticket: Ticket) {
       if (resultText) {
         fullText += resultText + '\n';
       }
+      // Capture cost from result event if available
+      const costUsd = event.cost_usd as number | undefined;
+      if (typeof costUsd === 'number') {
+        effort.costUsd = costUsd;
+      }
+      // Also try usage from result event
+      const resultUsage = event.usage as Record<string, number> | undefined;
+      if (resultUsage && !effort.inputTokens) {
+        effort.inputTokens = (resultUsage.input_tokens || 0) + (resultUsage.cache_read_input_tokens || 0);
+        effort.outputTokens = resultUsage.output_tokens || 0;
+      }
     }
 
     updateTicket(ticket.id, {
       lastOutput: fullText.slice(-500),
       agentActivity: [...activity],
       lastThinking: lastThinking || undefined,
+      effort: { ...effort },
     }).then(t => {
       if (t) broadcastTicket(t);
     });
@@ -294,12 +323,20 @@ async function startAgent(ticket: Ticket) {
     running.delete(ticket.id);
     console.log(`[dispatcher] Agent for ticket #${ticket.id} exited with code ${code}`);
 
+    // Compute duration for effort
+    const completedAt = Date.now();
+    const currentTicket = await getTicket(ticket.id);
+    if (currentTicket?.startedAt) {
+      effort.durationMs = completedAt - currentTicket.startedAt;
+    }
+
     if (code !== 0) {
       const failedTicket = await updateTicket(ticket.id, {
         status: 'failed',
         error: stderr.slice(-500) || `Agent exited with code ${code}`,
-        completedAt: Date.now(),
+        completedAt,
         agentPid: undefined,
+        effort: { ...effort },
       });
       if (failedTicket) await broadcastTicket(failedTicket);
       if (useWorktree) cleanupWorktree(project.repoPath, worktreePath);
@@ -337,11 +374,12 @@ async function startAgent(ticket: Ticket) {
       status: 'in_review',
       prUrl,
       prNumber,
-      completedAt: Date.now(),
+      completedAt,
       lastOutput: fullText.slice(-1000),
       agentActivity: [...activity],
       lastThinking: lastThinking || undefined,
       agentPid: undefined,
+      effort: { ...effort },
     });
     if (reviewTicket) await broadcastTicket(reviewTicket);
 
