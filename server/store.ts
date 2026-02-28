@@ -93,6 +93,7 @@ export async function createTicket(data: {
   yolo?: boolean;
   autoMerge?: boolean;
   queued?: boolean;
+  useRalph?: boolean;
 }): Promise<Ticket> {
   await ensureDirs();
   // Auto-increment ticket ID

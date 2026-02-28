@@ -5,7 +5,12 @@ import type { Ticket, AgentActivity, TicketEffort, WSEvent } from '../src/types.
 
 const MAX_CONCURRENT = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
+const APPROVAL_WAIT_THRESHOLD_MS = 15_000; // 15s without tool_result = likely waiting for approval
 const running = new Map<string, ChildProcess>();
+/** Tracks the last stream activity time per ticket, for detecting approval waits */
+const lastStreamActivity = new Map<string, number>();
+/** Tracks whether the last emitted event was a tool_use without a matching tool_result */
+const pendingToolApproval = new Map<string, boolean>();
 
 type BroadcastFn = (event: WSEvent) => void;
 let broadcastFn: BroadcastFn = () => {};
@@ -184,6 +189,8 @@ async function startAgent(ticket: Ticket) {
   });
 
   running.set(ticket.id, proc);
+  lastStreamActivity.set(ticket.id, Date.now());
+  pendingToolApproval.set(ticket.id, false);
 
   const pidUpdate = await updateTicket(ticket.id, { agentPid: proc.pid });
   if (pidUpdate) await broadcastTicket(pidUpdate);
@@ -219,6 +226,7 @@ async function startAgent(ticket: Ticket) {
 
     const type = event.type as string;
     const now = Date.now();
+    lastStreamActivity.set(ticket.id, now);
 
     if (type === 'assistant') {
       const msg = event.message as { id?: string; content?: Array<Record<string, unknown>>; usage?: Record<string, number> } | undefined;
@@ -262,6 +270,10 @@ async function startAgent(ticket: Ticket) {
               content: input,
               timestamp: now,
             });
+            // Mark that we're waiting for a tool result (non-YOLO agents may need approval)
+            if (!ticket.yolo) {
+              pendingToolApproval.set(ticket.id, true);
+            }
           } else if (block.type === 'tool_result') {
             const content = typeof block.content === 'string'
               ? block.content.slice(0, 150)
@@ -271,6 +283,18 @@ async function startAgent(ticket: Ticket) {
               content,
               timestamp: now,
             });
+            // Tool result received — agent is no longer waiting for approval
+            if (pendingToolApproval.get(ticket.id)) {
+              pendingToolApproval.set(ticket.id, false);
+              // Transition back to in_progress if we were in needs_approval
+              getTicket(ticket.id).then(t => {
+                if (t && t.status === 'needs_approval') {
+                  updateTicket(ticket.id, { status: 'in_progress' }).then(u => {
+                    if (u) broadcastTicket(u);
+                  });
+                }
+              });
+            }
           }
         }
       }
@@ -321,6 +345,8 @@ async function startAgent(ticket: Ticket) {
     }
 
     running.delete(ticket.id);
+    lastStreamActivity.delete(ticket.id);
+    pendingToolApproval.delete(ticket.id);
     console.log(`[dispatcher] Agent for ticket #${ticket.id} exited with code ${code}`);
 
     // Compute duration for effort
@@ -515,6 +541,21 @@ export async function dispatcherTick() {
       if (running.size >= MAX_CONCURRENT) break;
       if (running.has(ticket.id)) continue;
       await startAgent(ticket);
+    }
+  }
+
+  // Check for non-YOLO agents that may be waiting for permission approval
+  const inProgressTickets = tickets.filter(
+    t => t.status === 'in_progress' && !t.yolo && running.has(t.id),
+  );
+  const now = Date.now();
+  for (const ticket of inProgressTickets) {
+    const lastActivity = lastStreamActivity.get(ticket.id);
+    const hasPendingTool = pendingToolApproval.get(ticket.id);
+    if (hasPendingTool && lastActivity && (now - lastActivity) > APPROVAL_WAIT_THRESHOLD_MS) {
+      const updated = await updateTicket(ticket.id, { status: 'needs_approval' });
+      if (updated) await broadcastTicket(updated);
+      console.log(`[dispatcher] Ticket #${ticket.id} appears to be waiting for tool approval`);
     }
   }
 
