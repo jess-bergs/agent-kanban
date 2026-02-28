@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { Radio, Bot } from 'lucide-react';
 import type { TeamWithData, Project, Ticket, SoloAgent } from '../types';
 import { formatTimestamp } from '../types';
@@ -40,6 +41,14 @@ export function Layout({
   onSelectProject,
   selectedProjectTickets,
 }: LayoutProps) {
+  const [openTicketId, setOpenTicketId] = useState<string | null>(null);
+
+  const handleNavigateToTicket = useCallback((projectId: string, ticketId: string) => {
+    setViewMode('projects');
+    onSelectProject(projectId);
+    setOpenTicketId(ticketId);
+  }, [setViewMode, onSelectProject]);
+
   const showAgentsView = viewMode === 'agents';
   const showTeamView = viewMode === 'teams' && selectedTeam;
   const showProjectView = viewMode === 'projects' && selectedProject;
@@ -128,7 +137,7 @@ export function Layout({
         {/* Main content */}
         <main className="flex-1 flex flex-col min-h-0 min-w-0">
           {showAgentsView ? (
-            <AgentKanban agents={soloAgents} />
+            <AgentKanban agents={soloAgents} tickets={tickets} onNavigateToTicket={handleNavigateToTicket} />
           ) : showTeamView ? (
             <>
               <TeamHeader team={selectedTeam} />
@@ -140,7 +149,12 @@ export function Layout({
             <>
               <ProjectHeader project={selectedProject} tickets={selectedProjectTickets} />
               <div className="flex-1 overflow-auto p-4">
-                <TicketKanban tickets={selectedProjectTickets} project={selectedProject} />
+                <TicketKanban
+                  tickets={selectedProjectTickets}
+                  project={selectedProject}
+                  openTicketId={openTicketId}
+                  onTicketOpened={() => setOpenTicketId(null)}
+                />
               </div>
             </>
           ) : (

@@ -22,7 +22,7 @@ import {
   deleteTicket,
   getProjectsPayload,
 } from './store.ts';
-import { startDispatcher, stopDispatcher, setDispatchBroadcast } from './dispatcher.ts';
+import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
 import type { TeamWithData, WSEvent } from '../src/types.ts';
 
@@ -233,6 +233,9 @@ app.post('/api/tickets/:id/retry', async (req, res) => {
 });
 
 app.delete('/api/tickets/:id', async (req, res) => {
+  // Kill running agent process if any
+  killAgent(req.params.id);
+
   const ok = await deleteTicket(req.params.id);
   if (ok) {
     broadcast({ type: 'ticket_deleted', data: { id: req.params.id } });

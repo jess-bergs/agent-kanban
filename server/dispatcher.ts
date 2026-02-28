@@ -1,12 +1,12 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { execSync } from 'node:child_process';
 import { getProject, getTicket, updateTicket, listTickets } from './store.ts';
-import type { Ticket } from '../src/types.ts';
+import type { Ticket, WSEvent } from '../src/types.ts';
 
 const MAX_CONCURRENT = 2;
 const running = new Map<string, ChildProcess>();
 
-type BroadcastFn = (event: { type: string; data: unknown }) => void;
+type BroadcastFn = (event: WSEvent) => void;
 let broadcastFn: BroadcastFn = () => {};
 
 export function setDispatchBroadcast(fn: BroadcastFn) {
@@ -159,9 +159,14 @@ async function startAgent(ticket: Ticket) {
     args.push('--dangerously-skip-permissions');
   }
 
+  // Remove CLAUDECODE env to avoid "cannot be launched inside another Claude Code session" error
+  const cleanEnv = { ...process.env };
+  delete cleanEnv.CLAUDECODE;
+  delete cleanEnv.CLAUDE_CODE;
+
   const proc = spawn('claude', args, {
     cwd: agentCwd,
-    env: { ...process.env },
+    env: cleanEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -344,6 +349,18 @@ export async function dispatcherTick() {
   for (const ticket of autoMergeCandidates) {
     await checkAutoMerge(ticket);
   }
+}
+
+/** Kill a running agent by ticket ID */
+export function killAgent(ticketId: string): boolean {
+  const proc = running.get(ticketId);
+  if (proc) {
+    console.log(`[dispatcher] Killing agent for ticket #${ticketId}`);
+    proc.kill('SIGTERM');
+    running.delete(ticketId);
+    return true;
+  }
+  return false;
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null;

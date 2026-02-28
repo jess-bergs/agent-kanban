@@ -68,6 +68,8 @@ export interface SoloAgent {
   source: 'terminal' | 'vscode' | 'dispatched' | 'unknown';
   status: 'active' | 'idle';
   lastActiveAt: number;
+  prompt: string | null;
+  lastOutput: string | null;
 }
 
 export type WSEventType =

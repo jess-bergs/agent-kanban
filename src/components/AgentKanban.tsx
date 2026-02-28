@@ -1,9 +1,11 @@
-import { Bot, Monitor, Code2, Terminal, GitBranch, Clock } from 'lucide-react';
-import type { SoloAgent } from '../types';
+import { Bot, Monitor, Code2, Terminal, GitBranch, Clock, MessageSquare, Rocket, ExternalLink } from 'lucide-react';
+import type { SoloAgent, Ticket } from '../types';
 import { formatTimestamp } from '../types';
 
 interface AgentKanbanProps {
   agents: SoloAgent[];
+  tickets: Ticket[];
+  onNavigateToTicket?: (projectId: string, ticketId: string) => void;
 }
 
 function sourceLabel(source: SoloAgent['source']): { label: string; icon: typeof Bot } {
@@ -15,40 +17,64 @@ function sourceLabel(source: SoloAgent['source']): { label: string; icon: typeof
   }
 }
 
-function AgentCard({ agent }: { agent: SoloAgent }) {
+function isDispatched(agent: SoloAgent): boolean {
+  return agent.source === 'dispatched' || agent.cwd.includes('agent-kanban-worktrees');
+}
+
+function AgentCard({ agent, ticket, onNavigateToTicket }: {
+  agent: SoloAgent;
+  ticket?: Ticket;
+  onNavigateToTicket?: (projectId: string, ticketId: string) => void;
+}) {
   const isActive = agent.status === 'active';
+  const dispatched = isDispatched(agent);
   const { label: srcLabel, icon: SrcIcon } = sourceLabel(agent.source);
 
   return (
     <div
       className={`rounded-lg border p-3 transition-colors ${
-        isActive
-          ? 'bg-surface-700 border-accent-green/40'
-          : 'bg-surface-800 border-surface-600'
+        dispatched
+          ? isActive
+            ? 'bg-accent-cyan/5 border-accent-cyan/50 ring-1 ring-accent-cyan/20'
+            : 'bg-accent-cyan/5 border-accent-cyan/30'
+          : isActive
+            ? 'bg-surface-700 border-accent-green/40'
+            : 'bg-surface-800 border-surface-600'
       }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span
-            className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-              isActive
-                ? 'bg-accent-green animate-pulse'
-                : 'bg-slate-500'
-            }`}
-          />
+          {dispatched ? (
+            <Rocket className="w-3.5 h-3.5 text-accent-cyan shrink-0" />
+          ) : (
+            <span
+              className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                isActive
+                  ? 'bg-accent-green animate-pulse'
+                  : 'bg-slate-500'
+              }`}
+            />
+          )}
           <span className="font-medium text-sm text-slate-100 truncate">
             {agent.slug || agent.sessionId.slice(0, 8)}
           </span>
         </div>
-        <span
-          className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-            isActive
-              ? 'bg-accent-green/20 text-accent-green'
-              : 'bg-slate-700 text-slate-400'
-          }`}
-        >
-          {isActive ? 'Working' : 'Idle'}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {dispatched && (
+            <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent-cyan/20 text-accent-cyan">
+              Kanban
+            </span>
+          )}
+          <span
+            className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+              isActive
+                ? 'bg-accent-green/20 text-accent-green'
+                : 'bg-slate-700 text-slate-400'
+            }`}
+          >
+            {isActive ? 'Working' : 'Idle'}
+          </span>
+        </div>
       </div>
 
       <div className="mt-2 space-y-1 text-xs text-slate-400">
@@ -73,11 +99,49 @@ function AgentCard({ agent }: { agent: SoloAgent }) {
           <span>{formatTimestamp(agent.lastActiveAt)}</span>
         </div>
       </div>
+
+      {/* Prompt */}
+      {agent.prompt && (
+        <div className="mt-2 pt-2 border-t border-surface-600">
+          <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-1">
+            <MessageSquare className="w-2.5 h-2.5" />
+            Prompt
+          </div>
+          <p className="text-xs text-slate-300 line-clamp-2">{agent.prompt}</p>
+        </div>
+      )}
+
+      {/* Last output */}
+      {agent.lastOutput && (
+        <div className="mt-2 pt-2 border-t border-surface-600">
+          <div className="text-[10px] text-slate-500 mb-1">Last output</div>
+          <p className="text-[11px] text-slate-400 line-clamp-3 font-mono leading-relaxed">
+            {agent.lastOutput}
+          </p>
+        </div>
+      )}
+
+      {/* View ticket button for dispatched agents */}
+      {dispatched && ticket && onNavigateToTicket && (
+        <button
+          onClick={() => onNavigateToTicket(ticket.projectId, ticket.id)}
+          className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-accent-cyan/15 text-accent-cyan hover:bg-accent-cyan/25 transition-colors border border-accent-cyan/30"
+        >
+          <ExternalLink className="w-3 h-3" />
+          View Ticket #{ticket.id}
+        </button>
+      )}
     </div>
   );
 }
 
-export function AgentKanban({ agents }: AgentKanbanProps) {
+/** Match an agent to a ticket by branch name */
+function findTicketForAgent(agent: SoloAgent, tickets: Ticket[]): Ticket | undefined {
+  if (!agent.gitBranch) return undefined;
+  return tickets.find(t => t.branchName && t.branchName === agent.gitBranch);
+}
+
+export function AgentKanban({ agents, tickets, onNavigateToTicket }: AgentKanbanProps) {
   // Group agents by project (derived from cwd)
   const byProject = new Map<string, { cwd: string; agents: SoloAgent[] }>();
 
@@ -142,11 +206,16 @@ export function AgentKanban({ agents }: AgentKanbanProps) {
             const projectName = cwd.split('/').pop() || cwd;
             const repoPath = cwd.split('/').slice(-2).join('/');
             const hasActive = projectAgents.some(a => a.status === 'active');
+            const hasDispatched = projectAgents.some(a => isDispatched(a));
 
             return (
               <div
                 key={cwd}
-                className="w-80 shrink-0 flex flex-col bg-surface-800/50 rounded-xl border border-surface-700"
+                className={`w-80 shrink-0 flex flex-col rounded-xl border ${
+                  hasDispatched
+                    ? 'bg-accent-cyan/5 border-accent-cyan/30'
+                    : 'bg-surface-800/50 border-surface-700'
+                }`}
               >
                 {/* Column header */}
                 <div className="px-4 py-3 border-b border-surface-700">
@@ -177,7 +246,12 @@ export function AgentKanban({ agents }: AgentKanbanProps) {
                       return b.lastActiveAt - a.lastActiveAt;
                     })
                     .map(agent => (
-                      <AgentCard key={agent.sessionId} agent={agent} />
+                      <AgentCard
+                        key={agent.sessionId}
+                        agent={agent}
+                        ticket={findTicketForAgent(agent, tickets)}
+                        onNavigateToTicket={onNavigateToTicket}
+                      />
                     ))}
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import type { Ticket, TicketStatus, Project } from '../types';
 import { TICKET_STATUS_LABELS } from '../types';
@@ -38,11 +38,24 @@ const COLUMN_STYLES: Record<TicketStatus, { header: string; badge: string }> = {
 interface TicketKanbanProps {
   tickets: Ticket[];
   project: Project;
+  openTicketId?: string | null;
+  onTicketOpened?: () => void;
 }
 
-export function TicketKanban({ tickets, project }: TicketKanbanProps) {
+export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }: TicketKanbanProps) {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+
+  // Auto-open ticket when navigated from agents view
+  useEffect(() => {
+    if (openTicketId) {
+      const ticket = tickets.find(t => t.id === openTicketId);
+      if (ticket) {
+        setSelectedTicket(ticket);
+        onTicketOpened?.();
+      }
+    }
+  }, [openTicketId, tickets, onTicketOpened]);
 
   const grouped: Record<TicketStatus, Ticket[]> = {
     todo: [],
