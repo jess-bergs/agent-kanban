@@ -4,6 +4,7 @@ import { getProject, getTicket, updateTicket, listTickets } from './store.ts';
 import { captureAndUploadScreenshots } from './screenshots.ts';
 import { runAudit } from './auditor.ts';
 import type { Ticket, AgentActivity, TicketEffort, WSEvent } from '../src/types.ts';
+import { envWithNvmNode } from './nvm.ts';
 
 const MAX_CONCURRENT = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
@@ -182,14 +183,14 @@ async function startAgent(ticket: Ticket) {
   }
 
   // Remove env vars that would override subscription auth or block nested sessions
-  const cleanEnv = { ...process.env };
+  const cleanEnv: Record<string, string | undefined> = { ...process.env };
   delete cleanEnv.CLAUDECODE;
   delete cleanEnv.CLAUDE_CODE;
   delete cleanEnv.ANTHROPIC_API_KEY;
 
   const proc = spawn('claude', args, {
     cwd: agentCwd,
-    env: cleanEnv,
+    env: envWithNvmNode(cleanEnv),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
