@@ -126,11 +126,11 @@ async function startAgent(ticket: Ticket) {
     if (updated) await broadcastTicket(updated);
   }
 
-  // Build the prompt for Claude
-  const promptLines = [ticket.instructions, '', '---'];
+  // Build the task description for the agent
+  const taskLines = [ticket.instructions, '', '---'];
 
   if (useWorktree) {
-    promptLines.push(
+    taskLines.push(
       `You are working in a git worktree on branch "${branchName}" based on "${project.defaultBranch}".`,
       `The repository is: ${project.remoteUrl || project.repoPath}`,
       '',
@@ -141,7 +141,7 @@ async function startAgent(ticket: Ticket) {
       '4. Output the PR URL on its own line at the end',
     );
   } else {
-    promptLines.push(
+    taskLines.push(
       `You are working directly in: ${project.repoPath}`,
       'This repo has no commits yet, so no worktree was created.',
       '',
@@ -149,10 +149,22 @@ async function startAgent(ticket: Ticket) {
       '1. Stage and commit all changes with clear commit messages',
     );
   }
-  const prompt = promptLines.join('\n');
+
+  const taskDescription = taskLines.join('\n');
 
   console.log(`[dispatcher] Starting agent for ticket #${ticket.id}: ${ticket.subject}`);
   console.log(`[dispatcher] Working dir: ${agentCwd}${useWorktree ? ' (worktree)' : ' (direct)'}`);
+
+  let prompt: string;
+  if (ticket.useRalph) {
+    console.log(`[dispatcher] Ralph Wiggum mode enabled (max 50 iterations)`);
+    // Invoke ralph-loop skill with the task as the prompt
+    // Escape quotes in task description for shell safety
+    const escapedTask = taskDescription.replace(/"/g, '\\"');
+    prompt = `/ralph-loop "${escapedTask}\n\nWhen COMPLETELY finished, output: <promise>TICKET_COMPLETE</promise>" --max-iterations 50 --completion-promise "TICKET_COMPLETE"`;
+  } else {
+    prompt = taskDescription;
+  }
 
   const args = ['-p', prompt, '--output-format', 'text'];
   if (ticket.yolo) {
