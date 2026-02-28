@@ -83,7 +83,9 @@ export type WSEventType =
   | 'ticket_updated'
   | 'ticket_deleted'
   | 'agents_updated'
-  | 'auditor_updated';
+  | 'auditor_updated'
+  | 'audit_schedules_updated'
+  | 'audit_run_updated';
 
 export interface WSEvent {
   type: WSEventType;
@@ -168,6 +170,50 @@ export interface Ticket {
   auditStatus?: 'pending' | 'running' | 'done' | 'error';
   /** Auditor review result text */
   auditResult?: string;
+}
+
+// ─── Scheduled Audits ─────────────────────────────────────────────
+
+export type AuditCadence = 'daily' | 'weekly' | 'monthly' | 'manual';
+export type AuditMode = 'report' | 'fix';
+export type AuditScheduleStatus = 'active' | 'paused';
+export type AuditRunStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export type AuditTemplateId =
+  | 'readme-freshness'
+  | 'architecture-review'
+  | 'improvement-opportunities'
+  | 'dependency-review'
+  | 'security-scan';
+
+export interface AuditSchedule {
+  id: string;
+  projectId: string;
+  name: string;
+  templateId?: AuditTemplateId;
+  prompt: string;
+  cadence: AuditCadence;
+  mode: AuditMode;
+  status: AuditScheduleStatus;
+  yolo?: boolean;
+  autoMerge?: boolean;
+  createdAt: number;
+  lastRunAt?: number;
+  nextRunAt?: number;
+}
+
+export interface AuditRun {
+  id: string;
+  scheduleId: string;
+  projectId: string;
+  mode: AuditMode;
+  status: AuditRunStatus;
+  ticketId?: string;
+  report?: string;
+  agentPid?: number;
+  error?: string;
+  startedAt: number;
+  completedAt?: number;
 }
 
 /** Effort metrics describing how much work an agent put into a ticket */

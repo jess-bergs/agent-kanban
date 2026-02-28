@@ -35,7 +35,25 @@ import {
   getWatchlistStatus,
   triggerReReview,
 } from './auditor.ts';
-import type { TeamWithData, WSEvent } from '../src/types.ts';
+import {
+  startAuditScheduler,
+  stopAuditScheduler,
+  setSchedulerBroadcast,
+  triggerAudit,
+} from './audit-scheduler.ts';
+import {
+  listSchedules,
+  listSchedulesByProject,
+  getSchedule,
+  createSchedule,
+  updateSchedule as updateAuditSchedule,
+  deleteSchedule,
+  listRuns as listAuditRuns,
+  listRunsBySchedule,
+  getRun as getAuditRun,
+} from './audit-store.ts';
+import { listTemplates, getTemplate } from './audit-templates.ts';
+import type { TeamWithData, WSEvent, AuditTemplateId } from '../src/types.ts';
 
 const PORT = 3003;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -349,6 +367,146 @@ app.post('/api/auditor/re-review', async (req, res) => {
   res.json({ success: true, message: 'Re-review triggered' });
 });
 
+// ─── Audit Templates API ─────────────────────────────────────────
+
+app.get('/api/audit-templates', (_req, res) => {
+  res.json(listTemplates());
+});
+
+app.get('/api/audit-templates/:templateId', (req, res) => {
+  const template = getTemplate(req.params.templateId as AuditTemplateId);
+  if (template) {
+    res.json(template);
+  } else {
+    res.status(404).json({ error: 'Template not found' });
+  }
+});
+
+// ─── Audit Schedules API ─────────────────────────────────────────
+
+app.get('/api/audit-schedules', async (req, res) => {
+  try {
+    const projectId = req.query.projectId as string | undefined;
+    const schedules = projectId
+      ? await listSchedulesByProject(projectId)
+      : await listSchedules();
+    res.json(schedules);
+  } catch (err) {
+    console.error('Error fetching audit schedules:', err);
+    res.status(500).json({ error: 'Failed to read audit schedules' });
+  }
+});
+
+app.post('/api/audit-schedules', async (req, res) => {
+  try {
+    const { projectId, name, templateId, prompt, cadence, mode, yolo, autoMerge } = req.body;
+    if (!projectId || !name || !cadence || !mode) {
+      res.status(400).json({
+        error: 'projectId, name, cadence, and mode are required',
+      });
+      return;
+    }
+
+    let finalPrompt = prompt;
+    if (templateId && !prompt) {
+      const template = getTemplate(templateId);
+      if (!template) {
+        res.status(400).json({ error: `Unknown template: ${templateId}` });
+        return;
+      }
+      finalPrompt = template.prompt;
+    }
+
+    if (!finalPrompt) {
+      res.status(400).json({ error: 'Either prompt or templateId is required' });
+      return;
+    }
+
+    const schedule = await createSchedule({
+      projectId,
+      name,
+      templateId,
+      prompt: finalPrompt,
+      cadence,
+      mode,
+      status: 'active',
+      yolo: !!yolo,
+      autoMerge: !!autoMerge,
+    });
+
+    broadcast({ type: 'audit_schedules_updated', data: await listSchedules() });
+    res.status(201).json(schedule);
+  } catch (err) {
+    console.error('Error creating audit schedule:', err);
+    res.status(500).json({ error: 'Failed to create audit schedule' });
+  }
+});
+
+app.get('/api/audit-schedules/:id', async (req, res) => {
+  const schedule = await getSchedule(req.params.id);
+  if (schedule) {
+    res.json(schedule);
+  } else {
+    res.status(404).json({ error: 'Audit schedule not found' });
+  }
+});
+
+app.patch('/api/audit-schedules/:id', async (req, res) => {
+  const schedule = await updateAuditSchedule(req.params.id, req.body);
+  if (schedule) {
+    broadcast({ type: 'audit_schedules_updated', data: await listSchedules() });
+    res.json(schedule);
+  } else {
+    res.status(404).json({ error: 'Audit schedule not found' });
+  }
+});
+
+app.delete('/api/audit-schedules/:id', async (req, res) => {
+  const ok = await deleteSchedule(req.params.id);
+  if (ok) {
+    broadcast({ type: 'audit_schedules_updated', data: await listSchedules() });
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: 'Audit schedule not found' });
+  }
+});
+
+app.post('/api/audit-schedules/:id/trigger', async (req, res) => {
+  const run = await triggerAudit(req.params.id);
+  if (run) {
+    res.status(201).json(run);
+  } else {
+    res.status(404).json({ error: 'Audit schedule not found' });
+  }
+});
+
+// ─── Audit Runs API ──────────────────────────────────────────────
+
+app.get('/api/audit-runs', async (req, res) => {
+  try {
+    const scheduleId = req.query.scheduleId as string | undefined;
+    const runs = scheduleId
+      ? await listRunsBySchedule(scheduleId)
+      : await listAuditRuns();
+    runs.sort((a, b) => b.startedAt - a.startedAt);
+    res.json(runs);
+  } catch (err) {
+    console.error('Error fetching audit runs:', err);
+    res.status(500).json({ error: 'Failed to read audit runs' });
+  }
+});
+
+app.get('/api/audit-runs/:id', async (req, res) => {
+  const run = await getAuditRun(req.params.id);
+  if (run) {
+    res.json(run);
+  } else {
+    res.status(404).json({ error: 'Audit run not found' });
+  }
+});
+
+// ─── Conflict Check ─────────────────────────────────────────────
+
 app.post('/api/tickets/check-conflicts', async (_req, res) => {
   try {
     await conflictCheckTick();
@@ -389,6 +547,7 @@ function broadcast(event: WSEvent) {
 // Wire dispatcher and auditor broadcasts to WebSocket
 setDispatchBroadcast(broadcast);
 setAuditorBroadcast(broadcast);
+setSchedulerBroadcast(broadcast);
 
 wss.on('connection', async (ws) => {
   console.log(`[ws] Client connected (total: ${wss.clients.size})`);
@@ -403,6 +562,7 @@ wss.on('connection', async (ws) => {
     ws.send(JSON.stringify({ type: 'projects_updated', data: projectsData }));
     ws.send(JSON.stringify({ type: 'agents_updated', data: soloAgents }));
     ws.send(JSON.stringify({ type: 'auditor_updated', data: getWatchlistStatus() }));
+    ws.send(JSON.stringify({ type: 'audit_schedules_updated', data: await listSchedules() }));
   } catch (err) {
     console.error('[ws] Error sending initial data:', err);
   }
@@ -475,9 +635,10 @@ server.listen(PORT, () => {
   console.log(`[server] Projects API at http://localhost:${PORT}/api/projects`);
 });
 
-// Start the dispatcher and auditor
+// Start the dispatcher, auditor, and audit scheduler
 startDispatcher();
 startAuditor();
+startAuditScheduler();
 
 // ─── Solo Agent Polling ──────────────────────────────────────────
 
@@ -499,6 +660,7 @@ function shutdown() {
   console.log('\n[server] Shutting down...');
   stopDispatcher();
   stopAuditor();
+  stopAuditScheduler();
   clearInterval(agentPollInterval);
   watcher.close();
   wss.close();

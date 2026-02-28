@@ -13,7 +13,7 @@ async function ensureDirs() {
 }
 
 /** Atomic write: write to temp file then rename (rename is atomic on POSIX) */
-async function atomicWriteJson(path: string, data: unknown): Promise<void> {
+export async function atomicWriteJson(path: string, data: unknown): Promise<void> {
   const tmp = path + '.tmp.' + process.pid;
   await writeFile(tmp, JSON.stringify(data, null, 2));
   await rename(tmp, path);
@@ -22,7 +22,7 @@ async function atomicWriteJson(path: string, data: unknown): Promise<void> {
 /** Per-file write locks to prevent concurrent read-merge-write races */
 const writeLocks = new Map<string, Promise<void>>();
 
-async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+export async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const prev = writeLocks.get(key) ?? Promise.resolve();
   let resolve: () => void;
   const next = new Promise<void>(r => { resolve = r; });
@@ -32,7 +32,7 @@ async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   finally { resolve!(); }
 }
 
-async function safeReadJson<T>(path: string): Promise<T | null> {
+export async function safeReadJson<T>(path: string): Promise<T | null> {
   try {
     const raw = await readFile(path, 'utf-8');
     try {
@@ -57,7 +57,7 @@ async function safeReadJson<T>(path: string): Promise<T | null> {
   }
 }
 
-async function listJsonFiles<T>(dir: string): Promise<T[]> {
+export async function listJsonFiles<T>(dir: string): Promise<T[]> {
   await ensureDirs();
   const entries = await readdir(dir).catch(() => [] as string[]);
   const items: T[] = [];
