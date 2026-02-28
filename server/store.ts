@@ -50,7 +50,7 @@ export async function createProject(data: {
 }): Promise<Project> {
   await ensureDirs();
   const project: Project = {
-    id: randomUUID().slice(0, 8),
+    id: randomUUID(),
     createdAt: Date.now(),
     ...data,
   };
@@ -97,7 +97,7 @@ export async function createTicket(data: {
 }): Promise<Ticket> {
   await ensureDirs();
   const ticket: Ticket = {
-    id: randomUUID().slice(0, 8),
+    id: randomUUID(),
     status: 'todo',
     createdAt: Date.now(),
     ...data,
