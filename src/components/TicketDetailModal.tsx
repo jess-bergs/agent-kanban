@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   X,
   Hash,
@@ -23,6 +23,8 @@ import {
   Activity,
   Gauge,
   ShieldAlert,
+  ImagePlus,
+  Images,
 } from 'lucide-react';
 import type { Ticket, TicketStatus, Project, AgentActivity } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount } from '../types';
@@ -79,6 +81,8 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
   const [acting, setActing] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
   const [showActivity, setShowActivity] = useState(true);
+  const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   async function handleRetry() {
     setActing(true);
@@ -130,13 +134,39 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
     }
   }
 
+  const uploadImageFiles = useCallback(async (files: FileList | File[]) => {
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue;
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+      await fetch(`/api/tickets/${ticket.id}/images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataUrl, originalName: file.name }),
+      });
+    }
+  }, [ticket.id]);
+
+  async function handleDeleteImage(filename: string) {
+    await fetch(`/api/tickets/${ticket.id}/images/${filename}`, { method: 'DELETE' });
+  }
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (expandedImage) {
+          setExpandedImage(null);
+        } else {
+          onClose();
+        }
+      }
     }
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose]);
+  }, [onClose, expandedImage]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4" onClick={onClose}>
@@ -287,6 +317,87 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   {ticket.instructions}
                 </pre>
               </div>
+            </div>
+          )}
+
+          {/* Attached images */}
+          {(ticket.images?.length || ticket.status === 'todo') ? (
+            <div className="flex items-start gap-3">
+              <Images className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <p className="text-xs text-slate-500">
+                    Images {ticket.images?.length ? `(${ticket.images.length})` : ''}
+                  </p>
+                  {ticket.status === 'todo' && (
+                    <>
+                      <button
+                        onClick={() => imageInputRef.current?.click()}
+                        className="text-[10px] text-accent-blue hover:text-accent-blue/80 transition-colors flex items-center gap-1"
+                      >
+                        <ImagePlus className="w-3 h-3" />
+                        Add
+                      </button>
+                      <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={e => {
+                          if (e.target.files) uploadImageFiles(e.target.files);
+                          e.target.value = '';
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
+                {ticket.images && ticket.images.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {ticket.images.map(img => (
+                      <div key={img.filename} className="relative group">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedImage(`/api/ticket-images/${img.filename}`)}
+                          className="block"
+                        >
+                          <img
+                            src={`/api/ticket-images/${img.filename}`}
+                            alt={img.originalName}
+                            className="w-24 h-24 object-cover rounded-lg border border-surface-600 hover:border-accent-blue/50 transition-colors cursor-pointer"
+                          />
+                        </button>
+                        {ticket.status === 'todo' && (
+                          <button
+                            onClick={() => handleDeleteImage(img.filename)}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-accent-red text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                        <p className="text-[9px] text-slate-500 truncate w-24 mt-0.5">{img.originalName}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-600 italic">No images attached</p>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Expanded image lightbox */}
+          {expandedImage && (
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm cursor-pointer"
+              onClick={() => setExpandedImage(null)}
+            >
+              <img
+                src={expandedImage}
+                alt="Expanded view"
+                className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                onClick={e => e.stopPropagation()}
+              />
             </div>
           )}
 

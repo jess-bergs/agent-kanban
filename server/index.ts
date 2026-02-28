@@ -21,6 +21,9 @@ import {
   updateTicket,
   deleteTicket,
   getProjectsPayload,
+  saveTicketImage,
+  deleteTicketImage,
+  getImagesDir,
 } from './store.ts';
 import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
@@ -60,7 +63,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const app = express();
 app.use(cors({ origin: 'http://localhost:5174' }));
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
+
+// Serve uploaded ticket images as static files
+app.use('/api/ticket-images', express.static(getImagesDir()));
 
 // Validate :id params are UUIDs — prevents path traversal and injection
 app.param('id', (req, res, next) => {
@@ -252,6 +258,54 @@ app.patch('/api/tickets/:id', async (req, res) => {
   } else {
     res.status(404).json({ error: 'Ticket not found' });
   }
+});
+
+// ─── Ticket Images ───────────────────────────────────────────────
+
+app.post('/api/tickets/:id/images', async (req, res) => {
+  const ticket = await getTicket(req.params.id);
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found' });
+    return;
+  }
+
+  const { dataUrl, originalName } = req.body;
+  if (!dataUrl || typeof dataUrl !== 'string') {
+    res.status(400).json({ error: 'dataUrl is required' });
+    return;
+  }
+
+  try {
+    const image = await saveTicketImage(dataUrl, originalName || 'image.png');
+    const images = [...(ticket.images || []), image];
+    const updated = await updateTicket(req.params.id, { images });
+    broadcast({ type: 'ticket_updated', data: updated });
+    res.status(201).json(image);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to save image';
+    res.status(400).json({ error: message });
+  }
+});
+
+app.delete('/api/tickets/:id/images/:filename', async (req, res) => {
+  const ticket = await getTicket(req.params.id);
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found' });
+    return;
+  }
+
+  const { filename } = req.params;
+  const images = (ticket.images || []).filter(img => img.filename !== filename);
+
+  if (images.length === (ticket.images || []).length) {
+    res.status(404).json({ error: 'Image not found on ticket' });
+    return;
+  }
+
+  await deleteTicketImage(filename);
+  const updated = await updateTicket(req.params.id, { images });
+  broadcast({ type: 'ticket_updated', data: updated });
+  res.json({ success: true });
 });
 
 app.post('/api/tickets/:id/retry', async (req, res) => {

@@ -1,15 +1,17 @@
-import { readdir, readFile, writeFile, mkdir, rename } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { readdir, readFile, writeFile, mkdir, rename, unlink as fsUnlink } from 'node:fs/promises';
+import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { Project, Ticket } from '../src/types.ts';
+import type { Project, Ticket, TicketImage } from '../src/types.ts';
 
 const DATA_DIR = join(import.meta.dirname, '..', 'data');
 const PROJECTS_DIR = join(DATA_DIR, 'projects');
 const TICKETS_DIR = join(DATA_DIR, 'tickets');
+const IMAGES_DIR = join(DATA_DIR, 'ticket-images');
 
 async function ensureDirs() {
   await mkdir(PROJECTS_DIR, { recursive: true });
   await mkdir(TICKETS_DIR, { recursive: true });
+  await mkdir(IMAGES_DIR, { recursive: true });
 }
 
 /** Atomic write: write to temp file then rename (rename is atomic on POSIX) */
@@ -169,4 +171,70 @@ export async function getProjectsPayload() {
     listTickets(),
   ]);
   return { projects, tickets };
+}
+
+// ─── Ticket Images ──────────────────────────────────────────────────
+
+const ALLOWED_MIME_TYPES = new Set([
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml',
+]);
+
+const MIME_TO_EXT: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/svg+xml': '.svg',
+};
+
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+export function getImagesDir(): string { return IMAGES_DIR; }
+
+/**
+ * Save an image from a base64 data URL.
+ * Returns the TicketImage metadata (does not update the ticket).
+ */
+export async function saveTicketImage(
+  dataUrl: string,
+  originalName: string,
+): Promise<TicketImage> {
+  await ensureDirs();
+
+  // Parse data URL: data:<mime>;base64,<data>
+  const match = dataUrl.match(/^data:(image\/[a-z+]+);base64,(.+)$/i);
+  if (!match) throw new Error('Invalid data URL format');
+
+  const mimeType = match[1].toLowerCase();
+  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+    throw new Error(`Unsupported image type: ${mimeType}`);
+  }
+
+  const buffer = Buffer.from(match[2], 'base64');
+  if (buffer.length > MAX_IMAGE_SIZE) {
+    throw new Error(`Image too large (${(buffer.length / 1024 / 1024).toFixed(1)} MB, max 10 MB)`);
+  }
+
+  const ext = MIME_TO_EXT[mimeType] || '.png';
+  const filename = `${randomUUID()}${ext}`;
+  await writeFile(join(IMAGES_DIR, filename), buffer);
+
+  return {
+    filename,
+    originalName: originalName || filename,
+    mimeType,
+    size: buffer.length,
+    uploadedAt: Date.now(),
+  };
+}
+
+/** Delete an image file from disk */
+export async function deleteTicketImage(filename: string): Promise<void> {
+  // Prevent path traversal
+  if (filename.includes('/') || filename.includes('..')) {
+    throw new Error('Invalid filename');
+  }
+  try {
+    await fsUnlink(join(IMAGES_DIR, filename));
+  } catch { /* file may already be gone */ }
 }

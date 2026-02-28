@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { execSync } from 'node:child_process';
-import { getProject, getTicket, updateTicket, listTickets } from './store.ts';
+import { join } from 'node:path';
+import { getProject, getTicket, updateTicket, listTickets, getImagesDir } from './store.ts';
 import { captureAndUploadScreenshots } from './screenshots.ts';
 import { runAudit } from './auditor.ts';
 import type { Ticket, AgentActivity, TicketEffort, WSEvent } from '../src/types.ts';
@@ -138,7 +139,22 @@ async function startAgent(ticket: Ticket) {
   }
 
   // Build the task description for the agent
-  const taskLines = [ticket.instructions, '', '---'];
+  const taskLines: string[] = [];
+
+  // If images are attached, tell the agent about them first
+  if (ticket.images && ticket.images.length > 0) {
+    const imagesDir = getImagesDir();
+    taskLines.push(
+      'so i can show you screenshots etc where i spot issues',
+      '',
+    );
+    for (const img of ticket.images) {
+      taskLines.push(join(imagesDir, img.filename));
+    }
+    taskLines.push('');
+  }
+
+  taskLines.push(ticket.instructions, '', '---');
 
   if (useWorktree) {
     taskLines.push(
