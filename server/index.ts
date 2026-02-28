@@ -24,7 +24,17 @@ import {
 } from './store.ts';
 import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, checkPrStatus, conflictCheckTick } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
-import { runAudit, isAuditRunning, setAuditorBroadcast } from './auditor.ts';
+import {
+  runAudit,
+  isAuditRunning,
+  setAuditorBroadcast,
+  startAuditor,
+  stopAuditor,
+  addToWatchlist,
+  removeFromWatchlist,
+  getWatchlistStatus,
+  triggerReReview,
+} from './auditor.ts';
 import type { TeamWithData, WSEvent } from '../src/types.ts';
 
 const PORT = 3003;
@@ -278,15 +288,65 @@ app.post('/api/tickets/:id/audit', async (req, res) => {
     res.status(400).json({ error: 'Ticket has no PR URL' });
     return;
   }
-  if (isAuditRunning(ticket.id)) {
+  if (isAuditRunning(ticket.prUrl)) {
     res.status(409).json({ error: 'Audit already running for this ticket' });
     return;
   }
-  // Fire and forget — audit runs asynchronously
+  // Add to watchlist (which triggers an initial review)
   runAudit(ticket).catch(err => {
     console.error(`[api] Audit failed for ticket #${ticket.id}:`, err);
   });
   res.json({ success: true, message: 'Audit started' });
+});
+
+// ─── Auditor Watchlist API ───────────────────────────────────────
+
+app.get('/api/auditor/watchlist', (_req, res) => {
+  res.json(getWatchlistStatus());
+});
+
+app.post('/api/auditor/watch', async (req, res) => {
+  const { prUrl, ticketId } = req.body;
+  if (!prUrl || typeof prUrl !== 'string') {
+    res.status(400).json({ error: 'prUrl is required' });
+    return;
+  }
+  const entry = await addToWatchlist(prUrl, ticketId);
+  if (!entry) {
+    res.status(403).json({
+      error: 'Repository not in allowlist — only PRs from registered projects can be watched',
+    });
+    return;
+  }
+  res.status(201).json(entry);
+});
+
+app.post('/api/auditor/unwatch', async (req, res) => {
+  const { prUrl } = req.body;
+  if (!prUrl || typeof prUrl !== 'string') {
+    res.status(400).json({ error: 'prUrl is required' });
+    return;
+  }
+  const removed = await removeFromWatchlist(prUrl);
+  if (!removed) {
+    res.status(404).json({ error: 'PR not found on watchlist' });
+    return;
+  }
+  res.json({ success: true });
+});
+
+app.post('/api/auditor/re-review', async (req, res) => {
+  const { prUrl } = req.body;
+  if (!prUrl || typeof prUrl !== 'string') {
+    res.status(400).json({ error: 'prUrl is required' });
+    return;
+  }
+  const triggered = await triggerReReview(prUrl);
+  if (!triggered) {
+    res.status(404).json({ error: 'PR not on active watchlist or review already in progress' });
+    return;
+  }
+  res.json({ success: true, message: 'Re-review triggered' });
 });
 
 app.post('/api/tickets/check-conflicts', async (_req, res) => {
@@ -342,6 +402,7 @@ wss.on('connection', async (ws) => {
     ws.send(JSON.stringify({ type: 'initial', data: teams }));
     ws.send(JSON.stringify({ type: 'projects_updated', data: projectsData }));
     ws.send(JSON.stringify({ type: 'agents_updated', data: soloAgents }));
+    ws.send(JSON.stringify({ type: 'auditor_updated', data: getWatchlistStatus() }));
   } catch (err) {
     console.error('[ws] Error sending initial data:', err);
   }
@@ -414,8 +475,9 @@ server.listen(PORT, () => {
   console.log(`[server] Projects API at http://localhost:${PORT}/api/projects`);
 });
 
-// Start the dispatcher
+// Start the dispatcher and auditor
 startDispatcher();
+startAuditor();
 
 // ─── Solo Agent Polling ──────────────────────────────────────────
 
@@ -436,6 +498,7 @@ const agentPollInterval = setInterval(async () => {
 function shutdown() {
   console.log('\n[server] Shutting down...');
   stopDispatcher();
+  stopAuditor();
   clearInterval(agentPollInterval);
   watcher.close();
   wss.close();

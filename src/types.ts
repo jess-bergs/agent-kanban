@@ -82,7 +82,8 @@ export type WSEventType =
   | 'projects_updated'
   | 'ticket_updated'
   | 'ticket_deleted'
-  | 'agents_updated';
+  | 'agents_updated'
+  | 'auditor_updated';
 
 export interface WSEvent {
   type: WSEventType;
