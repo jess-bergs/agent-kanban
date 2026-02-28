@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { execSync } from 'node:child_process';
 import { getProject, getTicket, updateTicket, listTickets } from './store.ts';
+import { captureAndUploadScreenshots } from './screenshots.ts';
 import type { Ticket, AgentActivity, TicketEffort, WSEvent } from '../src/types.ts';
 
 const MAX_CONCURRENT = 5;
@@ -387,6 +388,15 @@ async function startAgent(ticket: Ticket) {
       `[dispatcher] Ticket #${ticket.id} completed` +
         (prUrl ? ` — PR: ${prUrl}` : ' (no PR detected)'),
     );
+
+    // Best-effort screenshot capture for PRs (before worktree cleanup)
+    if (prUrl && useWorktree) {
+      try {
+        await captureAndUploadScreenshots(reviewTicket || ticket);
+      } catch (err) {
+        console.error(`[dispatcher] Screenshot capture failed for ticket #${ticket.id}:`, err);
+      }
+    }
 
     cleanupWorktree(project.repoPath, worktreePath);
   });
