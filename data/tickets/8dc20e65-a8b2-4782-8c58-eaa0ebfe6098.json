@@ -1,0 +1,142 @@
+{
+  "id": "8dc20e65-a8b2-4782-8c58-eaa0ebfe6098",
+  "status": "merged",
+  "createdAt": 1772267688180,
+  "projectId": "c4dc62ae",
+  "subject": "remove github action workflows. replace with local auditor",
+  "instructions": "when you have a pr ready, hand it to and auditor to pull it and check it for completeness, code quality, adherence to pr checklist, agents.md stuff, and security concerns.",
+  "yolo": true,
+  "autoMerge": true,
+  "queued": false,
+  "useRalph": false,
+  "branchName": "agent/ticket-8dc20e65-a8b2-4782-8c58-eaa0ebfe6098-remove-github-action-workflows-replace-w",
+  "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-8dc20e65-a8b2-4782-8c58-eaa0ebfe6098-remove-github-action-workflows-replace-w",
+  "startedAt": 1772267690869,
+  "lastOutput": "sn't reference GitHub Actions directly. It's good as-is — the local auditor will read this template and check PRs against it. No changes needed.\nLet me verify the TypeScript compiles before committing.\nThese are pre-existing errors from missing React type declarations — not related to my changes. Let me check if the server-specific build works (which is what matters for my changes).\nServer TypeScript compiles cleanly. Let me also verify the types file compiles correctly by running the full tsc.\n",
+  "agentActivity": [
+    {
+      "type": "text",
+      "content": "Now update CLAUDE.md to reflect the removal of GH Actions and addition of the local auditor.",
+      "timestamp": 1772267986619
+    },
+    {
+      "type": "tool_use",
+      "tool": "Read",
+      "content": "{\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-8dc20e65-a8b2-4782-8c58-eaa0ebfe6098-remove-github-action-workflows-replace-w/CLAUDE.md",
+      "timestamp": 1772267989449
+    },
+    {
+      "type": "tool_use",
+      "tool": "Edit",
+      "content": "{\"replace_all\":false,\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-8dc20e65-a8b2-4782-8c58-eaa0ebfe6098-remove-github-action-workflows",
+      "timestamp": 1772267995786
+    },
+    {
+      "type": "tool_use",
+      "tool": "Edit",
+      "content": "{\"replace_all\":false,\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-8dc20e65-a8b2-4782-8c58-eaa0ebfe6098-remove-github-action-workflows",
+      "timestamp": 1772268008186
+    },
+    {
+      "type": "tool_use",
+      "tool": "TodoWrite",
+      "content": "{\"todos\":[{\"content\":\"Delete GitHub Action workflow and setup docs\",\"status\":\"completed\",\"activeForm\":\"Deleting GitHub Action workflow and setup docs\"",
+      "timestamp": 1772268013775
+    },
+    {
+      "type": "text",
+      "content": "The PR template is still useful for human-written PRs. I'll update it to remove references to GitHub Action checks and note the local auditor instead.",
+      "timestamp": 1772268017290
+    },
+    {
+      "type": "tool_use",
+      "tool": "Read",
+      "content": "{\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-8dc20e65-a8b2-4782-8c58-eaa0ebfe6098-remove-github-action-workflows-replace-w/.github/p",
+      "timestamp": 1772268018268
+    },
+    {
+      "type": "text",
+      "content": "The PR template looks clean and doesn't reference GitHub Actions directly. It's good as-is — the local auditor will read this template and check PRs against it. No changes needed.",
+      "timestamp": 1772268022388
+    },
+    {
+      "type": "tool_use",
+      "tool": "TodoWrite",
+      "content": "{\"todos\":[{\"content\":\"Delete GitHub Action workflow and setup docs\",\"status\":\"completed\",\"activeForm\":\"Deleting GitHub Action workflow and setup docs\"",
+      "timestamp": 1772268026042
+    },
+    {
+      "type": "text",
+      "content": "Let me verify the TypeScript compiles before committing.",
+      "timestamp": 1772268028284
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"npx tsc -b --noEmit 2>&1 | head -50\",\"description\":\"TypeScript compilation check\",\"timeout\":30000}",
+      "timestamp": 1772268029272
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"npm run build 2>&1 | tail -30\",\"description\":\"Build project to verify compilation\",\"timeout\":60000}",
+      "timestamp": 1772268038625
+    },
+    {
+      "type": "text",
+      "content": "These are pre-existing errors from missing React type declarations — not related to my changes. Let me check if the server-specific build works (which is what matters for my changes).",
+      "timestamp": 1772268045303
+    },
+    {
+      "type": "tool_use",
+      "tool": "Read",
+      "content": "{\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-8dc20e65-a8b2-4782-8c58-eaa0ebfe6098-remove-github-action-workflows-replace-w/tsconfig.",
+      "timestamp": 1772268047314
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"node_modules/.bin/tsc --project tsconfig.server.json --noEmit 2>&1\",\"description\":\"Check server TypeScript compilation\",\"timeout\":30000}",
+      "timestamp": 1772268051086
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"npm ls typescript 2>&1 | head -5\",\"description\":\"Check if TypeScript is installed\"}",
+      "timestamp": 1772268062996
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"npm install 2>&1 | tail -5\",\"description\":\"Install dependencies\",\"timeout\":60000}",
+      "timestamp": 1772268069580
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"./node_modules/.bin/tsc --project tsconfig.server.json --noEmit 2>&1\",\"description\":\"Check server TypeScript compilation\",\"timeout\":30000}",
+      "timestamp": 1772268077594
+    },
+    {
+      "type": "text",
+      "content": "Server TypeScript compiles cleanly. Let me also verify the types file compiles correctly by running the full tsc.",
+      "timestamp": 1772268084422
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"./node_modules/.bin/tsc --noEmit --strict --moduleResolution bundler --module ESNext --target ES2022 --allowImportingTsExtensions --isolat",
+      "timestamp": 1772268084422
+    }
+  ],
+  "effort": {
+    "turns": 50,
+    "toolCalls": 68,
+    "inputTokens": 3472542,
+    "outputTokens": 553
+  },
+  "error": null,
+  "completedAt": 1772268735865,
+  "prUrl": "https://github.com/jess-bergs/agent-kanban/pull/25",
+  "prNumber": 25
+}

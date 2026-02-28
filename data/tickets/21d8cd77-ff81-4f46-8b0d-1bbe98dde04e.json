@@ -1,0 +1,143 @@
+{
+  "id": "21d8cd77-ff81-4f46-8b0d-1bbe98dde04e",
+  "status": "merged",
+  "createdAt": 1772305254039,
+  "projectId": "c4dc62ae",
+  "subject": "link ticket id in pr",
+  "instructions": "make sure to list the ticket id in the pr so you can cross-check prs / tickets more easily e.g for self-healing purposess",
+  "yolo": true,
+  "autoMerge": false,
+  "queued": false,
+  "useRalph": false,
+  "branchName": "agent/ticket-21d8cd77-ff81-4f46-8b0d-1bbe98dde04e-link-ticket-id-in-pr",
+  "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-21d8cd77-ff81-4f46-8b0d-1bbe98dde04e-link-ticket-id-in-pr",
+  "startedAt": 1772305256219,
+  "lastOutput": "atcher ensures it's there.\n\n3. **New functions** (lines 465-504):\n   - `ensureTicketIdInPr()` — Appends a human-readable `Ticket-ID: \\`{uuid}\\`` and a machine-readable `<!-- ticket-id:{uuid} -->` HTML comment to the PR body. Idempotent (checks before writing).\n   - `extractTicketIdFromPr()` — Exported utility for reverse lookups: given a PR body, extracts the ticket ID. Useful for self-healing scenarios where you need to go from PR → ticket.\n\n**`.github/pull_request_template.md`** — Added a `## Ticket` section so the template has a designated spot.\n\n`★ Insight ─────────────────────────────────────`\nThe hidden HTML comment pattern (`<!-- ticket-id:uuid -->`) is a common technique for machine-readable metadata in GitHub PRs/issues — it's invisible when rendered but easily parseable. This is the same approach GitHub's own automation uses for things like issue templates and bot markers.\n`─────────────────────────────────────────────────`\n\nhttps://github.com/jess-bergs/agent-kanban/pull/30\n",
+  "agentActivity": [
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"npm run build 2>&1 | tail -10\",\"description\":\"Full build check\",\"timeout\":60000}",
+      "timestamp": 1772305433129
+    },
+    {
+      "type": "text",
+      "content": "Full build passes.",
+      "timestamp": 1772305440474
+    },
+    {
+      "type": "tool_use",
+      "tool": "TodoWrite",
+      "content": "{\"todos\":[{\"content\":\"Add ticket ID to agent's PR creation instructions in dispatcher.ts\",\"status\":\"completed\",\"activeForm\":\"Adding ticket ID to PR cr",
+      "timestamp": 1772305445142
+    },
+    {
+      "type": "text",
+      "content": "Now let me commit, push, and create the PR.",
+      "timestamp": 1772305446404
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git -C /private/tmp/agent-kanban-worktrees/agent-ticket-21d8cd77-ff81-4f46-8b0d-1bbe98dde04e-link-ticket-id-in-pr status\",\"description\":\"C",
+      "timestamp": 1772305449020
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git -C /private/tmp/agent-kanban-worktrees/agent-ticket-21d8cd77-ff81-4f46-8b0d-1bbe98dde04e-link-ticket-id-in-pr diff\",\"description\":\"Vie",
+      "timestamp": 1772305451220
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git -C /private/tmp/agent-kanban-worktrees/agent-ticket-21d8cd77-ff81-4f46-8b0d-1bbe98dde04e-link-ticket-id-in-pr log --oneline -5\",\"descr",
+      "timestamp": 1772305451220
+    },
+    {
+      "type": "text",
+      "content": ")` for reverse lookups\n3. **Idempotent**: The function checks before writing, so screenshots upload (which also edits PR body) won't cause conflicts\n`─────────────────────────────────────────────────`",
+      "timestamp": 1772305461141
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git add server/dispatcher.ts .github/pull_request_template.md && git commit -m \\\"$(cat <<'EOF'\\nAdd ticket ID cross-referencing in PRs for",
+      "timestamp": 1772305466483
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git push -u origin agent/ticket-21d8cd77-ff81-4f46-8b0d-1bbe98dde04e-link-ticket-id-in-pr 2>&1\",\"description\":\"Push branch to remote\"}",
+      "timestamp": 1772305471553
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"gh pr create --base main --title \\\"Add ticket ID cross-referencing in PRs\\\" --body \\\"$(cat <<'EOF'\\n## Summary\\n- Injects a machine-readab",
+      "timestamp": 1772305481674
+    },
+    {
+      "type": "text",
+      "content": "GitHub API rate limit. Let me wait a moment and retry.",
+      "timestamp": 1772305486401
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"sleep 15 && gh pr create --base main --title \\\"Add ticket ID cross-referencing in PRs\\\" --body \\\"$(cat <<'EOF'\\n## Summary\\n- Injects a ma",
+      "timestamp": 1772305488947
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"sleep 30 && gh pr create --base main --title \\\"Add ticket ID cross-referencing in PRs\\\" --body \\\"$(cat <<'EOF'\\n## Summary\\n- Injects a ma",
+      "timestamp": 1772305515936
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"gh api rate_limit --jq '.resources.graphql | \\\"limit: \\\\(.limit), remaining: \\\\(.remaining), resets: \\\\(.reset | strftime(\\\"%H:%M:%S UTC\\\"",
+      "timestamp": 1772305551479
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"date -u +\\\"%H:%M:%S UTC\\\"\",\"description\":\"Current time UTC\"}",
+      "timestamp": 1772305556550
+    },
+    {
+      "type": "text",
+      "content": "Rate limit resets in under a minute. Let me wait and retry.",
+      "timestamp": 1772305560049
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"sleep 60 && gh pr create --base main --title \\\"Add ticket ID cross-referencing in PRs\\\" --body \\\"$(cat <<'EOF'\\n## Summary\\n- Injects a ma",
+      "timestamp": 1772305562982
+    },
+    {
+      "type": "tool_use",
+      "tool": "TodoWrite",
+      "content": "{\"todos\":[{\"content\":\"Add ticket ID to agent's PR creation instructions in dispatcher.ts\",\"status\":\"completed\",\"activeForm\":\"Adding ticket ID to PR cr",
+      "timestamp": 1772305631090
+    },
+    {
+      "type": "text",
+      "content": " the same approach GitHub's own automation uses for things like issue templates and bot markers.\n`─────────────────────────────────────────────────`\n\nhttps://github.com/jess-bergs/agent-kanban/pull/30",
+      "timestamp": 1772305642088
+    }
+  ],
+  "effort": {
+    "turns": 35,
+    "toolCalls": 42,
+    "inputTokens": 2084395,
+    "outputTokens": 295,
+    "durationMs": 388767
+  },
+  "prUrl": "https://github.com/jess-bergs/agent-kanban/pull/30",
+  "prNumber": 30,
+  "completedAt": 1772305644986,
+  "hasConflict": false
+}

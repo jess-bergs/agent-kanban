@@ -1,0 +1,18 @@
+{
+  "id": "18",
+  "status": "merged",
+  "createdAt": 1772262904657,
+  "projectId": "c4dc62ae",
+  "subject": "show reasoning in agents output if available",
+  "instructions": "in the ticket overview for agent output. \nany live updates woudl be great for better human oversihgt!",
+  "yolo": true,
+  "autoMerge": true,
+  "queued": false,
+  "branchName": "agent/ticket-18-show-reasoning-in-agents-output-if-avail",
+  "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-18-show-reasoning-in-agents-output-if-avail",
+  "startedAt": 1772262904793,
+  "lastOutput": "rsing of the structured stream\n- Extracts `thinking` blocks (reasoning), `text` blocks (output), `tool_use` blocks (what tools are being called), and `tool_result` blocks\n- Maintains a ring buffer of 20 recent activity entries, broadcast live via WebSocket\n\n**Frontend (TicketDetailModal.tsx):**\n- **Agent Reasoning** section (purple theme) -- collapsible, shows latest thinking block with live pulse indicator\n- **Agent Activity** feed -- scrollable timeline of events with icons (Brain for reasoning, Terminal for tool use, CheckCircle for results, MessageSquare for text output)\n- Both sections auto-scroll to bottom during live execution\n\n**Frontend (TicketCard.tsx):**\n- Shows current activity state on the kanban card: tool name being called, \"reasoning\" indicator when thinking\n\n**Types (types.ts):**\n- Added `AgentActivity` interface with `type`, `tool`, `content`, `timestamp`\n- Added `agentActivity` and `lastThinking` fields to `Ticket`\n\nhttps://github.com/jess-bergs/agent-kanban/pull/12\n",
+  "prUrl": "https://github.com/jess-bergs/agent-kanban/pull/12",
+  "prNumber": 12,
+  "completedAt": 1772263396159
+}

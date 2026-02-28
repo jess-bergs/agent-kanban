@@ -1,0 +1,16 @@
+{
+  "id": "3",
+  "status": "done",
+  "createdAt": 1772255554215,
+  "projectId": "511610d8",
+  "subject": "write a joke",
+  "instructions": "in joke.txt on root",
+  "yolo": true,
+  "branchName": "agent/ticket-3-write-a-joke",
+  "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-3-write-a-joke",
+  "startedAt": 1772255556220,
+  "lastOutput": "★ Insight ─────────────────────────────────────\n- The `gh pr create --fill` command auto-populates PR title and description from the commit message\n- Git worktrees enable parallel work on multiple tickets without stashing or branch switching\n- This workflow demonstrates how agents can handle full development cycles autonomously\n─────────────────────────────────────────────────\n\n✅ **All done!** I've successfully:\n1. Created `joke.txt` with a programmer joke about dark mode and bugs\n2. Committed the changes with a clear message\n3. Pushed the branch to origin\n4. Created a pull request to main\n\nhttps://github.com/jess-bergs/jess-agent-skills/pull/2\n",
+  "prUrl": "https://github.com/jess-bergs/jess-agent-skills/pull/2",
+  "prNumber": 2,
+  "completedAt": 1772255589042
+}

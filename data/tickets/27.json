@@ -1,0 +1,142 @@
+{
+  "id": "27",
+  "status": "merged",
+  "createdAt": 1772265131133,
+  "projectId": "c4dc62ae",
+  "subject": "auto-check prs for conflict every hour or so",
+  "instructions": "e.g. there is a merge conflict here https://github.com/jess-bergs/agent-kanban/pull/18 -- handle scuh occurences automatically",
+  "yolo": true,
+  "autoMerge": true,
+  "queued": false,
+  "useRalph": false,
+  "branchName": "agent/ticket-27-auto-check-prs-for-conflict-every-hour-o",
+  "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-27-auto-check-prs-for-conflict-every-hour-o",
+  "startedAt": 1772265132836,
+  "lastOutput": "─────────────`\n\nHere's a summary of what was implemented:\n\n**Backend (server/dispatcher.ts)**:\n- Extended `checkPrStatus()` to query `mergeable` from GitHub on every 3s poll and update `hasConflict`/`conflictDetectedAt` accordingly\n- Added `checkPrConflicts()` function for dedicated conflict checking per ticket\n- Added `conflictCheckTick()` that runs hourly to check all in-review PRs for conflicts\n- Wired hourly interval into `startDispatcher()`/`stopDispatcher()` lifecycle\n\n**API (server/index.ts)**:\n- Added `POST /api/tickets/check-conflicts` endpoint to manually trigger conflict checks across all in-review PRs\n\n**Types (src/types.ts)**:\n- Added `hasConflict?: boolean` and `conflictDetectedAt?: number` to the `Ticket` interface\n\n**UI (TicketCard.tsx & TicketDetailModal.tsx)**:\n- Pulsing red **CONFLICT** badge on ticket cards\n- PR link turns red when conflicted\n- Dedicated conflict banner with detection timestamp in the detail modal\n\nhttps://github.com/jess-bergs/agent-kanban/pull/21\n",
+  "agentActivity": [
+    {
+      "type": "tool_use",
+      "tool": "Edit",
+      "content": "{\"replace_all\":false,\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-27-auto-check-prs-for-conflict-every-hour-o/src/components/TicketDe",
+      "timestamp": 1772265329825
+    },
+    {
+      "type": "text",
+      "content": "Now add the conflict banner right after the PR link section in the modal body:",
+      "timestamp": 1772265333306
+    },
+    {
+      "type": "tool_use",
+      "tool": "Edit",
+      "content": "{\"replace_all\":false,\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-27-auto-check-prs-for-conflict-every-hour-o/src/components/TicketDe",
+      "timestamp": 1772265342504
+    },
+    {
+      "type": "text",
+      "content": "Now let me build to verify everything compiles correctly:",
+      "timestamp": 1772265345951
+    },
+    {
+      "type": "tool_use",
+      "tool": "TodoWrite",
+      "content": "{\"todos\":[{\"content\":\"Add conflict tracking fields to Ticket type (hasConflict, conflictDetectedAt)\",\"status\":\"completed\",\"activeForm\":\"Adding conflic",
+      "timestamp": 1772265349453
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"npm run build 2>&1\",\"description\":\"Build the project to check for TypeScript errors\",\"timeout\":60000}",
+      "timestamp": 1772265352375
+    },
+    {
+      "type": "text",
+      "content": "This looks like missing `node_modules` in the worktree. Let me install dependencies:",
+      "timestamp": 1772265357769
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"npm install 2>&1 | tail -5\",\"description\":\"Install dependencies in worktree\",\"timeout\":120000}",
+      "timestamp": 1772265361942
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"npm run build 2>&1\",\"description\":\"Build project after npm install\",\"timeout\":60000}",
+      "timestamp": 1772265367834
+    },
+    {
+      "type": "text",
+      "content": "Build succeeds. Now let me commit, push, and create the PR.",
+      "timestamp": 1772265377763
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git status\",\"description\":\"Show working tree status\"}",
+      "timestamp": 1772265379487
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git diff\",\"description\":\"Show all changes\"}",
+      "timestamp": 1772265380287
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git log --oneline -5\",\"description\":\"Check recent commit style\"}",
+      "timestamp": 1772265381199
+    },
+    {
+      "type": "text",
+      "content": "Everything looks clean. Let me commit the source files (not the build artifact `tsconfig.tsbuildinfo`):",
+      "timestamp": 1772265384837
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git add server/dispatcher.ts server/index.ts src/components/TicketCard.tsx src/components/TicketDetailModal.tsx src/types.ts\",\"description",
+      "timestamp": 1772265385808
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git commit -m \\\"$(cat <<'EOF'\\nAuto-detect merge conflicts on PRs hourly and on every status check\\n\\n- Add hasConflict/conflictDetectedAt",
+      "timestamp": 1772265394024
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git push -u origin agent/ticket-27-auto-check-prs-for-conflict-every-hour-o 2>&1\",\"description\":\"Push branch to remote\"}",
+      "timestamp": 1772265399557
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"gh pr create --base main --title \\\"Auto-detect PR merge conflicts hourly\\\" --body \\\"$(cat <<'EOF'\\n## Summary\\n- Adds automatic merge conf",
+      "timestamp": 1772265415653
+    },
+    {
+      "type": "tool_use",
+      "tool": "TodoWrite",
+      "content": "{\"todos\":[{\"content\":\"Add conflict tracking fields to Ticket type (hasConflict, conflictDetectedAt)\",\"status\":\"completed\",\"activeForm\":\"Adding conflic",
+      "timestamp": 1772265426783
+    },
+    {
+      "type": "text",
+      "content": " red **CONFLICT** badge on ticket cards\n- PR link turns red when conflicted\n- Dedicated conflict banner with detection timestamp in the detail modal\n\nhttps://github.com/jess-bergs/agent-kanban/pull/21",
+      "timestamp": 1772265439447
+    }
+  ],
+  "effort": {
+    "turns": 35,
+    "toolCalls": 46,
+    "inputTokens": 2423903,
+    "outputTokens": 287,
+    "durationMs": 309443
+  },
+  "prUrl": "https://github.com/jess-bergs/agent-kanban/pull/21",
+  "prNumber": 21,
+  "completedAt": 1772265442279
+}

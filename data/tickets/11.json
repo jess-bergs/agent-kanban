@@ -1,0 +1,18 @@
+{
+  "id": "11",
+  "status": "merged",
+  "createdAt": 1772259727949,
+  "projectId": "c4dc62ae",
+  "subject": "set max concurrent agens to 5",
+  "instructions": "context: So to answer your question: it uses your\n  subscription (or API key) — whatever your local\n  claude CLI is authenticated with. Each dispatched\n  ticket spawns a full claude CLI session, which\n  counts as normal Claude Code usage against your\n  account.\n\n  The max concurrency is set to 2 agents at a time\n  (MAX_CONCURRENT = 2 in server/dispatcher.ts), which\n   helps avoid burning through your rate limits too\n  fast.\n  ⎿  Stop says: Hookify import error: No module named\n      'hookify'                               \n                                                    \n✻ Sautéed for 48s                                   \n                              \n─────────────────────────────────────────────────────\n❯ nah, put it up to 5 concurrent. i have a max pro   \n  subscription. ra",
+  "yolo": true,
+  "autoMerge": true,
+  "queued": false,
+  "branchName": "agent/ticket-11-set-max-concurrent-agens-to-5",
+  "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-11-set-max-concurrent-agens-to-5",
+  "startedAt": 1772259728237,
+  "lastOutput": "★ Insight ─────────────────────────────────────\n- Changed a single constant that gates concurrency across the entire dispatcher system\n- The change is minimal (2→5) but impactful: allows 2.5× more parallel agent sessions\n- With rate limits on a max pro subscription, 5 concurrent agents is a sweet spot between throughput and rate limit safety\n─────────────────────────────────────────────────\n\nDone! I've increased the `MAX_CONCURRENT` constant from 2 to 5 in `server/dispatcher.ts:6`. This will allow up to 5 agents to run in parallel, making better use of your max pro subscription's higher rate limits.\n\nThe change has been committed, pushed, and a pull request has been created.\n\nhttps://github.com/jess-bergs/agent-kanban/pull/7\n",
+  "prUrl": "https://github.com/jess-bergs/agent-kanban/pull/7",
+  "prNumber": 7,
+  "completedAt": 1772259773587
+}

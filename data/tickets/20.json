@@ -1,0 +1,19 @@
+{
+  "id": "20",
+  "status": "merged",
+  "createdAt": 1772263595373,
+  "projectId": "c4dc62ae",
+  "subject": "reorder ticket options",
+  "instructions": "modal is too long for screen now tdue to many options (yolo, auto-merge, etc) - rework layout to be more compact",
+  "yolo": true,
+  "autoMerge": true,
+  "queued": false,
+  "useRalph": false,
+  "branchName": "agent/ticket-20-reorder-ticket-options",
+  "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-20-reorder-ticket-options",
+  "startedAt": 1772263595535,
+  "lastOutput": "`★ Insight ─────────────────────────────────────`\nThe key technique here was switching from a **stacked vertical layout** to a **2×2 CSS grid** (`grid grid-cols-2 gap-2`). By stripping the per-option description text and moving it to `title` attributes (native browser tooltips), each option shrank from ~50px tall to ~36px — a ~60% vertical reduction. The `ml-auto` on the toggle switch pushes it to the right within each grid cell regardless of label length.\n`─────────────────────────────────────────────────`\n\nDone! Here's what changed:\n\n- **4 full-width toggle buttons → 2×2 compact grid** — saves ~120px of vertical space\n- **Textarea reduced from 10 → 6 rows** — still resizable via `resize-y`\n- **Descriptions moved to tooltips** — hover any option to see the full explanation\n- All toggle colors, icons, and functionality preserved\n\nhttps://github.com/jess-bergs/agent-kanban/pull/13\n",
+  "prUrl": "https://github.com/jess-bergs/agent-kanban/pull/13",
+  "prNumber": 13,
+  "completedAt": 1772263785129
+}

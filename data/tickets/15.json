@@ -1,0 +1,18 @@
+{
+  "id": "15",
+  "status": "merged",
+  "createdAt": 1772260552802,
+  "projectId": "c4dc62ae",
+  "subject": "add option for enabling ralph-wiggum plugin",
+  "instructions": "plugin is already installed in the system!",
+  "yolo": true,
+  "autoMerge": false,
+  "queued": false,
+  "branchName": "agent/ticket-15-add-option-for-enabling-ralph-wiggum-plu",
+  "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-15-add-option-for-enabling-ralph-wiggum-plu",
+  "startedAt": 1772260552882,
+  "lastOutput": "ccept and process `useRalph` parameter\n\n4. **Dispatcher** (`server/dispatcher.ts`):\n   - Modified agent startup logic to invoke `/ralph-loop` skill when `useRalph` is enabled\n   - Set max iterations to 50 for safety\n   - Added completion promise \"TICKET_COMPLETE\" that agents must output when done\n   - Properly escaped the task description for shell safety\n\n### How It Works:\n\nWhen Ralph Wiggum mode is enabled:\n- The agent receives the task via the `/ralph-loop` command\n- It iterates up to 50 times on the same task\n- The agent can see its previous work in files and git history\n- Each iteration allows self-correction and improvement\n- The loop ends when the agent outputs `<promise>TICKET_COMPLETE</promise>` or hits max iterations\n\nThis is perfect for tasks requiring iteration, refinement, and self-correction like getting tests to pass or implementing complex features.\n\n**Pull Request:** https://github.com/jess-bergs/agent-kanban/pull/10\n\nhttps://github.com/jess-bergs/agent-kanban/pull/10\n",
+  "prUrl": "https://github.com/jess-bergs/agent-kanban/pull/10",
+  "prNumber": 10,
+  "completedAt": 1772260896724
+}

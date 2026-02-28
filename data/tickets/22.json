@@ -1,0 +1,19 @@
+{
+  "id": "22",
+  "status": "merged",
+  "createdAt": 1772263815839,
+  "projectId": "c4dc62ae",
+  "subject": "auto-merge not active?",
+  "instructions": "i've enabled auto-merge on the repo but the prs don't seem to get merged in automatically. check the auto-merge function if its working as expected",
+  "yolo": true,
+  "autoMerge": false,
+  "queued": false,
+  "useRalph": false,
+  "branchName": "agent/ticket-22-auto-merge-not-active",
+  "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-22-auto-merge-not-active",
+  "startedAt": 1772263817631,
+  "lastOutput": "ects.\n`─────────────────────────────────────────────────`\n\nHere's a summary of what was wrong and what I fixed:\n\n**The bug**: `checkAutoMerge` in `server/dispatcher.ts` required `reviewDecision === 'APPROVED'` before merging. When your repo doesn't have required reviewers (or nobody has reviewed yet), GitHub returns `reviewDecision: \"\"` — an empty string. So the merge condition was **always false**, and PRs never got auto-merged.\n\n**The fix** (3 changes):\n1. **Inverted the review logic** — instead of requiring `APPROVED`, it now only blocks on `CHANGES_REQUESTED` or `REVIEW_REQUIRED`. Empty string (no reviews needed) passes through.\n2. **Fixed a stale data race** — `dispatcherTick` now re-reads the ticket from the DB before calling `checkAutoMerge`, preventing redundant merge attempts on already-merged PRs.\n3. **Added diagnostic logging** — when auto-merge doesn't trigger, you'll see exactly which condition failed in the server logs.\n\nhttps://github.com/jess-bergs/agent-kanban/pull/15\n",
+  "prUrl": "https://github.com/jess-bergs/agent-kanban/pull/15",
+  "prNumber": 15,
+  "completedAt": 1772264041957
+}

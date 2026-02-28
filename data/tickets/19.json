@@ -1,0 +1,18 @@
+{
+  "id": "19",
+  "status": "merged",
+  "createdAt": 1772263145911,
+  "projectId": "c4dc62ae",
+  "subject": "have agents report how much effort a ticket was",
+  "instructions": "and put that into ticket metadata (can be surfaced via e..g info tooltip or sth, no need to waste ui space on that)",
+  "yolo": true,
+  "autoMerge": true,
+  "queued": false,
+  "branchName": "agent/ticket-19-have-agents-report-how-much-effort-a-tic",
+  "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-19-have-agents-report-how-much-effort-a-tic",
+  "startedAt": 1772263637543,
+  "lastOutput": "cross 4 files:\n\n**`src/types.ts`** — Added `TicketEffort` interface (turns, toolCalls, inputTokens, outputTokens, costUsd, durationMs) and `effort?` field on `Ticket`. Added `formatDuration()` and `formatTokenCount()` helpers.\n\n**`server/dispatcher.ts`** — Tracks effort metrics during agent execution:\n- Counts unique API turns by message ID (avoids stream-json duplication bug)\n- Counts tool_use blocks for tool call metric\n- Captures token usage per assistant message\n- Captures cost from result events\n- Computes duration on completion\n- Persists effort to ticket JSON on every update + final close\n\n**`src/components/TicketCard.tsx`** — Added `EffortBadge` component: a small info icon showing turn count, with a hover tooltip revealing all metrics (turns, tool calls, duration, tokens, cost).\n\n**`src/components/TicketDetailModal.tsx`** — Added \"Agent Effort\" section with a responsive grid of metric cards showing all available effort data.\n\nhttps://github.com/jess-bergs/agent-kanban/pull/14\n",
+  "prUrl": "https://github.com/jess-bergs/agent-kanban/pull/14",
+  "prNumber": 14,
+  "completedAt": 1772263997752
+}
