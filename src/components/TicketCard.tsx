@@ -1,10 +1,12 @@
-import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge, Clock, Brain, Terminal } from 'lucide-react';
+
+import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge, Clock, Brain, Terminal, Info, ShieldAlert } from 'lucide-react';
 import type { Ticket, TicketStatus, TicketEffort } from '../types';
 import { formatDuration, formatTokenCount } from '../types';
 
 const BORDER_COLORS: Record<TicketStatus, string> = {
   todo: 'border-l-accent-amber',
   in_progress: 'border-l-accent-blue',
+  needs_approval: 'border-l-accent-orange',
   in_review: 'border-l-accent-cyan',
   done: 'border-l-accent-green',
   merged: 'border-l-accent-purple',
@@ -67,8 +69,23 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         </p>
       )}
 
+      {/* Needs approval — waiting for human in terminal */}
+      {ticket.status === 'needs_approval' && (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <ShieldAlert className="w-3 h-3 text-accent-orange animate-pulse" />
+            <span className="text-xs text-accent-orange font-medium">Waiting for approval in terminal</span>
+          </div>
+          {ticket.lastOutput && (
+            <pre className="text-[11px] text-slate-400 font-mono bg-surface-900/60 rounded px-2 py-1.5 line-clamp-3 whitespace-pre-wrap leading-relaxed">
+              {ticket.lastOutput.slice(-200)}
+            </pre>
+          )}
+        </div>
+      )}
+
       {/* In progress — live activity + output */}
-      {ticket.status === 'in_progress' && (
+      {(ticket.status === 'in_progress') && (
         <div className="mt-2 space-y-1.5">
           <div className="flex items-center gap-1.5">
             <Loader2 className="w-3 h-3 text-accent-blue animate-spin" />
