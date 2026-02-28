@@ -22,7 +22,7 @@ import {
   deleteTicket,
   getProjectsPayload,
 } from './store.ts';
-import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, checkPrStatus, conflictCheckTick } from './dispatcher.ts';
+import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
 import {
   runAudit,
@@ -271,6 +271,30 @@ app.post('/api/tickets/:id/retry', async (req, res) => {
   } else {
     res.status(404).json({ error: 'Ticket not found' });
   }
+});
+
+app.post('/api/tickets/:id/abort', async (req, res) => {
+  const ticket = await getTicket(req.params.id);
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found' });
+    return;
+  }
+  if (ticket.status !== 'in_progress' && ticket.status !== 'needs_approval') {
+    res.status(400).json({ error: 'Ticket is not currently running' });
+    return;
+  }
+  const killed = abortAgent(req.params.id);
+  if (!killed) {
+    // Process not tracked — update status directly
+    const updated = await updateTicket(req.params.id, {
+      status: 'failed',
+      error: 'Aborted by user',
+      completedAt: Date.now(),
+      agentPid: undefined,
+    });
+    if (updated) broadcast({ type: 'ticket_updated', data: updated });
+  }
+  res.json({ success: true });
 });
 
 app.post('/api/tickets/:id/refresh-status', async (req, res) => {

@@ -14,6 +14,8 @@ const running = new Map<string, ChildProcess>();
 const lastStreamActivity = new Map<string, number>();
 /** Tracks whether the last emitted event was a tool_use without a matching tool_result */
 const pendingToolApproval = new Map<string, boolean>();
+/** Tracks ticket IDs that were explicitly aborted by the user (vs crashing) */
+const abortedTickets = new Set<string>();
 
 type BroadcastFn = (event: WSEvent) => void;
 let broadcastFn: BroadcastFn = () => {};
@@ -357,7 +359,8 @@ async function startAgent(ticket: Ticket) {
     running.delete(ticket.id);
     lastStreamActivity.delete(ticket.id);
     pendingToolApproval.delete(ticket.id);
-    console.log(`[dispatcher] Agent for ticket #${ticket.id} exited with code ${code}`);
+    const wasAborted = abortedTickets.delete(ticket.id);
+    console.log(`[dispatcher] Agent for ticket #${ticket.id} exited with code ${code}${wasAborted ? ' (aborted by user)' : ''}`);
 
     // Compute duration for effort
     const completedAt = Date.now();
@@ -369,7 +372,7 @@ async function startAgent(ticket: Ticket) {
     if (code !== 0) {
       const failedTicket = await updateTicket(ticket.id, {
         status: 'failed',
-        error: stderr.slice(-500) || `Agent exited with code ${code}`,
+        error: wasAborted ? 'Aborted by user' : (stderr.slice(-500) || `Agent exited with code ${code}`),
         completedAt,
         agentPid: undefined,
         effort: { ...effort },
@@ -735,6 +738,19 @@ export function killAgent(ticketId: string): boolean {
     console.log(`[dispatcher] Killing agent for ticket #${ticketId}`);
     proc.kill('SIGTERM');
     running.delete(ticketId);
+    return true;
+  }
+  return false;
+}
+
+/** Abort a running agent — marks it as user-initiated so the close handler shows a friendly message */
+export function abortAgent(ticketId: string): boolean {
+  const proc = running.get(ticketId);
+  if (proc) {
+    console.log(`[dispatcher] Aborting agent for ticket #${ticketId} (user-initiated)`);
+    abortedTickets.add(ticketId);
+    proc.kill('SIGTERM');
+    // Don't delete from running — let the close handler do cleanup
     return true;
   }
   return false;

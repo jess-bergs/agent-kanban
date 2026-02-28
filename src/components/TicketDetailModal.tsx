@@ -27,7 +27,7 @@ import {
 import type { Ticket, TicketStatus, Project, AgentActivity } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount } from '../types';
 
-import { XCircle, GitMerge, AlertTriangle } from 'lucide-react';
+import { XCircle, GitMerge, AlertTriangle, StopCircle } from 'lucide-react';
 
 const STATUS_STYLE: Record<TicketStatus, { bg: string; text: string; icon: typeof Clock }> = {
   todo: { bg: 'bg-accent-amber/10', text: 'text-accent-amber', icon: Clock },
@@ -103,6 +103,15 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
     setActing(true);
     try {
       await fetch(`/api/tickets/${ticket.id}/refresh-status`, { method: 'POST' });
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function handleAbort() {
+    setActing(true);
+    try {
+      await fetch(`/api/tickets/${ticket.id}/abort`, { method: 'POST' });
     } finally {
       setActing(false);
     }
@@ -429,38 +438,46 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           </div>
 
           {/* Actions */}
-          {(ticket.status === 'error' || ticket.status === 'failed' || ticket.status === 'in_review' || ticket.status === 'done' || ticket.status === 'merged' || ticket.status === 'todo') && (
-            <div className="flex items-center gap-3 pt-3 border-t border-surface-700">
-              {(ticket.status === 'error' || ticket.status === 'failed') && (
-                <button
-                  onClick={handleRetry}
-                  disabled={acting}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-amber/10 text-accent-amber rounded-lg hover:bg-accent-amber/20 disabled:opacity-50 transition-colors"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Retry
-                </button>
-              )}
-              {ticket.status === 'in_review' && ticket.prUrl && (
-                <button
-                  onClick={handleRefreshStatus}
-                  disabled={acting}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-cyan/10 text-accent-cyan rounded-lg hover:bg-accent-cyan/20 disabled:opacity-50 transition-colors"
-                >
-                  <RefreshCw className={`w-4 h-4 ${acting ? 'animate-spin' : ''}`} />
-                  Refresh Status
-                </button>
-              )}
+          <div className="flex items-center gap-3 pt-3 border-t border-surface-700">
+            {(ticket.status === 'in_progress' || ticket.status === 'needs_approval') && (
               <button
-                onClick={handleDelete}
+                onClick={handleAbort}
                 disabled={acting}
-                className="flex items-center gap-2 px-4 py-2 text-sm text-slate-400 hover:text-accent-red hover:bg-accent-red/10 rounded-lg disabled:opacity-50 transition-colors ml-auto"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-red/10 text-accent-red rounded-lg hover:bg-accent-red/20 disabled:opacity-50 transition-colors"
               >
-                <Trash2 className="w-4 h-4" />
-                Delete
+                <StopCircle className="w-4 h-4" />
+                Abort
               </button>
-            </div>
-          )}
+            )}
+            {(ticket.status === 'error' || ticket.status === 'failed') && (
+              <button
+                onClick={handleRetry}
+                disabled={acting}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-amber/10 text-accent-amber rounded-lg hover:bg-accent-amber/20 disabled:opacity-50 transition-colors"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Retry
+              </button>
+            )}
+            {ticket.status === 'in_review' && ticket.prUrl && (
+              <button
+                onClick={handleRefreshStatus}
+                disabled={acting}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-cyan/10 text-accent-cyan rounded-lg hover:bg-accent-cyan/20 disabled:opacity-50 transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${acting ? 'animate-spin' : ''}`} />
+                Refresh Status
+              </button>
+            )}
+            <button
+              onClick={handleDelete}
+              disabled={acting}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-400 hover:text-accent-red hover:bg-accent-red/10 rounded-lg disabled:opacity-50 transition-colors ml-auto"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </button>
+          </div>
         </div>
       </div>
     </div>
