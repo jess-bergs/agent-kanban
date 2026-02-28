@@ -82,9 +82,9 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
     }
   }
 
-  // Sort by creation time
+  // Sort by creation time, newest first
   for (const status of COLUMNS) {
-    grouped[status].sort((a, b) => a.createdAt - b.createdAt);
+    grouped[status].sort((a, b) => b.createdAt - a.createdAt);
   }
 
   // Hide needs_approval/done/merged/failed/error columns if empty
