@@ -156,6 +156,23 @@ async function startAgent(ticket: Ticket) {
 
   taskLines.push(ticket.instructions, '', '---');
 
+  // Investigation-first instructions for all dispatched agents
+  taskLines.push(
+    '## Investigation-First Approach',
+    '',
+    'Before writing ANY code, you MUST thoroughly investigate the relevant parts of the codebase:',
+    '',
+    '1. **Understand the context** — Read CLAUDE.md, AGENTS.md, and any referenced docs to learn project conventions, architecture, and patterns.',
+    '2. **Trace the existing code** — Find and read ALL files related to the feature or bug. Follow imports, check call sites, and understand how data flows through the system.',
+    '3. **Identify the scope** — Map out every file that will need changes. Look for related tests, types, documentation, and downstream consumers.',
+    '4. **Check for prior art** — Search for similar patterns already in the codebase. Match existing conventions rather than inventing new ones.',
+    '5. **Form a plan** — Only after understanding the full picture, decide on your approach. If the change is non-trivial, outline what you will do before doing it.',
+    '',
+    'Do NOT skip investigation. Jumping straight to code leads to incomplete fixes, missed edge cases, and inconsistent patterns.',
+    '',
+    '---',
+  );
+
   if (useWorktree) {
     taskLines.push(
       `You are working in a git worktree on branch "${branchName}" based on "${project.defaultBranch}".`,
