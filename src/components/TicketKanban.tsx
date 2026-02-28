@@ -6,7 +6,7 @@ import { TicketCard } from './TicketCard';
 import { TicketDetailModal } from './TicketDetailModal';
 import { CreateTicketModal } from './CreateTicketModal';
 
-const COLUMNS: TicketStatus[] = ['todo', 'in_progress', 'done', 'merged', 'failed', 'error'];
+const COLUMNS: TicketStatus[] = ['todo', 'in_progress', 'in_review', 'done', 'merged', 'failed', 'error'];
 
 const COLUMN_STYLES: Record<TicketStatus, { header: string; badge: string }> = {
   todo: {
@@ -16,6 +16,10 @@ const COLUMN_STYLES: Record<TicketStatus, { header: string; badge: string }> = {
   in_progress: {
     header: 'bg-accent-blue/10 text-accent-blue',
     badge: 'bg-accent-blue/20 text-accent-blue',
+  },
+  in_review: {
+    header: 'bg-accent-cyan/10 text-accent-cyan',
+    badge: 'bg-accent-cyan/20 text-accent-cyan',
   },
   done: {
     header: 'bg-accent-green/10 text-accent-green',
@@ -60,6 +64,7 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
   const grouped: Record<TicketStatus, Ticket[]> = {
     todo: [],
     in_progress: [],
+    in_review: [],
     done: [],
     merged: [],
     failed: [],
@@ -77,9 +82,9 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
     grouped[status].sort((a, b) => a.createdAt - b.createdAt);
   }
 
-  // Hide merged/failed/error columns if empty
+  // Hide done/merged/failed/error columns if empty
   const visibleColumns = COLUMNS.filter(
-    s => !['merged', 'failed', 'error'].includes(s) || grouped[s].length > 0,
+    s => !['done', 'merged', 'failed', 'error'].includes(s) || grouped[s].length > 0,
   );
 
   return (

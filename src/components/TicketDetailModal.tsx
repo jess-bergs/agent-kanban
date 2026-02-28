@@ -22,6 +22,7 @@ import { XCircle, GitMerge } from 'lucide-react';
 const STATUS_STYLE: Record<TicketStatus, { bg: string; text: string; icon: typeof Clock }> = {
   todo: { bg: 'bg-accent-amber/10', text: 'text-accent-amber', icon: Clock },
   in_progress: { bg: 'bg-accent-blue/10', text: 'text-accent-blue', icon: Loader2 },
+  in_review: { bg: 'bg-accent-cyan/10', text: 'text-accent-cyan', icon: GitPullRequest },
   done: { bg: 'bg-accent-green/10', text: 'text-accent-green', icon: CheckCircle },
   merged: { bg: 'bg-accent-purple/10', text: 'text-accent-purple', icon: GitMerge },
   failed: { bg: 'bg-accent-red/10', text: 'text-accent-red', icon: XCircle },
@@ -201,7 +202,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           </div>
 
           {/* Actions */}
-          {(ticket.status === 'error' || ticket.status === 'failed' || ticket.status === 'done' || ticket.status === 'todo') && (
+          {(ticket.status === 'error' || ticket.status === 'failed' || ticket.status === 'in_review' || ticket.status === 'merged' || ticket.status === 'todo') && (
             <div className="flex items-center gap-3 pt-3 border-t border-surface-700">
               {(ticket.status === 'error' || ticket.status === 'failed') && (
                 <button

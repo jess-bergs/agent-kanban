@@ -237,15 +237,15 @@ async function startAgent(ticket: Ticket) {
       }
     }
 
-    const doneTicket = await updateTicket(ticket.id, {
-      status: 'done',
+    const reviewTicket = await updateTicket(ticket.id, {
+      status: 'in_review',
       prUrl,
       prNumber,
       completedAt: Date.now(),
       lastOutput: stdout.slice(-1000),
       agentPid: undefined,
     });
-    if (doneTicket) await broadcastTicket(doneTicket);
+    if (reviewTicket) await broadcastTicket(reviewTicket);
 
     console.log(
       `[dispatcher] Ticket #${ticket.id} completed` +
@@ -268,7 +268,7 @@ function cleanupWorktree(repoPath: string, worktreePath: string) {
   }
 }
 
-// ─── Auto-Merge Monitoring ──────────────────────────────────────
+// ─── PR Status Monitoring ───────────────────────────────────────
 
 interface PrStatus {
   state: string;
@@ -277,8 +277,33 @@ interface PrStatus {
   statusCheckRollup: { state: string }[];
 }
 
+async function checkPrStatus(ticket: Ticket) {
+  if (!ticket.prUrl || ticket.status !== 'in_review') return;
+
+  const project = await getProject(ticket.projectId);
+  if (!project) return;
+
+  try {
+    const prJson = execSync(
+      `gh pr view "${ticket.prUrl}" --json state`,
+      { cwd: project.repoPath, encoding: 'utf-8', timeout: 15000 },
+    ).trim();
+
+    const pr: { state: string } = JSON.parse(prJson);
+
+    if (pr.state === 'MERGED') {
+      const merged = await updateTicket(ticket.id, { status: 'merged' });
+      if (merged) await broadcastTicket(merged);
+      console.log(`[pr-monitor] Ticket #${ticket.id} PR has been merged`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[pr-monitor] Error checking ticket #${ticket.id}: ${msg}`);
+  }
+}
+
 async function checkAutoMerge(ticket: Ticket) {
-  if (!ticket.autoMerge || !ticket.prUrl || ticket.status !== 'done') return;
+  if (!ticket.autoMerge || !ticket.prUrl || ticket.status !== 'in_review') return;
 
   const project = await getProject(ticket.projectId);
   if (!project) return;
@@ -342,12 +367,18 @@ export async function dispatcherTick() {
     }
   }
 
-  // Check auto-merge for done tickets with PRs
-  const autoMergeCandidates = tickets.filter(
-    t => t.status === 'done' && t.autoMerge && t.prUrl,
+  // Check PR status for all in_review tickets
+  const inReviewTickets = tickets.filter(
+    t => t.status === 'in_review' && t.prUrl,
   );
-  for (const ticket of autoMergeCandidates) {
-    await checkAutoMerge(ticket);
+  for (const ticket of inReviewTickets) {
+    // Check if PR has been merged
+    await checkPrStatus(ticket);
+
+    // If ticket has autoMerge enabled and still in_review, try to auto-merge
+    if (ticket.autoMerge) {
+      await checkAutoMerge(ticket);
+    }
   }
 }
 

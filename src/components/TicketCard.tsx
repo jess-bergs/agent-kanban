@@ -4,6 +4,7 @@ import type { Ticket, TicketStatus } from '../types';
 const BORDER_COLORS: Record<TicketStatus, string> = {
   todo: 'border-l-accent-amber',
   in_progress: 'border-l-accent-blue',
+  in_review: 'border-l-accent-cyan',
   done: 'border-l-accent-green',
   merged: 'border-l-accent-purple',
   failed: 'border-l-accent-red',

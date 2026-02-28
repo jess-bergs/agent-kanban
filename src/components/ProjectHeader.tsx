@@ -9,7 +9,7 @@ interface ProjectHeaderProps {
 
 export function ProjectHeader({ project, tickets }: ProjectHeaderProps) {
   const inProgress = tickets.filter(t => t.status === 'in_progress').length;
-  const done = tickets.filter(t => t.status === 'done').length;
+  const completed = tickets.filter(t => t.status === 'in_review' || t.status === 'merged').length;
   const total = tickets.length;
 
   return (
@@ -43,8 +43,8 @@ export function ProjectHeader({ project, tickets }: ProjectHeaderProps) {
               {inProgress > 0 && (
                 <span className="text-accent-blue">{inProgress} running</span>
               )}
-              {done > 0 && (
-                <span className="text-accent-green">{done}/{total} done</span>
+              {completed > 0 && (
+                <span className="text-accent-green">{completed}/{total} completed</span>
               )}
             </div>
           )}

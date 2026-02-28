@@ -103,7 +103,7 @@ export function Sidebar({
               const isSelected = selectedProject?.id === project.id;
               const projectTickets = tickets.filter(t => t.projectId === project.id);
               const inProgress = projectTickets.filter(t => t.status === 'in_progress').length;
-              const done = projectTickets.filter(t => t.status === 'done').length;
+              const completed = projectTickets.filter(t => t.status === 'in_review' || t.status === 'merged').length;
 
               return (
                 <div key={project.id}>
@@ -143,8 +143,8 @@ export function Sidebar({
                       {inProgress > 0 && (
                         <span className="text-accent-blue">{inProgress} active</span>
                       )}
-                      {done > 0 && (
-                        <span className="text-accent-green">{done} done</span>
+                      {completed > 0 && (
+                        <span className="text-accent-green">{completed} completed</span>
                       )}
                     </div>
                   </button>
