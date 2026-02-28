@@ -210,6 +210,8 @@ async function startAgent(ticket: Ticket) {
   let lineBuffer = '';
   // Effort tracking
   const effort: TicketEffort = { turns: 0, toolCalls: 0 };
+  // Track the latest pending stream write so close handler can wait for it
+  let pendingStreamWrite: Promise<unknown> = Promise.resolve();
   // Track message IDs to deduplicate usage stats (stream-json duplicates per content block)
   const seenMessageIds = new Set<string>();
 
@@ -322,7 +324,7 @@ async function startAgent(ticket: Ticket) {
       }
     }
 
-    updateTicket(ticket.id, {
+    pendingStreamWrite = updateTicket(ticket.id, {
       lastOutput: fullText.slice(-500),
       agentActivity: [...activity],
       lastThinking: lastThinking || undefined,
@@ -349,6 +351,8 @@ async function startAgent(ticket: Ticket) {
     if (lineBuffer.trim()) {
       processStreamLine(lineBuffer);
     }
+    // Wait for any in-flight stream writes to finish before the final status update
+    await pendingStreamWrite;
 
     running.delete(ticket.id);
     lastStreamActivity.delete(ticket.id);

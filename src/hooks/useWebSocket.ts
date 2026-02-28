@@ -59,7 +59,11 @@ export function useWebSocket(): UseWebSocketReturn {
       case 'projects_updated': {
         const { projects: p, tickets: t } = parsed.data as ProjectsPayload;
         setProjects(p);
-        setTickets(t);
+        setTickets(prev => {
+          const map = new Map(prev.map(ticket => [ticket.id, ticket]));
+          for (const ticket of t) map.set(ticket.id, ticket);
+          return Array.from(map.values());
+        });
         break;
       }
       case 'ticket_updated': {
