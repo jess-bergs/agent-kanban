@@ -1,6 +1,6 @@
 {
   "id": "620ce149-7713-4caa-8e6c-b2369efcacc0",
-  "status": "failed",
+  "status": "merged",
   "createdAt": 1772309171943,
   "projectId": "c4dc62ae",
   "subject": "in tickets, keep log of state changes",
@@ -9,131 +9,137 @@
   "autoMerge": true,
   "queued": false,
   "useRalph": false,
-  "branchName": "agent/ticket-620ce149-7713-4caa-8e6c-b2369efcacc0-in-tickets-keep-log-of-state-changes",
-  "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-620ce149-7713-4caa-8e6c-b2369efcacc0-in-tickets-keep-log-of-state-changes",
-  "startedAt": 1772309172534,
-  "lastOutput": " lifecycle of any ticket.\n`─────────────────────────────────────────────────`\n\nNow let me add the API endpoint for retrieving state history.\nNow let me verify the build compiles.\nThese are pre-existing frontend type errors (missing React types). Let me check if the server-side TypeScript compiles cleanly — that's what matters for my changes.\nServer TypeScript compiles cleanly. Let me also check the full build now that deps are installed.\nEverything builds. Let me also run linting if configured.\n",
   "agentActivity": [
     {
+      "type": "tool_use",
+      "tool": "Edit",
+      "content": "{\"replace_all\":false,\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-620ce149-7713-4caa-8e6c-b2369efcacc0-in-tickets-keep-log-of-state-c",
+      "timestamp": 1772320377569
+    },
+    {
       "type": "text",
-      "content": "Now update `createTicket()` to seed the state log.",
-      "timestamp": 1772309241010
+      "content": "Now add the timeline UI right before the timestamps section:",
+      "timestamp": 1772320380624
     },
     {
       "type": "tool_use",
       "tool": "Edit",
       "content": "{\"replace_all\":false,\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-620ce149-7713-4caa-8e6c-b2369efcacc0-in-tickets-keep-log-of-state-c",
-      "timestamp": 1772309244279
-    },
-    {
-      "type": "text",
-      "content": "Now the key part — update `updateTicket()` to detect status changes and append to the log.",
-      "timestamp": 1772309247200
-    },
-    {
-      "type": "tool_use",
-      "tool": "Edit",
-      "content": "{\"replace_all\":false,\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-620ce149-7713-4caa-8e6c-b2369efcacc0-in-tickets-keep-log-of-state-c",
-      "timestamp": 1772309252550
+      "timestamp": 1772320394004
     },
     {
       "type": "tool_use",
       "tool": "TodoWrite",
-      "content": "{\"todos\":[{\"content\":\"Explore ticket types and state management code\",\"status\":\"completed\",\"activeForm\":\"Exploring ticket types and state management\"}",
-      "timestamp": 1772309257197
+      "content": "{\"todos\":[{\"content\":\"Add StateChangeEntry type to src/types.ts and stateLog field to Ticket\",\"status\":\"completed\",\"activeForm\":\"Adding StateChangeEnt",
+      "timestamp": 1772320399252
     },
     {
       "type": "text",
-      "content": "ered chronologically, making it easy to reconstruct the full lifecycle of any ticket.\n`─────────────────────────────────────────────────`\n\nNow let me add the API endpoint for retrieving state history.",
-      "timestamp": 1772309262591
+      "content": "Let me build to check for any type errors.",
+      "timestamp": 1772320402499
     },
     {
       "type": "tool_use",
-      "tool": "Edit",
-      "content": "{\"replace_all\":false,\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-620ce149-7713-4caa-8e6c-b2369efcacc0-in-tickets-keep-log-of-state-c",
-      "timestamp": 1772309265068
+      "tool": "Bash",
+      "content": "{\"command\":\"npm run build 2>&1\",\"description\":\"Build project to check for type errors\",\"timeout\":60000}",
+      "timestamp": 1772320403731
     },
     {
       "type": "text",
-      "content": "Now let me verify the build compiles.",
-      "timestamp": 1772309268031
+      "content": "These are all pre-existing errors (missing `node_modules` — `react` can't be found). Let me install dependencies first.",
+      "timestamp": 1772320408036
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"npm install 2>&1 | tail -5\",\"description\":\"Install npm dependencies\",\"timeout\":120000}",
+      "timestamp": 1772320409607
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"npm run build 2>&1\",\"description\":\"Build project after installing dependencies\",\"timeout\":60000}",
+      "timestamp": 1772320416817
+    },
+    {
+      "type": "text",
+      "content": "Build succeeds. Let me now commit, push, and create the PR.",
+      "timestamp": 1772320424002
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git status\",\"description\":\"Check git status\"}",
+      "timestamp": 1772320426462
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git diff\",\"description\":\"Show staged and unstaged changes\"}",
+      "timestamp": 1772320427617
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git log --oneline -5\",\"description\":\"Show recent commit messages\"}",
+      "timestamp": 1772320428447
+    },
+    {
+      "type": "text",
+      "content": "Everything looks good. Let me commit, push, and create the PR.",
+      "timestamp": 1772320432885
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git add server/auditor.ts server/dispatcher.ts server/index.ts server/store.ts src/components/TicketDetailModal.tsx src/types.ts\",\"descrip",
+      "timestamp": 1772320433837
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git commit -m \\\"$(cat <<'EOF'\\nAdd state change log to tickets with timestamps and reasons\\n\\nEvery ticket status transition is now record",
+      "timestamp": 1772320442599
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git push -u origin agent/ticket-620ce149-7713-4caa-8e6c-b2369efcacc0-in-tickets-keep-log-of-state-changes 2>&1\",\"description\":\"Push branch",
+      "timestamp": 1772320452711
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"gh pr create --base main --title \\\"Add state change log to tickets\\\" --body \\\"$(cat <<'EOF'\\n## Summary\\n- Every ticket status transition ",
+      "timestamp": 1772320465891
     },
     {
       "type": "tool_use",
       "tool": "TodoWrite",
-      "content": "{\"todos\":[{\"content\":\"Explore ticket types and state management code\",\"status\":\"completed\",\"activeForm\":\"Exploring ticket types and state management\"}",
-      "timestamp": 1772309269218
-    },
-    {
-      "type": "tool_use",
-      "tool": "Bash",
-      "content": "{\"command\":\"npx tsc -b --noEmit 2>&1 | head -50\",\"description\":\"TypeScript build check\",\"timeout\":30000}",
-      "timestamp": 1772309273405
-    },
-    {
-      "type": "tool_use",
-      "tool": "Bash",
-      "content": "{\"command\":\"npm run build 2>&1 | tail -30\",\"description\":\"Run npm build to check TypeScript compilation\",\"timeout\":60000}",
-      "timestamp": 1772309281883
+      "content": "{\"todos\":[{\"content\":\"Add StateChangeEntry type to src/types.ts and stateLog field to Ticket\",\"status\":\"completed\",\"activeForm\":\"Adding StateChangeEnt",
+      "timestamp": 1772320476357
     },
     {
       "type": "text",
-      "content": "These are pre-existing frontend type errors (missing React types). Let me check if the server-side TypeScript compiles cleanly — that's what matters for my changes.",
-      "timestamp": 1772309287711
-    },
-    {
-      "type": "tool_use",
-      "tool": "Bash",
-      "content": "{\"command\":\"node_modules/.bin/tsc -p tsconfig.server.json --noEmit 2>&1\",\"description\":\"Check server TypeScript compilation\",\"timeout\":30000}",
-      "timestamp": 1772309288857
-    },
-    {
-      "type": "tool_use",
-      "tool": "Bash",
-      "content": "{\"command\":\"npm ls typescript 2>&1; ls tsconfig.server.json 2>&1\",\"description\":\"Check if typescript is installed and server config exists\"}",
-      "timestamp": 1772309295325
-    },
-    {
-      "type": "tool_use",
-      "tool": "Bash",
-      "content": "{\"command\":\"npm install 2>&1 | tail -5\",\"description\":\"Install dependencies\",\"timeout\":60000}",
-      "timestamp": 1772309300802
-    },
-    {
-      "type": "tool_use",
-      "tool": "Bash",
-      "content": "{\"command\":\"node_modules/.bin/tsc -p tsconfig.server.json --noEmit 2>&1\",\"description\":\"Check server TypeScript compilation\",\"timeout\":30000}",
-      "timestamp": 1772309310681
-    },
-    {
-      "type": "text",
-      "content": "Server TypeScript compiles cleanly. Let me also check the full build now that deps are installed.",
-      "timestamp": 1772309315545
-    },
-    {
-      "type": "tool_use",
-      "tool": "Bash",
-      "content": "{\"command\":\"npm run build 2>&1 | tail -5\",\"description\":\"Full build check\",\"timeout\":60000}",
-      "timestamp": 1772309316014
-    },
-    {
-      "type": "text",
-      "content": "Everything builds. Let me also run linting if configured.",
-      "timestamp": 1772309324219
-    },
-    {
-      "type": "tool_use",
-      "tool": "Bash",
-      "content": "{\"command\":\"npm run lint 2>&1 | tail -10\",\"description\":\"Run linter\",\"timeout\":30000}",
-      "timestamp": 1772309325067
+      "content": "lapsible \"State History\" timeline with color-coded status icons, human-readable reasons, elapsed time between transitions, and wall-clock timestamps\n\nhttps://github.com/jess-bergs/agent-kanban/pull/43",
+      "timestamp": 1772320490979
     }
   ],
   "effort": {
-    "turns": 20,
-    "toolCalls": 22,
-    "inputTokens": 1179146,
-    "outputTokens": 207
+    "turns": 59,
+    "toolCalls": 74,
+    "inputTokens": 4634889,
+    "outputTokens": 500,
+    "durationMs": 429436
   },
-  "error": "Agent process died (server restart or crash)",
-  "completedAt": 1772309327464
+  "branchName": "agent/ticket-620ce149-7713-4caa-8e6c-b2369efcacc0-in-tickets-keep-log-of-state-changes",
+  "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-620ce149-7713-4caa-8e6c-b2369efcacc0-in-tickets-keep-log-of-state-changes",
+  "startedAt": 1772320063552,
+  "sessionId": "3a145122-55fa-457a-8865-cc9163310371",
+  "lastOutput": "es across 6 files:**\n\n1. **`src/types.ts`** — Added `StateChangeEntry` interface and `stateLog` field to `Ticket`\n2. **`server/store.ts`** — Modified `updateTicket()` to auto-detect status changes and append to the log; seeded initial `todo` entry in `createTicket()`\n3. **`server/dispatcher.ts`** — Added reason strings to all 10 status transition call sites (agent_started, agent_completed, agent_failed, user_abort, pr_merged, auto_merged, tool_approved, waiting_tool_approval, orphan_recovery, project_not_found, worktree_setup_failed)\n4. **`server/index.ts`** — Added reasons to retry/abort/PATCH endpoints; added `GET /api/tickets/:id/log` endpoint\n5. **`server/auditor.ts`** — Added `pr_merged` reason to the auditor's merge detection\n6. **`src/components/TicketDetailModal.tsx`** — Added collapsible \"State History\" timeline with color-coded status icons, human-readable reasons, elapsed time between transitions, and wall-clock timestamps\n\nhttps://github.com/jess-bergs/agent-kanban/pull/43\n",
+  "prUrl": "https://github.com/jess-bergs/agent-kanban/pull/43",
+  "prNumber": 43,
+  "completedAt": 1772320492988,
+  "auditStatus": "pending",
+  "hasConflict": false
 }
