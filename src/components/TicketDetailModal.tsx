@@ -27,7 +27,7 @@ import {
   Images,
 } from 'lucide-react';
 import type { Ticket, TicketStatus, Project, AgentActivity, StateChangeEntry } from '../types';
-import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount } from '../types';
+import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount, shortenUuids } from '../types';
 
 import { XCircle, GitMerge, AlertTriangle, StopCircle, History, Users } from 'lucide-react';
 
@@ -199,7 +199,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="flex items-center gap-1 text-xs text-slate-500">
                 <Hash className="w-3 h-3" />
-                {ticket.id}
+                {ticket.id.slice(0, 8)}
               </span>
               <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>
                 <StatusIcon className={`w-3 h-3 ${ticket.status === 'in_progress' ? 'animate-spin' : ''} ${ticket.status === 'needs_approval' ? 'animate-pulse' : ''}`} />
@@ -312,7 +312,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
               <div>
                 <p className="text-xs text-slate-500 mb-1">Branch</p>
                 <code className="text-sm text-accent-purple bg-accent-purple/10 px-2 py-0.5 rounded">
-                  {ticket.branchName}
+                  {shortenUuids(ticket.branchName)}
                 </code>
               </div>
             </div>

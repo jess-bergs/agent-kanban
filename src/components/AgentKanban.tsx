@@ -1,6 +1,6 @@
 import { Bot, Monitor, Code2, Terminal, GitBranch, Clock, MessageSquare, Rocket, ExternalLink } from 'lucide-react';
 import type { SoloAgent, Ticket } from '../types';
-import { formatTimestamp } from '../types';
+import { formatTimestamp, shortenUuids } from '../types';
 
 interface AgentKanbanProps {
   agents: SoloAgent[];
@@ -81,7 +81,7 @@ function AgentCard({ agent, ticket, onNavigateToTicket }: {
         {agent.gitBranch && agent.gitBranch !== 'HEAD' && (
           <div className="flex items-center gap-1.5">
             <GitBranch className="w-3 h-3 text-accent-purple shrink-0" />
-            <span className="font-mono truncate text-accent-purple">{agent.gitBranch}</span>
+            <span className="font-mono truncate text-accent-purple">{shortenUuids(agent.gitBranch)}</span>
           </div>
         )}
         <div className="flex items-center gap-1.5">
@@ -128,7 +128,7 @@ function AgentCard({ agent, ticket, onNavigateToTicket }: {
           className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-accent-cyan/15 text-accent-cyan hover:bg-accent-cyan/25 transition-colors border border-accent-cyan/30"
         >
           <ExternalLink className="w-3 h-3" />
-          View Ticket #{ticket.id}
+          View Ticket #{ticket.id.slice(0, 8)}
         </button>
       )}
     </div>
