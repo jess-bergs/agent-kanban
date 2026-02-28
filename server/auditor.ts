@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { listProjects, getTicket, updateTicket } from './store.ts';
 import type { Ticket, Project, WSEvent } from '../src/types.ts';
+import { envWithNvmNode } from './nvm.ts';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -350,14 +351,14 @@ async function reviewPr(entry: WatchlistEntry): Promise<void> {
   ];
 
   // Remove env vars that would override subscription auth
-  const cleanEnv = { ...process.env };
+  const cleanEnv: Record<string, string | undefined> = { ...process.env };
   delete cleanEnv.CLAUDECODE;
   delete cleanEnv.CLAUDE_CODE;
   delete cleanEnv.ANTHROPIC_API_KEY;
 
   const proc = spawn('claude', args, {
     cwd: entry.repoPath,
-    env: cleanEnv,
+    env: envWithNvmNode(cleanEnv),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 

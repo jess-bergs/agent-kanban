@@ -4,6 +4,7 @@ import { getProject, getTicket, updateTicket, listTickets } from './store.ts';
 import { captureAndUploadScreenshots } from './screenshots.ts';
 import { runAudit } from './auditor.ts';
 import type { Ticket, AgentActivity, TicketEffort, WSEvent } from '../src/types.ts';
+import { envWithNvmNode } from './nvm.ts';
 
 const MAX_CONCURRENT = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
@@ -147,6 +148,8 @@ async function startAgent(ticket: Ticket) {
       `2. Push the branch: git push -u origin ${branchName}`,
       `3. Create a pull request: gh pr create --base ${project.defaultBranch} --fill`,
       '4. Output the PR URL on its own line at the end',
+      '',
+      `Ticket-ID: ${ticket.id}`,
     );
   } else {
     taskLines.push(
@@ -180,14 +183,14 @@ async function startAgent(ticket: Ticket) {
   }
 
   // Remove env vars that would override subscription auth or block nested sessions
-  const cleanEnv = { ...process.env };
+  const cleanEnv: Record<string, string | undefined> = { ...process.env };
   delete cleanEnv.CLAUDECODE;
   delete cleanEnv.CLAUDE_CODE;
   delete cleanEnv.ANTHROPIC_API_KEY;
 
   const proc = spawn('claude', args, {
     cwd: agentCwd,
-    env: cleanEnv,
+    env: envWithNvmNode(cleanEnv),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -417,6 +420,15 @@ async function startAgent(ticket: Ticket) {
         (prUrl ? ` — PR: ${prUrl}` : ' (no PR detected)'),
     );
 
+    // Ensure ticket ID is in the PR body for cross-referencing
+    if (prUrl) {
+      try {
+        ensureTicketIdInPr(prUrl, ticket.id, agentCwd);
+      } catch (err) {
+        console.error(`[dispatcher] Failed to add ticket ID to PR #${ticket.id}:`, err);
+      }
+    }
+
     // Best-effort screenshot capture for PRs (before worktree cleanup)
     if (prUrl && useWorktree) {
       try {
@@ -449,6 +461,45 @@ function cleanupWorktree(repoPath: string, worktreePath: string) {
   } catch {
     // non-critical
   }
+}
+
+// ─── Ticket ID ↔ PR Cross-Referencing ───────────────────────────
+
+const TICKET_ID_MARKER = '<!-- ticket-id:';
+const TICKET_ID_PATTERN = /<!-- ticket-id:([a-f0-9-]+) -->/;
+
+/**
+ * Ensures the PR body contains a machine-readable ticket ID marker.
+ * Idempotent — skips if the marker is already present.
+ */
+function ensureTicketIdInPr(prUrl: string, ticketId: string, cwd: string) {
+  const body = execSync(
+    `gh pr view "${prUrl}" --json body --jq '.body'`,
+    { cwd, encoding: 'utf-8', timeout: 10000 },
+  ).trim();
+
+  if (body.includes(`${TICKET_ID_MARKER}${ticketId} -->`)) {
+    return; // already present
+  }
+
+  const marker = `${TICKET_ID_MARKER}${ticketId} -->`;
+  const footer = `\n\n---\nTicket-ID: \`${ticketId}\`\n${marker}`;
+  const newBody = body + footer;
+
+  execSync(
+    `gh pr edit "${prUrl}" --body ${JSON.stringify(newBody)}`,
+    { cwd, encoding: 'utf-8', timeout: 10000 },
+  );
+  console.log(`[dispatcher] Added ticket ID ${ticketId} to PR: ${prUrl}`);
+}
+
+/**
+ * Extracts a ticket ID from a PR body, if present.
+ * Useful for reverse-lookups (PR → ticket) during self-healing.
+ */
+export function extractTicketIdFromPr(prBody: string): string | null {
+  const match = prBody.match(TICKET_ID_PATTERN);
+  return match ? match[1] : null;
 }
 
 // ─── PR Status Monitoring ───────────────────────────────────────

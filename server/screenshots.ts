@@ -15,6 +15,7 @@ import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Ticket } from '../src/types.ts';
 import { getProject } from './store.ts';
+import { envWithNvmNode } from './nvm.ts';
 
 const SCREENSHOT_TIMEOUT_MS = 60_000;
 
@@ -66,6 +67,7 @@ function startDevServer(cwd: string): { proc: ChildProcess; kill: () => void } {
 
   const proc = spawn('npm', ['run', 'dev'], {
     cwd,
+    env: envWithNvmNode({ ...process.env }),
     stdio: 'ignore',
     shell: true,
     detached: true,
@@ -134,6 +136,7 @@ const views = [
     let stderr = '';
 
     const nodeProc = spawn('node', [scriptPath], {
+      env: envWithNvmNode({ ...process.env }),
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout: SCREENSHOT_TIMEOUT_MS,
     });

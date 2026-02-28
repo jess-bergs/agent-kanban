@@ -45,6 +45,10 @@
 - [ ] My changes generate no new warnings
 - [ ] Screenshots added if UI changes were made
 
+## Ticket
+
+<!-- If dispatched by Agent Kanban, the ticket ID will be added here automatically -->
+
 ## Related Issues
 
 <!-- Link any related issues here -->
