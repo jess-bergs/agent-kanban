@@ -22,7 +22,7 @@ import {
   deleteTicket,
   getProjectsPayload,
 } from './store.ts';
-import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent } from './dispatcher.ts';
+import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, checkPrStatus } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
 import type { TeamWithData, WSEvent } from '../src/types.ts';
 
@@ -230,6 +230,29 @@ app.post('/api/tickets/:id/retry', async (req, res) => {
     res.json(ticket);
   } else {
     res.status(404).json({ error: 'Ticket not found' });
+  }
+});
+
+app.post('/api/tickets/:id/refresh-status', async (req, res) => {
+  const ticket = await getTicket(req.params.id);
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found' });
+    return;
+  }
+
+  if (ticket.status !== 'in_review' || !ticket.prUrl) {
+    res.status(400).json({ error: 'Ticket must be in review with a PR URL' });
+    return;
+  }
+
+  try {
+    await checkPrStatus(ticket);
+    // Get the updated ticket
+    const updatedTicket = await getTicket(req.params.id);
+    res.json(updatedTicket);
+  } catch (err) {
+    console.error('Error refreshing ticket status:', err);
+    res.status(500).json({ error: 'Failed to refresh status' });
   }
 });
 

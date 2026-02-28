@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Trash2,
   Zap,
+  RefreshCw,
 } from 'lucide-react';
 import type { Ticket, TicketStatus, Project } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp } from '../types';
@@ -55,6 +56,15 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
     try {
       const res = await fetch(`/api/tickets/${ticket.id}`, { method: 'DELETE' });
       if (res.ok) onClose();
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function handleRefreshStatus() {
+    setActing(true);
+    try {
+      await fetch(`/api/tickets/${ticket.id}/refresh-status`, { method: 'POST' });
     } finally {
       setActing(false);
     }
@@ -231,6 +241,16 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 >
                   <RotateCcw className="w-4 h-4" />
                   Retry
+                </button>
+              )}
+              {ticket.status === 'in_review' && ticket.prUrl && (
+                <button
+                  onClick={handleRefreshStatus}
+                  disabled={acting}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-cyan/10 text-accent-cyan rounded-lg hover:bg-accent-cyan/20 disabled:opacity-50 transition-colors"
+                >
+                  <RefreshCw className={`w-4 h-4 ${acting ? 'animate-spin' : ''}`} />
+                  Refresh Status
                 </button>
               )}
               <button
