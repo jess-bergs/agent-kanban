@@ -12,7 +12,7 @@ import type {
   WSInboxUpdatedEvent,
 } from '../types';
 
-export type ViewMode = 'projects' | 'teams' | 'agents';
+export type ViewMode = 'projects' | 'teams' | 'agents' | 'analytics';
 
 interface UseWebSocketReturn {
   teams: TeamWithData[];

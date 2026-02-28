@@ -24,9 +24,10 @@ import {
   Gauge,
 } from 'lucide-react';
 import type { Ticket, TicketStatus, Project, AgentActivity } from '../types';
-import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount } from '../types';
+import { TICKET_STATUS_LABELS, PRIORITY_LABELS, PRIORITY_COLORS, formatTimestamp, formatDuration, formatTokenCount } from '../types';
 
-import { XCircle, GitMerge } from 'lucide-react';
+import { XCircle, GitMerge, Link, AlertTriangle, Rewind } from 'lucide-react';
+import { SessionTimeline } from './SessionTimeline';
 
 const STATUS_STYLE: Record<TicketStatus, { bg: string; text: string; icon: typeof Clock }> = {
   todo: { bg: 'bg-accent-amber/10', text: 'text-accent-amber', icon: Clock },
@@ -76,6 +77,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
   const [acting, setActing] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
   const [showActivity, setShowActivity] = useState(true);
+  const [showReplay, setShowReplay] = useState(false);
 
   async function handleRetry() {
     setActing(true);
@@ -117,7 +119,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative bg-surface-800 border border-surface-600 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col animate-in"
+        className={`relative bg-surface-800 border border-surface-600 rounded-xl shadow-2xl w-full max-h-[80vh] flex flex-col animate-in ${showReplay ? 'max-w-4xl' : 'max-w-2xl'}`}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -150,6 +152,15 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   Auto-Merge
                 </span>
               )}
+              {ticket.priority && (() => {
+                const pc = PRIORITY_COLORS[ticket.priority];
+                return (
+                  <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${pc.bg} ${pc.text}`}>
+                    {ticket.priority === 'P0' && <AlertTriangle className="w-3 h-3" />}
+                    {ticket.priority} — {PRIORITY_LABELS[ticket.priority]}
+                  </span>
+                );
+              })()}
             </div>
             <h2 className="text-lg font-bold text-slate-100">{ticket.subject}</h2>
           </div>
@@ -200,6 +211,38 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 <code className="text-sm text-accent-purple bg-accent-purple/10 px-2 py-0.5 rounded">
                   {ticket.branchName}
                 </code>
+              </div>
+            </div>
+          )}
+
+          {/* Dependencies */}
+          {ticket.blockedByTickets && ticket.blockedByTickets.length > 0 && (
+            <div className="flex items-start gap-3">
+              <Link className="w-4 h-4 text-accent-cyan mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Blocked By</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {ticket.blockedByTickets.map(id => (
+                    <span key={id} className="text-xs font-mono text-accent-cyan bg-accent-cyan/10 px-2 py-0.5 rounded">
+                      #{id}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {ticket.blocksTickets && ticket.blocksTickets.length > 0 && (
+            <div className="flex items-start gap-3">
+              <Link className="w-4 h-4 text-accent-amber mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Blocks</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {ticket.blocksTickets.map(id => (
+                    <span key={id} className="text-xs font-mono text-accent-amber bg-accent-amber/10 px-2 py-0.5 rounded">
+                      #{id}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -399,6 +442,23 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Session Replay */}
+          {ticket.status !== 'todo' && ticket.status !== 'in_progress' && (
+            <div className="pt-2 border-t border-surface-700">
+              {showReplay ? (
+                <SessionTimeline ticketId={ticket.id} onClose={() => setShowReplay(false)} />
+              ) : (
+                <button
+                  onClick={() => setShowReplay(true)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-cyan/10 text-accent-cyan rounded-lg hover:bg-accent-cyan/20 transition-colors"
+                >
+                  <Rewind className="w-4 h-4" />
+                  Replay Session
+                </button>
+              )}
             </div>
           )}
 

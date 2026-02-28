@@ -1,6 +1,6 @@
-import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge, Clock, Brain, Terminal, Info } from 'lucide-react';
+import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge, Clock, Brain, Terminal, Info, Link, AlertTriangle } from 'lucide-react';
 import type { Ticket, TicketStatus, TicketEffort } from '../types';
-import { formatDuration, formatTokenCount } from '../types';
+import { formatDuration, formatTokenCount, PRIORITY_COLORS } from '../types';
 
 const BORDER_COLORS: Record<TicketStatus, string> = {
   todo: 'border-l-accent-amber',
@@ -74,7 +74,22 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
       className={`bg-surface-700 rounded-lg p-3 border border-surface-600 border-l-2 ${borderColor} hover:border-surface-500 transition-colors cursor-pointer`}
     >
       <div className="flex items-center gap-2">
+        {ticket.priority && ticket.priority !== 'P2' && (() => {
+          const colors = PRIORITY_COLORS[ticket.priority];
+          return (
+            <span className={`flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${colors.bg} ${colors.text}`}>
+              {ticket.priority === 'P0' && <AlertTriangle className="w-2.5 h-2.5" />}
+              {ticket.priority}
+            </span>
+          );
+        })()}
         <p className="text-sm font-medium text-slate-100 flex-1">{ticket.subject}</p>
+        {ticket.blockedByTickets && ticket.blockedByTickets.length > 0 && (
+          <span className="flex items-center gap-0.5 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded shrink-0" title={`Blocked by: ${ticket.blockedByTickets.map(id => `#${id}`).join(', ')}`}>
+            <Link className="w-3 h-3" />
+            {ticket.blockedByTickets.length}
+          </span>
+        )}
         {ticket.queued && (
           <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded shrink-0">
             <Clock className="w-3 h-3" />

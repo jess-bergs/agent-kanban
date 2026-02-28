@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Radio, Bot } from 'lucide-react';
+import { Radio, Bot, BarChart3 } from 'lucide-react';
 import type { TeamWithData, Project, Ticket, SoloAgent } from '../types';
 import { formatTimestamp } from '../types';
 import type { ViewMode } from '../hooks/useWebSocket';
@@ -7,6 +7,7 @@ import { Sidebar } from './Sidebar';
 import { KanbanBoard } from './KanbanBoard';
 import { TicketKanban } from './TicketKanban';
 import { AgentKanban } from './AgentKanban';
+import { AnalyticsDashboard } from './AnalyticsDashboard';
 import { ActivityFeed } from './ActivityFeed';
 import { TeamHeader } from './TeamHeader';
 import { ProjectHeader } from './ProjectHeader';
@@ -49,6 +50,7 @@ export function Layout({
     setOpenTicketId(ticketId);
   }, [setViewMode, onSelectProject]);
 
+  const showAnalyticsView = viewMode === 'analytics';
   const showAgentsView = viewMode === 'agents';
   const showTeamView = viewMode === 'teams' && selectedTeam;
   const showProjectView = viewMode === 'projects' && selectedProject;
@@ -136,7 +138,9 @@ export function Layout({
 
         {/* Main content */}
         <main className="flex-1 flex flex-col min-h-0 min-w-0">
-          {showAgentsView ? (
+          {showAnalyticsView ? (
+            <AnalyticsDashboard tickets={tickets} projects={projects} />
+          ) : showAgentsView ? (
             <AgentKanban agents={soloAgents} tickets={tickets} onNavigateToTicket={handleNavigateToTicket} />
           ) : showTeamView ? (
             <>
@@ -158,7 +162,7 @@ export function Layout({
               </div>
             </>
           ) : (
-            <EmptyState hasTeams={viewMode === 'teams' ? teams.length > 0 : viewMode === 'projects' ? projects.length > 0 : soloAgents.length > 0} />
+            <EmptyState hasTeams={viewMode === 'teams' ? teams.length > 0 : viewMode === 'projects' ? projects.length > 0 : viewMode === 'analytics' ? tickets.length > 0 : soloAgents.length > 0} />
           )}
         </main>
 

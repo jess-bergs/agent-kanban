@@ -102,10 +102,52 @@ export function Sidebar({
             <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-accent-green animate-pulse" />
           )}
         </button>
+        <button
+          onClick={() => setViewMode('analytics')}
+          className={`flex-1 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+            viewMode === 'analytics'
+              ? 'text-accent-amber border-b-2 border-accent-amber'
+              : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          Stats
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {viewMode === 'projects' ? (
+        {viewMode === 'analytics' ? (
+          <div className="px-3 py-4 space-y-3">
+            <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Analytics</p>
+            <div className="space-y-2">
+              {(() => {
+                const completed = tickets.filter(t => ['in_review', 'done', 'merged'].includes(t.status));
+                const failed = tickets.filter(t => ['failed', 'error'].includes(t.status));
+                const total = completed.length + failed.length;
+                const costs = tickets.map(t => t.effort?.costUsd).filter((c): c is number => c != null);
+                return (
+                  <>
+                    <div className="bg-surface-700 rounded-lg px-3 py-2">
+                      <p className="text-[10px] text-slate-500">Total Tickets</p>
+                      <p className="text-lg font-bold text-slate-200">{tickets.length}</p>
+                    </div>
+                    <div className="bg-surface-700 rounded-lg px-3 py-2">
+                      <p className="text-[10px] text-slate-500">Success Rate</p>
+                      <p className="text-lg font-bold text-accent-green">
+                        {total > 0 ? `${Math.round((completed.length / total) * 100)}%` : '—'}
+                      </p>
+                    </div>
+                    <div className="bg-surface-700 rounded-lg px-3 py-2">
+                      <p className="text-[10px] text-slate-500">Total Spend</p>
+                      <p className="text-lg font-bold text-accent-amber">
+                        {costs.length > 0 ? `$${costs.reduce((a, b) => a + b, 0).toFixed(2)}` : '—'}
+                      </p>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        ) : viewMode === 'projects' ? (
           <>
             {/* Add project button */}
             <button

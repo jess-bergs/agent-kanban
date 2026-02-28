@@ -24,6 +24,7 @@ import {
 } from './store.ts';
 import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, checkPrStatus } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
+import { getSessionHistory } from './session-history.ts';
 import type { TeamWithData, WSEvent } from '../src/types.ts';
 
 const PORT = 3002;
@@ -176,13 +177,15 @@ app.get('/api/tickets', async (req, res) => {
 
 app.post('/api/tickets', async (req, res) => {
   try {
-    const { projectId, subject, instructions, yolo, autoMerge, queued, useRalph } = req.body;
+    const { projectId, subject, instructions, priority, blockedByTickets, yolo, autoMerge, queued, useRalph } = req.body;
     if (!projectId || !subject || !instructions) {
       res.status(400).json({ error: 'projectId, subject, and instructions are required' });
       return;
     }
     const ticket = await createTicket({
       projectId, subject, instructions,
+      priority: priority || undefined,
+      blockedByTickets: Array.isArray(blockedByTickets) ? blockedByTickets : undefined,
       yolo: !!yolo,
       autoMerge: !!autoMerge,
       queued: !!queued,
@@ -267,6 +270,17 @@ app.delete('/api/tickets/:id', async (req, res) => {
     res.json({ success: true });
   } else {
     res.status(404).json({ error: 'Ticket not found' });
+  }
+});
+
+// ─── Session History API (Replay) ────────────────────────────────
+
+app.get('/api/tickets/:id/session', async (req, res) => {
+  const history = await getSessionHistory(req.params.id);
+  if (history) {
+    res.json(history);
+  } else {
+    res.status(404).json({ error: 'No session history for this ticket' });
   }
 });
 

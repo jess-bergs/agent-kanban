@@ -1,7 +1,7 @@
 import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { Project, Ticket } from '../src/types.ts';
+import type { Project, Ticket, TicketPriority } from '../src/types.ts';
 
 const DATA_DIR = join(import.meta.dirname, '..', 'data');
 const PROJECTS_DIR = join(DATA_DIR, 'projects');
@@ -90,6 +90,8 @@ export async function createTicket(data: {
   projectId: string;
   subject: string;
   instructions: string;
+  priority?: TicketPriority;
+  blockedByTickets?: string[];
   yolo?: boolean;
   autoMerge?: boolean;
   queued?: boolean;

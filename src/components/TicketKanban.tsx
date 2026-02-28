@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import type { Ticket, TicketStatus, Project } from '../types';
-import { TICKET_STATUS_LABELS } from '../types';
+import { TICKET_STATUS_LABELS, PRIORITY_WEIGHT } from '../types';
 import { TicketCard } from './TicketCard';
 import { TicketDetailModal } from './TicketDetailModal';
 import { CreateTicketModal } from './CreateTicketModal';
@@ -77,9 +77,14 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
     }
   }
 
-  // Sort by creation time
+  // Sort by priority (P0 first), then creation time
   for (const status of COLUMNS) {
-    grouped[status].sort((a, b) => a.createdAt - b.createdAt);
+    grouped[status].sort((a, b) => {
+      const aPri = PRIORITY_WEIGHT[a.priority ?? 'P2'];
+      const bPri = PRIORITY_WEIGHT[b.priority ?? 'P2'];
+      if (aPri !== bPri) return aPri - bPri;
+      return a.createdAt - b.createdAt;
+    });
   }
 
   // Hide done/merged/failed/error columns if empty
@@ -161,6 +166,7 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
       {showCreate && (
         <CreateTicketModal
           project={project}
+          existingTickets={tickets}
           onClose={() => setShowCreate(false)}
           onCreated={() => {}}
         />

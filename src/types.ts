@@ -122,6 +122,31 @@ export interface Project {
 
 export type TicketStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'merged' | 'failed' | 'error';
 
+/** Priority levels: P0 = critical, P1 = high, P2 = normal, P3 = low */
+export type TicketPriority = 'P0' | 'P1' | 'P2' | 'P3';
+
+export const PRIORITY_LABELS: Record<TicketPriority, string> = {
+  P0: 'Critical',
+  P1: 'High',
+  P2: 'Normal',
+  P3: 'Low',
+};
+
+export const PRIORITY_COLORS: Record<TicketPriority, { bg: string; text: string; border: string }> = {
+  P0: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/30' },
+  P1: { bg: 'bg-accent-amber/10', text: 'text-accent-amber', border: 'border-accent-amber/30' },
+  P2: { bg: 'bg-accent-blue/10', text: 'text-accent-blue', border: 'border-accent-blue/30' },
+  P3: { bg: 'bg-slate-500/10', text: 'text-slate-400', border: 'border-slate-500/30' },
+};
+
+/** Numeric weight for priority sorting (lower = higher priority) */
+export const PRIORITY_WEIGHT: Record<TicketPriority, number> = {
+  P0: 0,
+  P1: 1,
+  P2: 2,
+  P3: 3,
+};
+
 /** A single entry in the agent's live activity stream */
 export interface AgentActivity {
   type: 'thinking' | 'text' | 'tool_use' | 'tool_result';
@@ -139,6 +164,12 @@ export interface Ticket {
   subject: string;
   instructions: string;
   status: TicketStatus;
+  /** Priority level (defaults to P2 if unset) */
+  priority?: TicketPriority;
+  /** IDs of tickets that must complete before this one can start */
+  blockedByTickets?: string[];
+  /** IDs of tickets that this ticket blocks */
+  blocksTickets?: string[];
   yolo?: boolean;
   autoMerge?: boolean;
   queued?: boolean;
@@ -175,6 +206,25 @@ export interface TicketEffort {
   costUsd?: number;
   /** Duration in milliseconds (computed from startedAt/completedAt) */
   durationMs?: number;
+}
+
+/** A richer activity entry for session replay with full content */
+export interface ReplayEvent extends AgentActivity {
+  /** Sequential index in the full session */
+  index: number;
+  /** Duration of this step in ms (time until next event) */
+  stepDurationMs?: number;
+  /** Full content (not truncated) for replay detail view */
+  fullContent?: string;
+}
+
+/** Session history for replay — stored per ticket */
+export interface SessionHistory {
+  ticketId: string;
+  events: ReplayEvent[];
+  totalDurationMs: number;
+  startedAt: number;
+  completedAt?: number;
 }
 
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {

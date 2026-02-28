@@ -1,7 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { execSync } from 'node:child_process';
 import { getProject, getTicket, updateTicket, listTickets } from './store.ts';
-import type { Ticket, AgentActivity, TicketEffort, WSEvent } from '../src/types.ts';
+import { appendReplayEvent, finalizeSession } from './session-history.ts';
+import type { Ticket, AgentActivity, TicketEffort, TicketPriority, ReplayEvent, WSEvent } from '../src/types.ts';
+import { PRIORITY_WEIGHT } from '../src/types.ts';
 
 const MAX_CONCURRENT = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
@@ -199,12 +201,21 @@ async function startAgent(ticket: Ticket) {
   const effort: TicketEffort = { turns: 0, toolCalls: 0 };
   // Track message IDs to deduplicate usage stats (stream-json duplicates per content block)
   const seenMessageIds = new Set<string>();
+  // Session replay event counter
+  let replayIndex = 0;
 
   function pushActivity(entry: AgentActivity) {
     activity.push(entry);
     if (activity.length > MAX_ACTIVITY_ENTRIES) {
       activity.splice(0, activity.length - MAX_ACTIVITY_ENTRIES);
     }
+    // Also record to persistent session history for replay
+    const replayEvent: ReplayEvent = {
+      ...entry,
+      index: replayIndex++,
+      fullContent: entry.content, // preserve full content for replay
+    };
+    appendReplayEvent(ticket.id, replayEvent).catch(() => {});
   }
 
   function processStreamLine(line: string) {
@@ -322,6 +333,9 @@ async function startAgent(ticket: Ticket) {
 
     running.delete(ticket.id);
     console.log(`[dispatcher] Agent for ticket #${ticket.id} exited with code ${code}`);
+
+    // Finalize session history for replay
+    await finalizeSession(ticket.id).catch(() => {});
 
     // Compute duration for effort
     const completedAt = Date.now();
@@ -501,15 +515,34 @@ export async function dispatcherTick() {
   if (running.size < MAX_CONCURRENT) {
     const todoTickets = tickets.filter(t => t.status === 'todo');
 
+    // Filter out blocked tickets (those whose blockedByTickets haven't all completed)
+    const completedStatuses = new Set(['in_review', 'done', 'merged']);
+    const completedIds = new Set(
+      tickets.filter(t => completedStatuses.has(t.status)).map(t => t.id)
+    );
+
+    const unblockedTodoTickets = todoTickets.filter(t => {
+      if (!t.blockedByTickets || t.blockedByTickets.length === 0) return true;
+      return t.blockedByTickets.every(id => completedIds.has(id));
+    });
+
     // Separate queued from non-queued tickets
-    const nonQueued = todoTickets.filter(t => !t.queued);
-    const queued = todoTickets.filter(t => t.queued);
+    const nonQueued = unblockedTodoTickets.filter(t => !t.queued);
+    const queued = unblockedTodoTickets.filter(t => t.queued);
+
+    // Sort by priority (P0 first), then by creation time
+    const sortByPriority = (a: Ticket, b: Ticket) => {
+      const aPri = PRIORITY_WEIGHT[a.priority ?? 'P2'];
+      const bPri = PRIORITY_WEIGHT[b.priority ?? 'P2'];
+      if (aPri !== bPri) return aPri - bPri;
+      return a.createdAt - b.createdAt;
+    };
 
     // Prioritize non-queued tickets first, then queued tickets
     // Only process queued tickets if no non-queued tickets exist
     const prioritized = nonQueued.length > 0
-      ? nonQueued.sort((a, b) => a.createdAt - b.createdAt)
-      : queued.sort((a, b) => a.createdAt - b.createdAt);
+      ? nonQueued.sort(sortByPriority)
+      : queued.sort(sortByPriority);
 
     for (const ticket of prioritized) {
       if (running.size >= MAX_CONCURRENT) break;
