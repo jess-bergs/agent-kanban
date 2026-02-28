@@ -17,7 +17,7 @@ import { computeTrend } from './audit-trend.ts';
 import { envWithNvmNode } from './nvm.ts';
 import type { AuditSchedule, AuditRun, WSEvent } from '../src/types.ts';
 
-const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const POLL_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 const MAX_CONCURRENT_AUDITS = 2;
 
 type BroadcastFn = (event: WSEvent) => void;
