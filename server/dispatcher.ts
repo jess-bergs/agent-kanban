@@ -147,6 +147,8 @@ async function startAgent(ticket: Ticket) {
       `2. Push the branch: git push -u origin ${branchName}`,
       `3. Create a pull request: gh pr create --base ${project.defaultBranch} --fill`,
       '4. Output the PR URL on its own line at the end',
+      '',
+      `Ticket-ID: ${ticket.id}`,
     );
   } else {
     taskLines.push(
@@ -417,6 +419,15 @@ async function startAgent(ticket: Ticket) {
         (prUrl ? ` — PR: ${prUrl}` : ' (no PR detected)'),
     );
 
+    // Ensure ticket ID is in the PR body for cross-referencing
+    if (prUrl) {
+      try {
+        ensureTicketIdInPr(prUrl, ticket.id, agentCwd);
+      } catch (err) {
+        console.error(`[dispatcher] Failed to add ticket ID to PR #${ticket.id}:`, err);
+      }
+    }
+
     // Best-effort screenshot capture for PRs (before worktree cleanup)
     if (prUrl && useWorktree) {
       try {
@@ -449,6 +460,45 @@ function cleanupWorktree(repoPath: string, worktreePath: string) {
   } catch {
     // non-critical
   }
+}
+
+// ─── Ticket ID ↔ PR Cross-Referencing ───────────────────────────
+
+const TICKET_ID_MARKER = '<!-- ticket-id:';
+const TICKET_ID_PATTERN = /<!-- ticket-id:([a-f0-9-]+) -->/;
+
+/**
+ * Ensures the PR body contains a machine-readable ticket ID marker.
+ * Idempotent — skips if the marker is already present.
+ */
+function ensureTicketIdInPr(prUrl: string, ticketId: string, cwd: string) {
+  const body = execSync(
+    `gh pr view "${prUrl}" --json body --jq '.body'`,
+    { cwd, encoding: 'utf-8', timeout: 10000 },
+  ).trim();
+
+  if (body.includes(`${TICKET_ID_MARKER}${ticketId} -->`)) {
+    return; // already present
+  }
+
+  const marker = `${TICKET_ID_MARKER}${ticketId} -->`;
+  const footer = `\n\n---\nTicket-ID: \`${ticketId}\`\n${marker}`;
+  const newBody = body + footer;
+
+  execSync(
+    `gh pr edit "${prUrl}" --body ${JSON.stringify(newBody)}`,
+    { cwd, encoding: 'utf-8', timeout: 10000 },
+  );
+  console.log(`[dispatcher] Added ticket ID ${ticketId} to PR: ${prUrl}`);
+}
+
+/**
+ * Extracts a ticket ID from a PR body, if present.
+ * Useful for reverse-lookups (PR → ticket) during self-healing.
+ */
+export function extractTicketIdFromPr(prBody: string): string | null {
+  const match = prBody.match(TICKET_ID_PATTERN);
+  return match ? match[1] : null;
 }
 
 // ─── PR Status Monitoring ───────────────────────────────────────
