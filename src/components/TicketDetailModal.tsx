@@ -13,6 +13,7 @@ import {
   FolderOpen,
   RotateCcw,
   Trash2,
+  Zap,
 } from 'lucide-react';
 import type { Ticket, TicketStatus, Project } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp } from '../types';
@@ -76,7 +77,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
         {/* Header */}
         <div className="flex items-start justify-between p-5 border-b border-surface-700 shrink-0">
           <div className="min-w-0 flex-1 pr-4">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="flex items-center gap-1 text-xs text-slate-500">
                 <Hash className="w-3 h-3" />
                 {ticket.id}
@@ -85,6 +86,24 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 <StatusIcon className={`w-3 h-3 ${ticket.status === 'in_progress' ? 'animate-spin' : ''}`} />
                 {TICKET_STATUS_LABELS[ticket.status]}
               </span>
+              {ticket.queued && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-accent-cyan/10 text-accent-cyan">
+                  <Clock className="w-3 h-3" />
+                  Queued
+                </span>
+              )}
+              {ticket.yolo && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-accent-amber/10 text-accent-amber">
+                  <Zap className="w-3 h-3 fill-accent-amber" />
+                  YOLO
+                </span>
+              )}
+              {ticket.autoMerge && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-accent-purple/10 text-accent-purple">
+                  <GitMerge className="w-3 h-3" />
+                  Auto-Merge
+                </span>
+              )}
             </div>
             <h2 className="text-lg font-bold text-slate-100">{ticket.subject}</h2>
           </div>
