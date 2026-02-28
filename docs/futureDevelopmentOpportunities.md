@@ -1,4 +1,5 @@
 # Future Development Opportunities
+<!-- Last reviewed: 2026-02-28 -->
 
 ## Data Storage
 - **S3-backed storage**: Migrate ticket/project JSON from local `data/` directory to S3 for durability, multi-device access, and backup. Could use versioned buckets for automatic history.
@@ -14,3 +15,17 @@
 ## Known Improvements
 - **Conflict-aware auto-merge**: Detect and auto-resolve simple merge conflicts in agent PRs. Ticket `2ab12413` implements the first pass: rebase-before-push in agent prompts + auto-update conflicting PR branches via GitHub API. Future layers include per-project concurrency limits and sequential queue gating.
 - **Agent retry with context**: When retrying failed tickets, pass previous attempt's output as context so the agent doesn't start from scratch.
+
+
+
+---
+problems on server restart: agents fail and tickts move to failed section. can we EITHER make the process more robust so that agents don't fail but at the and at the same time we do not risk dangling processes or anything. And then the next idea would be that we have another process so that tickets auto heal if possible otherwise they are flagged to me. 
+
+
+--- 
+flag bugs or improvements via voice/external messaging
+will reuquire this service to be deployed ...
+
+---
+
+automatically address comments, audit reports and merge conflicts. make sure branch is kept up to date
