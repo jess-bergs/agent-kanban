@@ -1,0 +1,182 @@
+# Dispatcher Architecture
+
+## Overview
+
+The dispatcher is the core autonomous subsystem that executes tickets. It polls for `todo`
+tickets, creates git worktrees, spawns Claude Code agents, and manages the full lifecycle
+through to PR creation. It runs alongside the auditor and scheduler as one of three
+autonomous subsystems in the server process.
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   Server Process                     │
+│                                                      │
+│  ┌──────────────┐  ┌───────────┐  ┌──────────────┐  │
+│  │  Dispatcher   │  │  Auditor  │  │  Scheduler   │  │
+│  │  (3s poll)    │  │  (30s)    │  │  (5min poll)  │  │
+│  └──────┬───────┘  └─────┬─────┘  └──────┬───────┘  │
+│         │                │               │           │
+│         └────────────────┴───────────────┘           │
+│                          │                           │
+│                    broadcast(WSEvent)                 │
+│                          │                           │
+│                     WebSocket ──► React Frontend      │
+└─────────────────────────────────────────────────────┘
+```
+
+**Source**: `server/dispatcher.ts`
+
+## Polling Loop
+
+The dispatcher runs two independent intervals, both started by `startDispatcher()`:
+
+| Loop | Interval | Purpose |
+|------|----------|---------|
+| `dispatcherTick()` | 3 seconds | Pick up todo tickets, check PR status, check auto-merge |
+| `conflictCheckTick()` | 1 hour | Dedicated merge conflict scan for in-review PRs |
+
+Both fire once immediately on startup before the intervals begin.
+
+Each tick of `dispatcherTick()` does:
+1. Skip if `running.size >= MAX_CONCURRENT` (currently **5**)
+2. Find tickets with `status === 'todo'` (or `queued` tickets ready to run)
+3. For each, call `startAgent(ticket)`
+4. For `in_review` tickets: call `checkPrStatus()` and `checkAutoMerge()`
+5. For `needs_approval` tickets: check if approval is still pending
+
+## Ticket Status Flow
+
+```
+todo ──► in_progress ──► in_review ──► merged
+              │               │            │
+              │               ▼            │
+              │           (conflict        │
+              │            detected)       │
+              │                            │
+              ├──► needs_approval ─────────┤
+              │    (non-yolo, tool         │
+              │     approval pending)      │
+              │                            │
+              ├──► failed ◄────────────────┘
+              │    (exit code != 0,         (auto-merge fail)
+              │     orphan recovery)
+              │
+              └──► done
+                   (exit 0, no PR found)
+```
+
+## Worktree Lifecycle
+
+When `startAgent()` runs:
+
+1. **Branch name**: `agent/ticket-{id}-{slugified-subject}` (slug capped at 40 chars)
+2. **Worktree path**: `/tmp/agent-kanban-worktrees/{branch-name}`
+3. **Setup**: `git fetch origin` → remove any prior worktree/branch → `git worktree add`
+4. **Base ref**: prefers `origin/{defaultBranch}`, falls back to `{defaultBranch}`, then `HEAD`
+5. **No-commit repos**: if the repo has no commits, skips worktree and works in-place
+
+Cleanup (`cleanupWorktree()`) runs after screenshot capture:
+```
+git worktree remove "{path}" --force
+```
+
+## Agent Spawning
+
+The dispatcher spawns the `claude` CLI binary:
+
+```
+claude -p "{prompt}" --output-format stream-json --verbose
+       [--dangerously-skip-permissions]  # only if yolo: true
+```
+
+**Environment isolation**:
+- Strips `CLAUDECODE_*`, `CLAUDE_CODE_*`, and `ANTHROPIC_API_KEY` from env
+- Uses `envWithNvmNode()` (from `server/nvm.ts`) to prepend the nvm-managed Node bin to PATH
+- stdin is closed (`'ignore'`), stdout and stderr are piped
+
+The spawned process PID is stored as `ticket.agentPid` for kill/orphan detection.
+
+### Ralph Wiggum Mode
+
+When `ticket.useRalph` is true, the prompt is wrapped in a `/ralph-loop` skill invocation:
+
+```
+/ralph-loop "{task}\n\nWhen COMPLETELY finished, output: <promise>TICKET_COMPLETE</promise>"
+  --max-iterations 50 --completion-promise "TICKET_COMPLETE"
+```
+
+This enables iterative self-correction with up to 50 iterations.
+
+## Output Parsing
+
+Agent stdout is parsed as stream-JSON (one JSON object per line). Each line is dispatched
+by event type:
+
+| Event | Fields Extracted | Side Effects |
+|-------|-----------------|--------------|
+| `assistant` → `thinking` | Last 1000 chars saved | Activity entry (200 char truncation) |
+| `assistant` → `text` | Appended to `fullText` | Activity entry |
+| `assistant` → `tool_use` | Tool name, input | `effort.toolCalls++`, activity entry (150 chars) |
+| `assistant` → `tool_result` | Content | Activity entry, clears `pendingToolApproval` |
+| `result` | `cost_usd`, usage | Appended to `fullText`, token/cost fallback |
+
+**Deduplication**: stream-json emits the same message once per content block. The dispatcher
+tracks `seenMessageIds` and only counts tokens/turns for the first occurrence of each message.
+
+See [agent-observability.md](agent-observability.md) for details on the activity ring buffer
+and effort tracking.
+
+## PR Detection
+
+On successful agent exit (code 0), PR detection runs in two stages:
+
+1. **Regex scan** of accumulated text output:
+   ```
+   /https:\/\/github\.com\/[^\s]+\/pull\/(\d+)/
+   ```
+2. **Fallback via `gh` CLI** (10s timeout):
+   ```
+   gh pr list --head "{branchName}" --json url,number --jq '.[0]'
+   ```
+
+After detection, `ensureTicketIdInPr()` injects a machine-readable marker into the PR body:
+```html
+<!-- ticket-id:{ticketId} -->
+```
+This enables reverse lookup via `extractTicketIdFromPr()`.
+
+## Post-PR Pipeline
+
+After a PR is detected, three things happen in sequence:
+
+1. **Screenshot capture** — Playwright starts the dev server in the worktree, captures a
+   screenshot, commits it to the branch, and updates the PR body. See [pr-lifecycle.md](pr-lifecycle.md).
+2. **Worktree cleanup** — `cleanupWorktree()` removes the worktree after screenshots are done.
+3. **Audit trigger** — `runAudit(ticket)` adds the PR to the auditor watchlist and triggers
+   an initial review. See [auditor.md](auditor.md).
+
+## Abort & Recovery
+
+### Kill Agent
+`killAgent(ticketId)` sends SIGTERM to the running process and removes it from the `running`
+map. The process's `close` event handler updates the ticket status to `failed`.
+
+### Orphan Recovery
+On server startup, `recoverOrphanedTickets()` finds any `in_progress` tickets whose `agentPid`
+is no longer alive (checked via `process.kill(pid, 0)`). These are moved to `failed` with
+message "Agent process died (server restart or crash)" and their worktrees are cleaned up.
+
+## Concurrency
+
+- `MAX_CONCURRENT = 5` — enforced at the top of `dispatcherTick()` and mid-loop
+- Each running agent is tracked in a `Map<ticketId, ChildProcess>`
+- The dispatcher breaks out of the ticket loop once the limit is hit
+
+## File Layout
+
+```
+server/
+  dispatcher.ts    # Polling loop, agent lifecycle, PR detection, auto-merge
+  nvm.ts           # Resolves nvm-managed Node binary for child processes
+  screenshots.ts   # Playwright screenshot capture & PR upload
+```

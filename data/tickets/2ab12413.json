@@ -1,0 +1,139 @@
+{
+  "id": "2ab12413",
+  "projectId": "c4dc62ae",
+  "subject": "Auto-rebase: reduce merge conflicts from parallel agents",
+  "instructions": "Reduce merge conflicts when multiple agents work on the same repo in parallel.\n\n## Layer 1: Rebase-before-push in agent prompt\nIn server/dispatcher.ts (lines ~141-153), update the agent prompt instructions to include a rebase step before pushing:\n1. Stage and commit all changes with clear commit messages\n2. Before pushing, rebase on the latest base branch to avoid merge conflicts:\n   git fetch origin && git rebase origin/{defaultBranch}\n   If the rebase has conflicts, resolve them before continuing.\n3. Push the branch\n4. Create a pull request\n5. Output the PR URL\n\n## Layer 2: Auto-update conflicting PR branches\n\n### 2a. Add fields to Ticket type (src/types.ts)\nAdd to the Ticket interface near hasConflict/conflictDetectedAt:\n- rebaseAttemptedAt?: number\n- rebaseCount?: number\n\n### 2b. Add autoUpdatePrBranch function (server/dispatcher.ts)\nNew function near the conflict detection code (~line 554). Uses `gh api --method PUT repos/{owner}/{repo}/pulls/{number}/update-branch` to merge main into the PR branch (equivalent to clicking \"Update branch\" on GitHub).\n\nGuards:\n- Requires ticket.prUrl and ticket.prNumber\n- Extracts owner/repo from project.remoteUrl (skip if not set)\n- Max 3 attempts (rebaseCount >= 3 -> stop)\n- 5-minute cooldown between attempts (rebaseAttemptedAt)\n- On API failure (real file-level conflict), increment counter and fall back to current behavior\n\n### 2c. Wire into checkPrStatus (server/dispatcher.ts, ~line 536)\nWhen isConflicting && !ticket.hasConflict (newly detected conflict), call autoUpdatePrBranch(ticket) before setting the conflict flag. This triggers on the 3s dispatcher tick.\n\n### 2d. Post-merge cascade (server/dispatcher.ts, checkAutoMerge ~line 597)\nAfter a successful auto-merge, immediately re-check sibling in_review PRs for the same project to trigger cascade updates.\n\n## Verification\n1. npm run build - no type errors\n2. Check dispatcher logs for [auto-rebase] messages",
+  "status": "failed",
+  "yolo": true,
+  "autoMerge": false,
+  "queued": true,
+  "useRalph": false,
+  "createdAt": 1772309340865,
+  "branchName": "agent/ticket-2ab12413-auto-rebase-reduce-merge-conflicts-from-",
+  "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-2ab12413-auto-rebase-reduce-merge-conflicts-from-",
+  "startedAt": 1772309341295,
+  "lastOutput": "he GitHub \"Update branch\" API call — all within the same dispatcher tick. This creates a self-healing chain: merge → detect conflicts → auto-update → conflicts resolve.\n`─────────────────────────────────────────────────`\nNow let's verify the build passes.\nThese are all pre-existing errors from missing `node_modules` (no `react` types, etc.) — not related to my changes. Let me install dependencies first and retry.\nBuild passes cleanly — no type errors.\nNow let me commit, push, and create the PR.\n",
+  "agentActivity": [
+    {
+      "type": "tool_use",
+      "tool": "Read",
+      "content": "{\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-2ab12413-auto-rebase-reduce-merge-conflicts-from-/server/dispatcher.ts\",\"offset\":535,\"l",
+      "timestamp": 1772309440331
+    },
+    {
+      "type": "tool_use",
+      "tool": "Edit",
+      "content": "{\"replace_all\":false,\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-2ab12413-auto-rebase-reduce-merge-conflicts-from-/server/dispatcher",
+      "timestamp": 1772309447638
+    },
+    {
+      "type": "text",
+      "content": "n gets new conflicts later from another merge, it should get a fresh set of 3 auto-update attempts rather than being permanently stuck at the limit.\n`─────────────────────────────────────────────────`",
+      "timestamp": 1772309454041
+    },
+    {
+      "type": "tool_use",
+      "tool": "TodoWrite",
+      "content": "{\"todos\":[{\"content\":\"Read current dispatcher.ts and types.ts to understand existing code\",\"status\":\"completed\",\"activeForm\":\"Reading current codebase",
+      "timestamp": 1772309456102
+    },
+    {
+      "type": "text",
+      "content": "**Layer 2d: Post-merge cascade**\n\nAfter a successful auto-merge, immediately re-check sibling `in_review` PRs for the same project. Let me find the exact auto-merge success code.",
+      "timestamp": 1772309459545
+    },
+    {
+      "type": "tool_use",
+      "tool": "Read",
+      "content": "{\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-2ab12413-auto-rebase-reduce-merge-conflicts-from-/server/dispatcher.ts\",\"offset\":590,\"l",
+      "timestamp": 1772309460682
+    },
+    {
+      "type": "tool_use",
+      "tool": "Edit",
+      "content": "{\"replace_all\":false,\"file_path\":\"/private/tmp/agent-kanban-worktrees/agent-ticket-2ab12413-auto-rebase-reduce-merge-conflicts-from-/server/dispatcher",
+      "timestamp": 1772309468571
+    },
+    {
+      "type": "text",
+      "content": "anch\" API call — all within the same dispatcher tick. This creates a self-healing chain: merge → detect conflicts → auto-update → conflicts resolve.\n`─────────────────────────────────────────────────`",
+      "timestamp": 1772309474885
+    },
+    {
+      "type": "tool_use",
+      "tool": "TodoWrite",
+      "content": "{\"todos\":[{\"content\":\"Read current dispatcher.ts and types.ts to understand existing code\",\"status\":\"completed\",\"activeForm\":\"Reading current codebase",
+      "timestamp": 1772309477072
+    },
+    {
+      "type": "text",
+      "content": "Now let's verify the build passes.",
+      "timestamp": 1772309480841
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"npm run build 2>&1\",\"description\":\"Build project to check for type errors\",\"timeout\":60000}",
+      "timestamp": 1772309481742
+    },
+    {
+      "type": "text",
+      "content": "These are all pre-existing errors from missing `node_modules` (no `react` types, etc.) — not related to my changes. Let me install dependencies first and retry.",
+      "timestamp": 1772309487972
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"npm install 2>&1 | tail -5\",\"description\":\"Install npm dependencies\",\"timeout\":120000}",
+      "timestamp": 1772309489928
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"npm run build 2>&1\",\"description\":\"Build project after installing dependencies\",\"timeout\":60000}",
+      "timestamp": 1772309496651
+    },
+    {
+      "type": "text",
+      "content": "Build passes cleanly — no type errors.",
+      "timestamp": 1772309506416
+    },
+    {
+      "type": "tool_use",
+      "tool": "TodoWrite",
+      "content": "{\"todos\":[{\"content\":\"Read current dispatcher.ts and types.ts to understand existing code\",\"status\":\"completed\",\"activeForm\":\"Reading current codebase",
+      "timestamp": 1772309511832
+    },
+    {
+      "type": "text",
+      "content": "Now let me commit, push, and create the PR.",
+      "timestamp": 1772309515882
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git diff --stat\",\"description\":\"Show changed files\"}",
+      "timestamp": 1772309517869
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git log --oneline -5\",\"description\":\"Show recent commits for message style\"}",
+      "timestamp": 1772309518570
+    },
+    {
+      "type": "tool_use",
+      "tool": "Bash",
+      "content": "{\"command\":\"git add server/dispatcher.ts src/types.ts && git commit -m \\\"$(cat <<'EOF'\\nAdd auto-rebase and branch update to reduce merge conflicts\\n\\",
+      "timestamp": 1772309528294
+    }
+  ],
+  "effort": {
+    "turns": 22,
+    "toolCalls": 24,
+    "inputTokens": 1196807,
+    "outputTokens": 246
+  },
+  "error": "Agent process died (server restart or crash)",
+  "completedAt": 1772309537628
+}
