@@ -1,6 +1,6 @@
 {
   "id": "28",
-  "status": "in_review",
+  "status": "merged",
   "createdAt": 1772267150104,
   "projectId": "c4dc62ae",
   "subject": "unify done and merge column.",
@@ -101,5 +101,6 @@
   "error": null,
   "branchName": "agent/ticket-28-unify-done-and-merge-column",
   "worktreePath": "/tmp/agent-kanban-worktrees/agent-ticket-28-unify-done-and-merge-column",
-  "startedAt": 1772267970338
+  "startedAt": 1772267970338,
+  "hasConflict": false
 }

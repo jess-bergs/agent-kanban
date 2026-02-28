@@ -11,6 +11,7 @@ import { ActivityFeed } from './ActivityFeed';
 import { TeamHeader } from './TeamHeader';
 import { ProjectHeader } from './ProjectHeader';
 import { EmptyState } from './EmptyState';
+import { ChatPopover } from './ChatPopover';
 
 interface LayoutProps {
   teams: TeamWithData[];
@@ -170,6 +171,8 @@ export function Layout({
           />
         )}
       </div>
+
+      <ChatPopover />
     </div>
   );
 }

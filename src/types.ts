@@ -345,6 +345,14 @@ export interface ProjectsPayload {
   tickets: Ticket[];
 }
 
+// ─── Chat Bot ─────────────────────────────────────────────────────
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
 // ─── UI State ──────────────────────────────────────────────────────
 
 export type TaskStatus = Task['status'];

@@ -56,7 +56,7 @@ import {
   getRun as getAuditRun,
 } from './audit-store.ts';
 import { listTemplates, getTemplate } from './audit-templates.ts';
-import type { TeamWithData, WSEvent, AuditTemplateId } from '../src/types.ts';
+import type { TeamWithData, WSEvent, AuditTemplateId, ChatMessage } from '../src/types.ts';
 
 const PORT = 3003;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -649,6 +649,92 @@ app.delete('/api/tickets/:id', async (req, res) => {
     res.json({ success: true });
   } else {
     res.status(404).json({ error: 'Ticket not found' });
+  }
+});
+
+// ─── Chat Bot API ────────────────────────────────────────────────
+
+app.post('/api/chat', async (req, res) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    res.status(500).json({ error: 'ANTHROPIC_API_KEY not set' });
+    return;
+  }
+
+  const { messages } = req.body as { messages: ChatMessage[] };
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    res.status(400).json({ error: 'messages array is required' });
+    return;
+  }
+
+  try {
+    // Gather current dashboard state for context
+    const [projectsData, teams, agents] = await Promise.all([
+      getProjectsPayload(),
+      getAllTeamsWithData(),
+      detectSoloAgents(),
+    ]);
+
+    const systemPrompt = `You are a helpful assistant embedded in the Agent Kanban dashboard — a real-time monitoring tool for Claude Code agents.
+
+You have access to the current state of projects, tickets, teams, and agents. Answer questions about them concisely.
+
+Current dashboard state:
+
+## Projects (${projectsData.projects.length})
+${projectsData.projects.map(p => `- **${p.name}** (${p.repoPath}) — branch: ${p.defaultBranch}${p.remoteUrl ? `, remote: ${p.remoteUrl}` : ''}`).join('\n') || 'None'}
+
+## Tickets (${projectsData.tickets.length})
+${projectsData.tickets.map(t => {
+  const project = projectsData.projects.find(p => p.id === t.projectId);
+  return `- [${t.status}] **${t.subject}** (project: ${project?.name ?? t.projectId})${t.prUrl ? ` — PR: ${t.prUrl}` : ''}${t.error ? ` — error: ${t.error}` : ''}${t.branchName ? ` — branch: ${t.branchName}` : ''}`;
+}).join('\n') || 'None'}
+
+## Teams (${teams.length})
+${teams.map(t => `- **${t.name}**: ${t.members.length} members (${t.members.map(m => m.name).join(', ')}), ${t.tasks.length} tasks`).join('\n') || 'None'}
+
+## Solo Agents (${agents.length})
+${agents.map(a => `- **${a.projectName}** (${a.source}, ${a.status}) — branch: ${a.gitBranch ?? 'N/A'}, model: ${a.model ?? 'unknown'}`).join('\n') || 'None'}
+
+Keep responses short and focused. Use markdown formatting.`;
+
+    const anthropicMessages = messages.map(m => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: anthropicMessages,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('[chat] Anthropic API error:', response.status, errText);
+      res.status(502).json({ error: 'Failed to get response from AI' });
+      return;
+    }
+
+    const result = await response.json() as { content: { type: string; text: string }[] };
+    const text = result.content
+      .filter((c: { type: string }) => c.type === 'text')
+      .map((c: { text: string }) => c.text)
+      .join('');
+
+    res.json({ content: text });
+  } catch (err) {
+    console.error('[chat] Error:', err);
+    res.status(500).json({ error: 'Chat request failed' });
   }
 });
 
