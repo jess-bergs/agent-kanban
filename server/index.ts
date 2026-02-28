@@ -228,8 +228,8 @@ app.post('/api/tickets', async (req, res) => {
     }
     const ticket = await createTicket({
       projectId, subject, instructions,
-      yolo: !!yolo,
-      autoMerge: !!autoMerge,
+      yolo: yolo !== undefined ? !!yolo : true,
+      autoMerge: autoMerge !== undefined ? !!autoMerge : true,
       queued: !!queued,
       useRalph: !!useRalph,
     });
@@ -517,8 +517,8 @@ app.post('/api/audit-schedules', async (req, res) => {
       cadence,
       mode,
       status: 'active',
-      yolo: !!yolo,
-      autoMerge: !!autoMerge,
+      yolo: yolo !== undefined ? !!yolo : true,
+      autoMerge: autoMerge !== undefined ? !!autoMerge : true,
     });
 
     broadcast({ type: 'audit_schedules_updated', data: await listSchedules() });

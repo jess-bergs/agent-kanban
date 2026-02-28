@@ -19,8 +19,8 @@ let nextImageId = 0;
 export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketModalProps) {
   const [subject, setSubject] = useState('');
   const [instructions, setInstructions] = useState('');
-  const [yolo, setYolo] = useState(false);
-  const [autoMerge, setAutoMerge] = useState(false);
+  const [yolo, setYolo] = useState(true);
+  const [autoMerge, setAutoMerge] = useState(true);
   const [queued, setQueued] = useState(false);
   const [useRalph, setUseRalph] = useState(false);
   const [submitting, setSubmitting] = useState(false);
