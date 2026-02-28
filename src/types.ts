@@ -147,6 +147,10 @@ export interface Ticket {
   worktreePath?: string;
   prUrl?: string;
   prNumber?: number;
+  /** Whether the PR currently has merge conflicts */
+  hasConflict?: boolean;
+  /** Timestamp when conflict was first detected */
+  conflictDetectedAt?: number;
   agentPid?: number;
   createdAt: number;
   startedAt?: number;

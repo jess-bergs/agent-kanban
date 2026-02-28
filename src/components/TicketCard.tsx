@@ -1,4 +1,4 @@
-import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge, Clock, Brain, Terminal } from 'lucide-react';
+import { ExternalLink, AlertCircle, AlertTriangle, Loader2, GitPullRequest, Zap, GitMerge, Clock, Brain, Terminal } from 'lucide-react';
 import type { Ticket, TicketStatus, TicketEffort } from '../types';
 import { formatDuration, formatTokenCount } from '../types';
 
@@ -54,6 +54,12 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
           <span className="flex items-center gap-1 text-[10px] font-medium text-accent-amber bg-accent-amber/10 px-1.5 py-0.5 rounded shrink-0">
             <Zap className="w-3 h-3 fill-accent-amber" />
             YOLO
+          </span>
+        )}
+        {ticket.hasConflict && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded shrink-0 animate-pulse">
+            <AlertTriangle className="w-3 h-3" />
+            CONFLICT
           </span>
         )}
         {ticket.effort && ticket.effort.turns > 0 && (

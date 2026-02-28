@@ -26,7 +26,7 @@ import {
 import type { Ticket, TicketStatus, Project, AgentActivity } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount } from '../types';
 
-import { XCircle, GitMerge } from 'lucide-react';
+import { XCircle, GitMerge, AlertTriangle } from 'lucide-react';
 
 const STATUS_STYLE: Record<TicketStatus, { bg: string; text: string; icon: typeof Clock }> = {
   todo: { bg: 'bg-accent-amber/10', text: 'text-accent-amber', icon: Clock },
@@ -166,17 +166,37 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
               href={ticket.prUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-3 rounded-lg bg-accent-green/5 border border-accent-green/20 hover:bg-accent-green/10 transition-colors"
+              className={`flex items-center gap-2 px-4 py-3 rounded-lg transition-colors ${
+                ticket.hasConflict
+                  ? 'bg-accent-red/5 border border-accent-red/20 hover:bg-accent-red/10'
+                  : 'bg-accent-green/5 border border-accent-green/20 hover:bg-accent-green/10'
+              }`}
             >
-              <GitPullRequest className="w-5 h-5 text-accent-green" />
+              <GitPullRequest className={`w-5 h-5 ${ticket.hasConflict ? 'text-accent-red' : 'text-accent-green'}`} />
               <div className="flex-1">
-                <p className="text-sm font-medium text-accent-green">
+                <p className={`text-sm font-medium ${ticket.hasConflict ? 'text-accent-red' : 'text-accent-green'}`}>
                   Pull Request #{ticket.prNumber || ''}
                 </p>
                 <p className="text-xs text-slate-400 truncate">{ticket.prUrl}</p>
               </div>
-              <ExternalLink className="w-4 h-4 text-accent-green" />
+              <ExternalLink className={`w-4 h-4 ${ticket.hasConflict ? 'text-accent-red' : 'text-accent-green'}`} />
             </a>
+          )}
+
+          {/* Merge Conflict Banner */}
+          {ticket.hasConflict && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent-red/5 border border-accent-red/20">
+              <AlertTriangle className="w-5 h-5 text-accent-red shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-accent-red">Merge Conflict Detected</p>
+                <p className="text-xs text-slate-400">
+                  This PR has conflicts with the base branch that must be resolved before merging.
+                  {ticket.conflictDetectedAt && (
+                    <> Detected {formatTimestamp(ticket.conflictDetectedAt)}.</>
+                  )}
+                </p>
+              </div>
+            </div>
           )}
 
           {/* Project info */}
