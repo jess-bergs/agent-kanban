@@ -120,7 +120,7 @@ export interface Project {
   createdAt: number;
 }
 
-export type TicketStatus = 'todo' | 'in_progress' | 'done' | 'merged' | 'failed' | 'error';
+export type TicketStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'merged' | 'failed' | 'error';
 
 export interface Ticket {
   id: string;
@@ -145,6 +145,7 @@ export interface Ticket {
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
   todo: 'To Do',
   in_progress: 'In Progress',
+  in_review: 'In Review',
   done: 'Done',
   merged: 'Merged',
   failed: 'Failed',
@@ -154,6 +155,7 @@ export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
 export const TICKET_STATUS_COLORS: Record<TicketStatus, string> = {
   todo: 'amber',
   in_progress: 'blue',
+  in_review: 'cyan',
   done: 'green',
   merged: 'purple',
   failed: 'red',
