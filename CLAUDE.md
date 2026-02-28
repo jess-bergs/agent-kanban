@@ -49,6 +49,11 @@ scripts/           # Screenshot generation tooling (npm run screenshot)
 - **Solo Agent Detection**: Polls for standalone Claude Code sessions running outside of teams.
 - **WebSocket Events**: All state changes (team updates, task changes, inbox messages, ticket status) are broadcast as typed JSON events.
 
+## Workflow Rules
+
+- **Always raise a PR**: When pushing work, always create a pull request — never push directly to main.
+- **File a ticket**: Before starting work, ask the user if we should file a ticket for it on the kanban (via the Agent Kanban API at `POST /api/tickets`). This keeps all work tracked and visible in the dashboard.
+
 ## Key Conventions
 
 - TypeScript strict mode throughout
@@ -120,12 +125,13 @@ registered projects. It polls every 5 minutes and spawns Claude agents when audi
   worktree creation, agent execution, and PR creation.
 
 ### Built-in Templates
-Five audit templates are available in `server/audit-templates.ts`:
+Six audit templates are available in `server/audit-templates.ts`:
 - `readme-freshness` — Checks docs match the codebase (default: weekly, report)
 - `architecture-review` — Coupling, consistency, tech debt analysis (default: monthly, report)
 - `improvement-opportunities` — Dead code, duplication, quick wins (default: weekly, report)
 - `dependency-review` — Outdated/vulnerable/unused packages (default: monthly, report)
-- `security-scan` — Secrets, injection, unsafe patterns (default: weekly, report)
+- `security-scan` — OWASP Top 10 web security: injection, auth, crypto, SSRF (default: weekly, report)
+- `ai-security` — OWASP Top 10 for LLMs: prompt injection, excessive agency, insecure output handling (default: weekly, report)
 
 ### Cadence
 Schedules support `daily`, `weekly`, `monthly`, or `manual` cadence. The scheduler computes

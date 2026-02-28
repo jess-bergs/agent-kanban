@@ -1,0 +1,11 @@
+{
+  "id": "5213223b-7756-4064-adf1-27e45b610df1",
+  "createdAt": 1772310782060,
+  "projectId": "c4dc62ae",
+  "name": "Improvement Opportunities (agent-kanban)",
+  "templateId": "improvement-opportunities",
+  "prompt": "Scan the codebase for improvement opportunities. Focus on actionable, concrete changes.\n\nLook for:\n1. **Code duplication**: Repeated logic that could be extracted into shared utilities\n2. **Dead code**: Unused exports, unreachable branches, commented-out code\n3. **TODO/FIXME/HACK comments**: Catalog all technical debt markers and assess priority\n4. **Type safety gaps**: Any use of `any`, type assertions, or missing type annotations\n5. **Performance opportunities**: Obvious inefficiencies, missing caching, N+1 patterns\n6. **Quick wins**: Small changes that would meaningfully improve code quality\n\nFor each opportunity, provide:\n- File path and line numbers\n- Description of the issue\n- Suggested fix\n- Estimated effort (trivial / small / medium)\n- Priority (low / medium / high)\n\nSort by priority descending, then effort ascending (high-priority quick wins first).",
+  "cadence": "manual",
+  "mode": "report",
+  "status": "active"
+}

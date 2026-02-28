@@ -184,7 +184,8 @@ export type AuditTemplateId =
   | 'architecture-review'
   | 'improvement-opportunities'
   | 'dependency-review'
-  | 'security-scan';
+  | 'security-scan'
+  | 'ai-security';
 
 export interface AuditSchedule {
   id: string;

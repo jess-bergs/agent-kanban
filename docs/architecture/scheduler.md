@@ -119,7 +119,7 @@ first scheduler tick after creation.
 server/
   audit-scheduler.ts   # Lifecycle, tick loop, report/fix execution
   audit-store.ts       # CRUD for schedules and runs (reuses store.ts utilities)
-  audit-templates.ts   # 5 built-in prompt templates (pure data)
+  audit-templates.ts   # 6 built-in prompt templates (pure data)
 data/
   audit-schedules/     # One JSON file per schedule
   audit-runs/          # One JSON file per run

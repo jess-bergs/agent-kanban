@@ -1,0 +1,11 @@
+{
+  "id": "d68b29d5-2b1b-45a4-aabd-323cb1c8b375",
+  "createdAt": 1772310782058,
+  "projectId": "c4dc62ae",
+  "name": "README Freshness Check (agent-kanban)",
+  "templateId": "readme-freshness",
+  "prompt": "Review the README.md (and any other documentation files like CLAUDE.md, AGENTS.md, CONTRIBUTING.md) for accuracy and freshness.\n\nCheck for:\n1. **Outdated instructions**: Do the build/run commands still work? Are dependency installation steps current?\n2. **Missing sections**: Are there new features, scripts, or configuration options not documented?\n3. **Broken links**: Check any URLs or file path references in the docs.\n4. **Architecture drift**: Does the described project structure match the actual directory layout?\n5. **Stale examples**: Do code examples and API usage patterns reflect the current implementation?\n\nFor each issue found, provide:\n- The file and section where the issue exists\n- What is outdated or missing\n- What the correct/updated content should be\n\nConclude with a freshness score: FRESH (no issues), STALE (minor issues), or OUTDATED (significant drift).",
+  "cadence": "manual",
+  "mode": "report",
+  "status": "active"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "aad7fab2-a0a7-4fab-824d-f57c522a7e94",
+  "createdAt": 1772310782059,
+  "projectId": "c4dc62ae",
+  "name": "Architecture Review (agent-kanban)",
+  "templateId": "architecture-review",
+  "prompt": "Perform an architecture review of this codebase.\n\nAnalyze:\n1. **Module boundaries**: Are responsibilities cleanly separated? Any circular dependencies?\n2. **Coupling**: Are there components that are too tightly coupled? Could interfaces be clearer?\n3. **Consistency**: Are naming conventions, file organization, and patterns consistent throughout?\n4. **Scalability concerns**: Are there areas that will become problematic as the codebase grows?\n5. **Error handling**: Is error handling consistent and comprehensive? Are failure modes well-defined?\n6. **Configuration management**: Are there hardcoded values that should be configurable?\n\nProduce a structured report with:\n- An architecture overview (how things are organized today)\n- A list of strengths (good patterns to preserve)\n- A list of concerns (ordered by severity)\n- Concrete recommendations for each concern",
+  "cadence": "manual",
+  "mode": "report",
+  "status": "active"
+}
