@@ -277,7 +277,7 @@ interface PrStatus {
   statusCheckRollup: { state: string }[];
 }
 
-async function checkPrStatus(ticket: Ticket) {
+export async function checkPrStatus(ticket: Ticket) {
   if (!ticket.prUrl || ticket.status !== 'in_review') return;
 
   const project = await getProject(ticket.projectId);
