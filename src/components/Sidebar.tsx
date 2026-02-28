@@ -8,6 +8,7 @@ import {
   Bot,
   Monitor,
   Code2,
+  Trash2,
 } from 'lucide-react';
 import type { TeamWithData, Project, Ticket, SoloAgent } from '../types';
 import { formatTimestamp } from '../types';
@@ -41,6 +42,28 @@ export function Sidebar({
   onSelectProject,
 }: SidebarProps) {
   const [showAddProject, setShowAddProject] = useState(false);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+
+  async function handleDeleteProject(projectId: string, projectName: string) {
+    if (!confirm(`Are you sure you want to remove "${projectName}" from the project list? This will not delete the actual repository.`)) {
+      return;
+    }
+
+    setDeletingProjectId(projectId);
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete project');
+      }
+    } catch (err) {
+      alert('Failed to connect to server');
+    } finally {
+      setDeletingProjectId(null);
+    }
+  }
 
   return (
     <aside className="w-72 bg-surface-800 border-r border-surface-700 flex flex-col shrink-0">
@@ -104,9 +127,10 @@ export function Sidebar({
               const projectTickets = tickets.filter(t => t.projectId === project.id);
               const inProgress = projectTickets.filter(t => t.status === 'in_progress').length;
               const completed = projectTickets.filter(t => t.status === 'in_review' || t.status === 'merged').length;
+              const isDeleting = deletingProjectId === project.id;
 
               return (
-                <div key={project.id}>
+                <div key={project.id} className="relative group">
                   <button
                     onClick={() => onSelectProject(project.id)}
                     className={`w-full text-left rounded-lg p-3 transition-colors ${
@@ -147,6 +171,18 @@ export function Sidebar({
                         <span className="text-accent-green">{completed} completed</span>
                       )}
                     </div>
+                  </button>
+                  {/* Delete button - only show on hover */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteProject(project.id, project.name);
+                    }}
+                    disabled={isDeleting}
+                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-surface-800 border border-surface-600 text-slate-400 hover:text-accent-red hover:border-accent-red transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Remove project from list"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               );
