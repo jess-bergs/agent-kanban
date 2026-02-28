@@ -117,6 +117,19 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
     }
   }
 
+  async function handleMarkDone() {
+    setActing(true);
+    try {
+      await fetch(`/api/tickets/${ticket.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done' }),
+      });
+    } finally {
+      setActing(false);
+    }
+  }
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -467,6 +480,16 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
               >
                 <RefreshCw className={`w-4 h-4 ${acting ? 'animate-spin' : ''}`} />
                 Refresh Status
+              </button>
+            )}
+            {(ticket.status === 'failed' || ticket.status === 'in_review') && (
+              <button
+                onClick={handleMarkDone}
+                disabled={acting}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-green/10 text-accent-green rounded-lg hover:bg-accent-green/20 disabled:opacity-50 transition-colors"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Mark Done
               </button>
             )}
             <button
