@@ -1,7 +1,7 @@
 import { readdir, readFile, writeFile, mkdir, rename, unlink as fsUnlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { Project, Ticket, TicketImage } from '../src/types.ts';
+import type { Project, Ticket, TicketImage, StateChangeEntry } from '../src/types.ts';
 
 const DATA_DIR = join(import.meta.dirname, '..', 'data');
 const PROJECTS_DIR = join(DATA_DIR, 'projects');
@@ -132,10 +132,12 @@ export async function createTicket(data: {
   useRalph?: boolean;
 }): Promise<Ticket> {
   await ensureDirs();
+  const now = Date.now();
   const ticket: Ticket = {
     id: randomUUID(),
     status: 'todo',
-    createdAt: Date.now(),
+    createdAt: now,
+    stateLog: [{ status: 'todo', timestamp: now, reason: 'ticket_created' }],
     ...data,
   };
   await atomicWriteJson(join(TICKETS_DIR, `${ticket.id}.json`), ticket);
@@ -145,11 +147,25 @@ export async function createTicket(data: {
 export async function updateTicket(
   id: string,
   updates: Partial<Ticket>,
+  /** Optional reason for the state change (only recorded when status actually changes) */
+  stateReason?: string,
 ): Promise<Ticket | null> {
   return withLock(`ticket:${id}`, async () => {
     const ticket = await getTicket(id);
     if (!ticket) return null;
     const updated = { ...ticket, ...updates, id: ticket.id };
+
+    // Auto-append to stateLog when status changes
+    if (updates.status && updates.status !== ticket.status) {
+      const log: StateChangeEntry[] = updated.stateLog || [];
+      log.push({
+        status: updates.status,
+        timestamp: Date.now(),
+        reason: stateReason,
+      });
+      updated.stateLog = log;
+    }
+
     await atomicWriteJson(join(TICKETS_DIR, `${updated.id}.json`), updated);
     return updated;
   });

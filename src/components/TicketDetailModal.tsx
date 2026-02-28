@@ -26,10 +26,27 @@ import {
   ImagePlus,
   Images,
 } from 'lucide-react';
-import type { Ticket, TicketStatus, Project, AgentActivity } from '../types';
+import type { Ticket, TicketStatus, Project, AgentActivity, StateChangeEntry } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount } from '../types';
 
-import { XCircle, GitMerge, AlertTriangle, StopCircle } from 'lucide-react';
+import { XCircle, GitMerge, AlertTriangle, StopCircle, History } from 'lucide-react';
+
+const STATE_REASON_LABELS: Record<string, string> = {
+  ticket_created: 'Created',
+  agent_started: 'Agent started',
+  agent_completed: 'Agent completed',
+  agent_failed: 'Agent failed',
+  user_abort: 'Aborted by user',
+  user_retry: 'Retried by user',
+  user_action: 'Manual update',
+  pr_merged: 'PR merged',
+  auto_merged: 'Auto-merged',
+  waiting_tool_approval: 'Waiting for approval',
+  tool_approved: 'Tool approved',
+  project_not_found: 'Project not found',
+  worktree_setup_failed: 'Worktree setup failed',
+  orphan_recovery: 'Orphan recovery',
+};
 
 const STATUS_STYLE: Record<TicketStatus, { bg: string; text: string; icon: typeof Clock }> = {
   todo: { bg: 'bg-accent-amber/10', text: 'text-accent-amber', icon: Clock },
@@ -81,6 +98,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
   const [acting, setActing] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
   const [showActivity, setShowActivity] = useState(true);
+  const [showStateLog, setShowStateLog] = useState(false);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -549,6 +567,68 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 )}
                 {ticket.effort.costUsd != null && (
                   <span className="text-accent-amber">${ticket.effort.costUsd.toFixed(2)}</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* State history timeline */}
+          {ticket.stateLog && ticket.stateLog.length > 0 && (
+            <div className="flex items-start gap-3">
+              <History className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <button
+                  onClick={() => setShowStateLog(!showStateLog)}
+                  className="flex items-center gap-1.5 mb-2 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  {showStateLog
+                    ? <ChevronDown className="w-3 h-3" />
+                    : <ChevronRight className="w-3 h-3" />
+                  }
+                  State History
+                  <span className="text-[10px] text-slate-600">
+                    ({ticket.stateLog.length} transitions)
+                  </span>
+                </button>
+                {showStateLog && (
+                  <div className="space-y-0 bg-surface-900 rounded-lg p-2 border border-surface-700">
+                    {ticket.stateLog.map((entry, idx) => {
+                      const entryStyle = STATUS_STYLE[entry.status];
+                      const EntryIcon = entryStyle.icon;
+                      const prevEntry = idx > 0 ? ticket.stateLog![idx - 1] : null;
+                      const elapsed = prevEntry ? entry.timestamp - prevEntry.timestamp : null;
+                      return (
+                        <div key={idx} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-surface-800">
+                          <div className="flex flex-col items-center shrink-0">
+                            <EntryIcon className={`w-3 h-3 ${entryStyle.text}`} />
+                            {idx < ticket.stateLog!.length - 1 && (
+                              <div className="w-px h-3 bg-surface-600 mt-0.5" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1 flex items-center gap-2">
+                            <span className={`text-[11px] font-medium ${entryStyle.text}`}>
+                              {TICKET_STATUS_LABELS[entry.status]}
+                            </span>
+                            {entry.reason && (
+                              <span className="text-[10px] text-slate-600">
+                                {STATE_REASON_LABELS[entry.reason] || entry.reason}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {elapsed != null && elapsed > 0 && (
+                              <span className="text-[9px] text-slate-600 font-mono">
+                                +{formatDuration(elapsed)}
+                              </span>
+                            )}
+                            <span className="text-[9px] text-slate-600">
+                              {new Date(entry.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>

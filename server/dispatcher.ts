@@ -43,7 +43,7 @@ async function startAgent(ticket: Ticket) {
     await updateTicket(ticket.id, {
       status: 'error',
       error: `Project ${ticket.projectId} not found`,
-    });
+    }, 'project_not_found');
     return;
   }
 
@@ -69,7 +69,7 @@ async function startAgent(ticket: Ticket) {
       branchName,
       worktreePath,
       startedAt: Date.now(),
-    });
+    }, 'agent_started');
     if (updated) await broadcastTicket(updated);
 
     try {
@@ -124,7 +124,7 @@ async function startAgent(ticket: Ticket) {
       const errTicket = await updateTicket(ticket.id, {
         status: 'error',
         error: `Git worktree setup failed: ${errMsg}`,
-      });
+      }, 'worktree_setup_failed');
       if (errTicket) await broadcastTicket(errTicket);
       return;
     }
@@ -134,7 +134,7 @@ async function startAgent(ticket: Ticket) {
     const updated = await updateTicket(ticket.id, {
       status: 'in_progress',
       startedAt: Date.now(),
-    });
+    }, 'agent_started');
     if (updated) await broadcastTicket(updated);
   }
 
@@ -315,7 +315,7 @@ async function startAgent(ticket: Ticket) {
               // Transition back to in_progress if we were in needs_approval
               getTicket(ticket.id).then(t => {
                 if (t && t.status === 'needs_approval') {
-                  updateTicket(ticket.id, { status: 'in_progress' }).then(u => {
+                  updateTicket(ticket.id, { status: 'in_progress' }, 'tool_approved').then(u => {
                     if (u) broadcastTicket(u);
                   });
                 }
@@ -392,7 +392,7 @@ async function startAgent(ticket: Ticket) {
         completedAt,
         agentPid: undefined,
         effort: { ...effort },
-      });
+      }, wasAborted ? 'user_abort' : 'agent_failed');
       if (failedTicket) await broadcastTicket(failedTicket);
       if (useWorktree) cleanupWorktree(project.repoPath, worktreePath);
       return;
@@ -435,7 +435,7 @@ async function startAgent(ticket: Ticket) {
       lastThinking: lastThinking || undefined,
       agentPid: undefined,
       effort: { ...effort },
-    });
+    }, 'agent_completed');
     if (reviewTicket) await broadcastTicket(reviewTicket);
 
     console.log(
@@ -549,7 +549,7 @@ export async function checkPrStatus(ticket: Ticket) {
     const pr: { state: string; mergeable: string } = JSON.parse(prJson);
 
     if (pr.state === 'MERGED') {
-      const merged = await updateTicket(ticket.id, { status: 'merged', hasConflict: false });
+      const merged = await updateTicket(ticket.id, { status: 'merged', hasConflict: false }, 'pr_merged');
       if (merged) await broadcastTicket(merged);
       console.log(`[pr-monitor] Ticket #${ticket.id} PR has been merged`);
       return;
@@ -593,7 +593,7 @@ async function checkAutoMerge(ticket: Ticket) {
 
     // Already merged or closed
     if (pr.state === 'MERGED') {
-      const merged = await updateTicket(ticket.id, { status: 'merged' });
+      const merged = await updateTicket(ticket.id, { status: 'merged' }, 'pr_merged');
       if (merged) await broadcastTicket(merged);
       console.log(`[auto-merge] Ticket #${ticket.id} PR already merged`);
       return;
@@ -616,7 +616,7 @@ async function checkAutoMerge(ticket: Ticket) {
         `gh pr merge "${ticket.prUrl}" --squash --delete-branch`,
         { cwd: project.repoPath, encoding: 'utf-8', timeout: 30000 },
       );
-      const merged = await updateTicket(ticket.id, { status: 'merged' });
+      const merged = await updateTicket(ticket.id, { status: 'merged' }, 'auto_merged');
       if (merged) await broadcastTicket(merged);
       console.log(`[auto-merge] Ticket #${ticket.id} merged successfully`);
     } else {
@@ -723,7 +723,7 @@ export async function dispatcherTick() {
     const lastActivity = lastStreamActivity.get(ticket.id);
     const hasPendingTool = pendingToolApproval.get(ticket.id);
     if (hasPendingTool && lastActivity && (now - lastActivity) > APPROVAL_WAIT_THRESHOLD_MS) {
-      const updated = await updateTicket(ticket.id, { status: 'needs_approval' });
+      const updated = await updateTicket(ticket.id, { status: 'needs_approval' }, 'waiting_tool_approval');
       if (updated) await broadcastTicket(updated);
       console.log(`[dispatcher] Ticket #${ticket.id} appears to be waiting for tool approval`);
     }
@@ -797,7 +797,7 @@ async function recoverOrphanedTickets() {
       error: 'Agent process died (server restart or crash)',
       completedAt: Date.now(),
       agentPid: undefined,
-    });
+    }, 'orphan_recovery');
     if (updated) broadcastTicket(updated);
 
     if (ticket.worktreePath) {
