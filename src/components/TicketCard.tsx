@@ -1,3 +1,4 @@
+
 import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge, Clock, Brain, Terminal, Info, ShieldAlert } from 'lucide-react';
 import type { Ticket, TicketStatus, TicketEffort } from '../types';
 import { formatDuration, formatTokenCount } from '../types';
@@ -14,49 +15,13 @@ const BORDER_COLORS: Record<TicketStatus, string> = {
 };
 
 function EffortBadge({ effort }: { effort: TicketEffort }) {
+  const parts: string[] = [];
+  if (effort.costUsd != null) parts.push(`$${effort.costUsd.toFixed(2)}`);
+  if (effort.durationMs != null) parts.push(formatDuration(effort.durationMs));
+  parts.push(`${effort.turns}t/${effort.toolCalls}tc`);
   return (
-    <span className="relative group/effort shrink-0" onClick={e => e.stopPropagation()}>
-      <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-surface-600/50 px-1.5 py-0.5 rounded cursor-help">
-        <Info className="w-3 h-3" />
-        {effort.turns}t
-      </span>
-      <div className="absolute right-0 top-full mt-1 z-50 hidden group-hover/effort:block">
-        <div className="bg-surface-900 border border-surface-600 rounded-lg p-2.5 shadow-xl text-[11px] text-slate-300 whitespace-nowrap space-y-1 min-w-[160px]">
-          <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mb-1.5">Agent Effort</p>
-          <p className="flex justify-between gap-4">
-            <span className="text-slate-500">API turns</span>
-            <span className="font-mono">{effort.turns}</span>
-          </p>
-          <p className="flex justify-between gap-4">
-            <span className="text-slate-500">Tool calls</span>
-            <span className="font-mono">{effort.toolCalls}</span>
-          </p>
-          {effort.durationMs != null && (
-            <p className="flex justify-between gap-4">
-              <span className="text-slate-500">Duration</span>
-              <span className="font-mono">{formatDuration(effort.durationMs)}</span>
-            </p>
-          )}
-          {effort.inputTokens != null && (
-            <p className="flex justify-between gap-4">
-              <span className="text-slate-500">Input tokens</span>
-              <span className="font-mono">{formatTokenCount(effort.inputTokens)}</span>
-            </p>
-          )}
-          {effort.outputTokens != null && (
-            <p className="flex justify-between gap-4">
-              <span className="text-slate-500">Output tokens</span>
-              <span className="font-mono">{formatTokenCount(effort.outputTokens)}</span>
-            </p>
-          )}
-          {effort.costUsd != null && (
-            <p className="flex justify-between gap-4">
-              <span className="text-slate-500">Cost</span>
-              <span className="font-mono text-accent-amber">${effort.costUsd.toFixed(4)}</span>
-            </p>
-          )}
-        </div>
-      </div>
+    <span className="text-[10px] font-mono text-slate-500 bg-surface-600/40 px-1.5 py-0.5 rounded shrink-0">
+      {parts.join(' · ')}
     </span>
   );
 }

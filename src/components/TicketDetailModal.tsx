@@ -376,46 +376,27 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
             </div>
           )}
 
-          {/* Effort metrics */}
+          {/* Effort metrics — compact inline bar */}
           {ticket.effort && ticket.effort.turns > 0 && (
-            <div className="flex items-start gap-3">
-              <Gauge className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-slate-500 mb-2">Agent Effort</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <div className="bg-surface-900 rounded-lg px-3 py-2 border border-surface-700">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-wide">Turns</p>
-                    <p className="text-sm font-mono text-slate-200">{ticket.effort.turns}</p>
-                  </div>
-                  <div className="bg-surface-900 rounded-lg px-3 py-2 border border-surface-700">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-wide">Tool Calls</p>
-                    <p className="text-sm font-mono text-slate-200">{ticket.effort.toolCalls}</p>
-                  </div>
-                  {ticket.effort.durationMs != null && (
-                    <div className="bg-surface-900 rounded-lg px-3 py-2 border border-surface-700">
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wide">Duration</p>
-                      <p className="text-sm font-mono text-slate-200">{formatDuration(ticket.effort.durationMs)}</p>
-                    </div>
-                  )}
-                  {ticket.effort.inputTokens != null && (
-                    <div className="bg-surface-900 rounded-lg px-3 py-2 border border-surface-700">
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wide">Input Tokens</p>
-                      <p className="text-sm font-mono text-slate-200">{formatTokenCount(ticket.effort.inputTokens)}</p>
-                    </div>
-                  )}
-                  {ticket.effort.outputTokens != null && (
-                    <div className="bg-surface-900 rounded-lg px-3 py-2 border border-surface-700">
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wide">Output Tokens</p>
-                      <p className="text-sm font-mono text-slate-200">{formatTokenCount(ticket.effort.outputTokens)}</p>
-                    </div>
-                  )}
-                  {ticket.effort.costUsd != null && (
-                    <div className="bg-surface-900 rounded-lg px-3 py-2 border border-surface-700">
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wide">Cost</p>
-                      <p className="text-sm font-mono text-accent-amber">${ticket.effort.costUsd.toFixed(4)}</p>
-                    </div>
-                  )}
-                </div>
+            <div className="flex items-center gap-3 text-xs bg-surface-900/60 rounded-lg px-3 py-2 border border-surface-700">
+              <Gauge className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <div className="flex items-center gap-3 flex-wrap font-mono text-slate-400">
+                <span><span className="text-slate-500">turns</span> {ticket.effort.turns}</span>
+                <span><span className="text-slate-500">tools</span> {ticket.effort.toolCalls}</span>
+                {ticket.effort.durationMs != null && (
+                  <span><span className="text-slate-500">time</span> {formatDuration(ticket.effort.durationMs)}</span>
+                )}
+                {(ticket.effort.inputTokens != null || ticket.effort.outputTokens != null) && (
+                  <span>
+                    <span className="text-slate-500">tokens</span>{' '}
+                    {ticket.effort.inputTokens != null ? formatTokenCount(ticket.effort.inputTokens) : '?'}
+                    <span className="text-slate-600">/</span>
+                    {ticket.effort.outputTokens != null ? formatTokenCount(ticket.effort.outputTokens) : '?'}
+                  </span>
+                )}
+                {ticket.effort.costUsd != null && (
+                  <span className="text-accent-amber">${ticket.effort.costUsd.toFixed(2)}</span>
+                )}
               </div>
             </div>
           )}
