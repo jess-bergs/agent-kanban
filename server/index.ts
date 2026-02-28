@@ -85,7 +85,7 @@ app.get('/api/browse', async (req, res) => {
       try {
         await stat(join(fullPath, '.git'));
         isGit = true;
-      } catch {}
+      } catch { /* not a git repo */ }
       dirs.push({ name: entry.name, path: fullPath, isGit });
     }
 
@@ -137,7 +137,7 @@ app.post('/api/projects', async (req, res) => {
     }
 
     // Auto-detect repo info
-    let name = repoPath.split('/').pop() || repoPath;
+    const name = repoPath.split('/').pop() || repoPath;
     let defaultBranch = 'main';
     let remoteUrl: string | undefined;
 
@@ -490,7 +490,7 @@ const agentPollInterval = setInterval(async () => {
       lastAgentsJson = json;
       broadcast({ type: 'agents_updated', data: agents });
     }
-  } catch {}
+  } catch { /* poll failure, retry next interval */ }
 }, 5000);
 
 // ─── Graceful Shutdown ──────────────────────────────────────────

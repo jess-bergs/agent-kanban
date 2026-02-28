@@ -145,7 +145,7 @@ const views = [
     nodeProc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
 
     nodeProc.on('close', async (code) => {
-      try { await rm(scriptPath); } catch {}
+      try { await rm(scriptPath); } catch { /* cleanup best-effort */ }
 
       if (code !== 0) {
         reject(new Error(`Playwright capture failed (code ${code}): ${stderr.slice(-500)}`));
@@ -187,8 +187,8 @@ async function uploadScreenshotsToPr(
   }
 
   // Get branch and repo info
-  let branch = '';
-  let repoFullName = '';
+  let branch: string;
+  let repoFullName: string;
   try {
     const prInfoJson = execFileSync(
       'gh', ['pr', 'view', prUrl, '--json', 'headRefName,headRepository'],

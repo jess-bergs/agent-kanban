@@ -83,7 +83,7 @@ async function startAgent(ticket: Ticket) {
           cwd: project.repoPath,
           stdio: 'ignore',
         });
-      } catch {}
+      } catch { /* worktree may not exist */ }
 
       // Try to delete the branch if it exists from a previous run
       try {
@@ -91,7 +91,7 @@ async function startAgent(ticket: Ticket) {
           cwd: project.repoPath,
           stdio: 'ignore',
         });
-      } catch {}
+      } catch { /* branch may not exist */ }
 
       // Determine the best base ref
       let baseRef = `origin/${project.defaultBranch}`;
