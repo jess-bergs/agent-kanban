@@ -251,7 +251,7 @@ app.get('/api/tickets/:id', async (req, res) => {
 });
 
 app.patch('/api/tickets/:id', async (req, res) => {
-  const ticket = await updateTicket(req.params.id, req.body);
+  const ticket = await updateTicket(req.params.id, req.body, req.body.status ? 'user_action' : undefined);
   if (ticket) {
     broadcast({ type: 'ticket_updated', data: ticket });
     res.json(ticket);
@@ -318,7 +318,7 @@ app.post('/api/tickets/:id/retry', async (req, res) => {
     completedAt: undefined,
     lastOutput: undefined,
     agentPid: undefined,
-  });
+  }, 'user_retry');
   if (ticket) {
     broadcast({ type: 'ticket_updated', data: ticket });
     res.json(ticket);
@@ -345,7 +345,7 @@ app.post('/api/tickets/:id/abort', async (req, res) => {
       error: 'Aborted by user',
       completedAt: Date.now(),
       agentPid: undefined,
-    });
+    }, 'user_abort');
     if (updated) broadcast({ type: 'ticket_updated', data: updated });
   }
   res.json({ success: true });
@@ -372,6 +372,15 @@ app.post('/api/tickets/:id/refresh-status', async (req, res) => {
     console.error('Error refreshing ticket status:', err);
     res.status(500).json({ error: 'Failed to refresh status' });
   }
+});
+
+app.get('/api/tickets/:id/log', async (req, res) => {
+  const ticket = await getTicket(req.params.id);
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found' });
+    return;
+  }
+  res.json(ticket.stateLog || []);
 });
 
 app.post('/api/tickets/:id/audit', async (req, res) => {

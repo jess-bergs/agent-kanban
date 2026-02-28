@@ -125,6 +125,16 @@ export interface Project {
 
 export type TicketStatus = 'todo' | 'in_progress' | 'needs_approval' | 'in_review' | 'done' | 'merged' | 'failed' | 'error';
 
+/** A single entry recording a ticket status transition */
+export interface StateChangeEntry {
+  /** The status the ticket moved to */
+  status: TicketStatus;
+  /** Unix timestamp (ms) of the transition */
+  timestamp: number;
+  /** What caused the transition (e.g. 'agent_started', 'user_retry', 'pr_merged') */
+  reason?: string;
+}
+
 /** A single entry in the agent's live activity stream */
 export interface AgentActivity {
   type: 'thinking' | 'text' | 'tool_use' | 'tool_result';
@@ -186,6 +196,8 @@ export interface Ticket {
   auditStatus?: 'pending' | 'running' | 'done' | 'error';
   /** Auditor review result text */
   auditResult?: string;
+  /** Log of all status transitions with timestamps and reasons */
+  stateLog?: StateChangeEntry[];
 }
 
 // ─── Scheduled Audits ─────────────────────────────────────────────

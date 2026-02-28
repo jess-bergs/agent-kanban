@@ -494,7 +494,7 @@ async function pollPr(entry: WatchlistEntry): Promise<void> {
       if (entry.ticketId && pr.state === 'MERGED') {
         const ticket = await getTicket(entry.ticketId);
         if (ticket && ticket.status === 'in_review') {
-          const updated = await updateTicket(entry.ticketId, { status: 'merged' });
+          const updated = await updateTicket(entry.ticketId, { status: 'merged' }, 'pr_merged');
           if (updated) broadcastFn({ type: 'ticket_updated', data: updated });
         }
       }
