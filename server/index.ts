@@ -28,10 +28,20 @@ import { runAudit, isAuditRunning, setAuditorBroadcast } from './auditor.ts';
 import type { TeamWithData, WSEvent } from '../src/types.ts';
 
 const PORT = 3003;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const app = express();
 app.use(cors({ origin: 'http://localhost:5174' }));
 app.use(express.json());
+
+// Validate :id params are UUIDs — prevents path traversal and injection
+app.param('id', (req, res, next) => {
+  if (!UUID_RE.test(req.params.id)) {
+    res.status(400).json({ error: 'Invalid ID format' });
+    return;
+  }
+  next();
+});
 
 // ─── Team Monitoring API ──────────────────────────────────────────
 
