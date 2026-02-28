@@ -423,14 +423,17 @@ async function checkAutoMerge(ticket: Ticket) {
     }
     if (pr.state === 'CLOSED') return;
 
-    // Check conditions: approved + checks pass + mergeable
-    const isApproved = pr.reviewDecision === 'APPROVED';
+    // Check conditions: reviews OK + checks pass + mergeable
+    // reviewDecision is "" when no reviews are required, "APPROVED" when approved,
+    // "CHANGES_REQUESTED" or "REVIEW_REQUIRED" when blocking
+    const reviewBlocking = pr.reviewDecision === 'CHANGES_REQUESTED' ||
+      pr.reviewDecision === 'REVIEW_REQUIRED';
     const checks = pr.statusCheckRollup || [];
     const checksPassed = checks.length === 0 ||
       checks.every(c => c.state === 'SUCCESS');
     const isMergeable = pr.mergeable === 'MERGEABLE';
 
-    if (isApproved && checksPassed && isMergeable) {
+    if (!reviewBlocking && checksPassed && isMergeable) {
       console.log(`[auto-merge] Merging PR for ticket #${ticket.id}: ${ticket.prUrl}`);
       execSync(
         `gh pr merge "${ticket.prUrl}" --squash --delete-branch`,
@@ -439,6 +442,11 @@ async function checkAutoMerge(ticket: Ticket) {
       const merged = await updateTicket(ticket.id, { status: 'merged' });
       if (merged) await broadcastTicket(merged);
       console.log(`[auto-merge] Ticket #${ticket.id} merged successfully`);
+    } else {
+      console.log(
+        `[auto-merge] Ticket #${ticket.id} not ready — ` +
+        `reviewBlocking=${reviewBlocking}, checksPassed=${checksPassed}, isMergeable=${isMergeable}`,
+      );
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -477,12 +485,15 @@ export async function dispatcherTick() {
     t => t.status === 'in_review' && t.prUrl,
   );
   for (const ticket of inReviewTickets) {
-    // Check if PR has been merged
+    // Check if PR has been merged externally
     await checkPrStatus(ticket);
 
-    // If ticket has autoMerge enabled and still in_review, try to auto-merge
+    // Re-read ticket from DB since checkPrStatus may have updated status to 'merged'
     if (ticket.autoMerge) {
-      await checkAutoMerge(ticket);
+      const fresh = await getTicket(ticket.id);
+      if (fresh && fresh.status === 'in_review') {
+        await checkAutoMerge(fresh);
+      }
     }
   }
 }
