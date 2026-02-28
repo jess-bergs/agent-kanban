@@ -1,5 +1,5 @@
-import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readdir, readFile, writeFile, mkdir, rename } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Project, Ticket } from '../src/types.ts';
 
@@ -12,9 +12,46 @@ async function ensureDirs() {
   await mkdir(TICKETS_DIR, { recursive: true });
 }
 
+/** Atomic write: write to temp file then rename (rename is atomic on POSIX) */
+async function atomicWriteJson(path: string, data: unknown): Promise<void> {
+  const tmp = path + '.tmp.' + process.pid;
+  await writeFile(tmp, JSON.stringify(data, null, 2));
+  await rename(tmp, path);
+}
+
+/** Per-file write locks to prevent concurrent read-merge-write races */
+const writeLocks = new Map<string, Promise<void>>();
+
+async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const prev = writeLocks.get(key) ?? Promise.resolve();
+  let resolve: () => void;
+  const next = new Promise<void>(r => { resolve = r; });
+  writeLocks.set(key, next);
+  await prev;
+  try { return await fn(); }
+  finally { resolve!(); }
+}
+
 async function safeReadJson<T>(path: string): Promise<T | null> {
   try {
-    return JSON.parse(await readFile(path, 'utf-8')) as T;
+    const raw = await readFile(path, 'utf-8');
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      // Attempt recovery: find first valid JSON object
+      for (let i = raw.length; i > 0; i--) {
+        if (raw[i - 1] !== '}') continue;
+        try {
+          const obj = JSON.parse(raw.slice(0, i)) as T;
+          // Auto-repair the file
+          await atomicWriteJson(path, obj);
+          console.log(`[store] Auto-repaired corrupt file: ${path}`);
+          return obj;
+        } catch { /* keep scanning */ }
+      }
+      console.error(`[store] Unrecoverable corrupt file: ${path}`);
+      return null;
+    }
   } catch {
     return null;
   }
@@ -54,10 +91,7 @@ export async function createProject(data: {
     createdAt: Date.now(),
     ...data,
   };
-  await writeFile(
-    join(PROJECTS_DIR, `${project.id}.json`),
-    JSON.stringify(project, null, 2),
-  );
+  await atomicWriteJson(join(PROJECTS_DIR, `${project.id}.json`), project);
   return project;
 }
 
@@ -102,10 +136,7 @@ export async function createTicket(data: {
     createdAt: Date.now(),
     ...data,
   };
-  await writeFile(
-    join(TICKETS_DIR, `${ticket.id}.json`),
-    JSON.stringify(ticket, null, 2),
-  );
+  await atomicWriteJson(join(TICKETS_DIR, `${ticket.id}.json`), ticket);
   return ticket;
 }
 
@@ -113,14 +144,13 @@ export async function updateTicket(
   id: string,
   updates: Partial<Ticket>,
 ): Promise<Ticket | null> {
-  const ticket = await getTicket(id);
-  if (!ticket) return null;
-  const updated = { ...ticket, ...updates, id: ticket.id };
-  await writeFile(
-    join(TICKETS_DIR, `${updated.id}.json`),
-    JSON.stringify(updated, null, 2),
-  );
-  return updated;
+  return withLock(`ticket:${id}`, async () => {
+    const ticket = await getTicket(id);
+    if (!ticket) return null;
+    const updated = { ...ticket, ...updates, id: ticket.id };
+    await atomicWriteJson(join(TICKETS_DIR, `${updated.id}.json`), updated);
+    return updated;
+  });
 }
 
 export async function deleteTicket(id: string): Promise<boolean> {
