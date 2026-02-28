@@ -25,7 +25,8 @@ import {
   deleteTicketImage,
   getImagesDir,
 } from './store.ts';
-import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick } from './dispatcher.ts';
+import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, takeoverAgent, checkPrStatus, conflictCheckTick } from './dispatcher.ts';
+import { findSessionIdByCwd } from './solo-agents.ts';
 import { detectSoloAgents } from './solo-agents.ts';
 import {
   runAudit,
@@ -349,6 +350,37 @@ app.post('/api/tickets/:id/abort', async (req, res) => {
     if (updated) broadcast({ type: 'ticket_updated', data: updated });
   }
   res.json({ success: true });
+});
+
+app.post('/api/tickets/:id/takeover', async (req, res) => {
+  const ticket = await getTicket(req.params.id);
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found' });
+    return;
+  }
+  if (ticket.status !== 'needs_approval' && ticket.status !== 'in_progress') {
+    res.status(400).json({ error: 'Ticket is not currently running' });
+    return;
+  }
+
+  // Find session ID: prefer stored value, fall back to JSONL scan
+  let sessionId = ticket.sessionId;
+  if (!sessionId && ticket.worktreePath) {
+    sessionId = await findSessionIdByCwd(ticket.worktreePath);
+  }
+  if (!sessionId) {
+    res.status(404).json({ error: 'Could not find session ID for this agent' });
+    return;
+  }
+
+  // Kill the stuck agent (preserves worktree)
+  takeoverAgent(req.params.id);
+
+  const command = ticket.worktreePath
+    ? `cd ${ticket.worktreePath} && claude --resume ${sessionId}`
+    : `claude --resume ${sessionId}`;
+
+  res.json({ command, sessionId });
 });
 
 app.post('/api/tickets/:id/refresh-status', async (req, res) => {

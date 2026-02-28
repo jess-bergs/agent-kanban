@@ -29,7 +29,7 @@ import {
 import type { Ticket, TicketStatus, Project, AgentActivity } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount } from '../types';
 
-import { XCircle, GitMerge, AlertTriangle, StopCircle } from 'lucide-react';
+import { XCircle, GitMerge, AlertTriangle, StopCircle, Copy, Check } from 'lucide-react';
 
 const STATUS_STYLE: Record<TicketStatus, { bg: string; text: string; icon: typeof Clock }> = {
   todo: { bg: 'bg-accent-amber/10', text: 'text-accent-amber', icon: Clock },
@@ -118,6 +118,33 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
       await fetch(`/api/tickets/${ticket.id}/abort`, { method: 'POST' });
     } finally {
       setActing(false);
+    }
+  }
+
+  const [resumeCommand, setResumeCommand] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function handleTakeover() {
+    setActing(true);
+    try {
+      const res = await fetch(`/api/tickets/${ticket.id}/takeover`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setResumeCommand(data.command);
+        await navigator.clipboard.writeText(data.command);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function handleCopyCommand() {
+    if (resumeCommand) {
+      await navigator.clipboard.writeText(resumeCommand);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   }
 
@@ -256,16 +283,44 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
 
           {/* Needs approval banner */}
           {ticket.status === 'needs_approval' && (
-            <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent-orange/5 border border-accent-orange/20">
-              <ShieldAlert className="w-5 h-5 text-accent-orange animate-pulse shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-accent-orange">
-                  Waiting for tool approval
-                </p>
-                <p className="text-xs text-slate-400">
-                  This agent is not running in YOLO mode and needs you to approve a tool call in the terminal.
-                </p>
+            <div className="rounded-lg bg-accent-orange/5 border border-accent-orange/20 overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <ShieldAlert className="w-5 h-5 text-accent-orange animate-pulse shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-accent-orange">
+                    Waiting for tool approval
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {resumeCommand ? 'Command copied to clipboard. Paste in your terminal to continue.' : 'Connect to this agent session in your terminal to approve.'}
+                  </p>
+                </div>
+                {!resumeCommand && (
+                  <button
+                    onClick={handleTakeover}
+                    disabled={acting}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent-orange/20 text-accent-orange hover:bg-accent-orange/30 transition-colors disabled:opacity-50"
+                  >
+                    <Terminal className="w-3.5 h-3.5" />
+                    Connect in Terminal
+                  </button>
+                )}
               </div>
+              {resumeCommand && (
+                <div className="px-4 pb-3">
+                  <div className="flex items-center gap-2 bg-surface-900 rounded-md border border-surface-700 p-2">
+                    <code className="flex-1 text-xs text-slate-300 font-mono overflow-x-auto whitespace-nowrap">
+                      {resumeCommand}
+                    </code>
+                    <button
+                      onClick={handleCopyCommand}
+                      className="p-1 rounded hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors shrink-0"
+                      title="Copy to clipboard"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5 text-accent-green" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

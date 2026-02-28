@@ -171,6 +171,8 @@ export interface Ticket {
   /** Timestamp when conflict was first detected */
   conflictDetectedAt?: number;
   agentPid?: number;
+  /** Claude Code session ID for --resume support */
+  sessionId?: string;
   createdAt: number;
   startedAt?: number;
   completedAt?: number;

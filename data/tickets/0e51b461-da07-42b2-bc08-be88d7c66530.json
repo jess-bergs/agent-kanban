@@ -1,6 +1,6 @@
 {
   "id": "0e51b461-da07-42b2-bc08-be88d7c66530",
-  "status": "in_review",
+  "status": "merged",
   "createdAt": 1772267574569,
   "projectId": "c4dc62ae",
   "subject": "add chat bot popover",
@@ -145,6 +145,6 @@
   "error": null,
   "prUrl": "https://github.com/jess-bergs/agent-kanban/pull/26",
   "prNumber": 26,
-  "hasConflict": true,
+  "hasConflict": false,
   "conflictDetectedAt": 1772312435924
 }

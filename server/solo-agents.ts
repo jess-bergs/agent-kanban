@@ -287,3 +287,36 @@ export async function detectSoloAgents(): Promise<SoloAgent[]> {
     .filter(a => a.pid !== null || a.lastActiveAt > recentThreshold)
     .sort((a, b) => b.lastActiveAt - a.lastActiveAt);
 }
+
+/** Find the session ID for an agent running in a given working directory */
+export async function findSessionIdByCwd(targetCwd: string): Promise<string | null> {
+  try {
+    const projectDirs = await readdir(PROJECTS_DIR);
+
+    for (const dir of projectDirs) {
+      const projectPath = join(PROJECTS_DIR, dir);
+      const dirStat = await stat(projectPath).catch(() => null);
+      if (!dirStat?.isDirectory()) continue;
+
+      const entries = await readdir(projectPath).catch(() => []);
+      // Sort by modification time descending to find most recent first
+      const jsonlFiles = entries.filter(e => e.endsWith('.jsonl'));
+      const withStats = await Promise.all(
+        jsonlFiles.map(async (f) => {
+          const p = join(projectPath, f);
+          const s = await stat(p).catch(() => null);
+          return s ? { path: p, mtimeMs: s.mtimeMs, size: s.size } : null;
+        })
+      );
+      const sorted = withStats.filter(Boolean).sort((a, b) => b!.mtimeMs - a!.mtimeMs) as { path: string; mtimeMs: number; size: number }[];
+
+      for (const file of sorted) {
+        const sessionData = await readSessionData(file.path);
+        if (sessionData && sessionData.cwd === targetCwd) {
+          return sessionData.sessionId;
+        }
+      }
+    }
+  } catch { /* projects dir doesn't exist */ }
+  return null;
+}

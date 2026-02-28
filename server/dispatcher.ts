@@ -17,6 +17,8 @@ const lastStreamActivity = new Map<string, number>();
 const pendingToolApproval = new Map<string, boolean>();
 /** Tracks ticket IDs that were explicitly aborted by the user (vs crashing) */
 const abortedTickets = new Set<string>();
+/** Tracks ticket IDs handed off to terminal (worktree preserved for --resume) */
+const takenOverTickets = new Set<string>();
 
 type BroadcastFn = (event: WSEvent) => void;
 let broadcastFn: BroadcastFn = () => {};
@@ -232,6 +234,7 @@ async function startAgent(ticket: Ticket) {
   let pendingStreamWrite: Promise<unknown> = Promise.resolve();
   // Track message IDs to deduplicate usage stats (stream-json duplicates per content block)
   const seenMessageIds = new Set<string>();
+  let sessionIdCaptured = false;
 
   function pushActivity(entry: AgentActivity) {
     activity.push(entry);
@@ -253,6 +256,17 @@ async function startAgent(ticket: Ticket) {
     const type = event.type as string;
     const now = Date.now();
     lastStreamActivity.set(ticket.id, now);
+
+    // Opportunistically capture session ID from any event that contains it
+    if (!sessionIdCaptured) {
+      const sid = (event.session_id || event.sessionId) as string | undefined;
+      if (sid) {
+        sessionIdCaptured = true;
+        updateTicket(ticket.id, { sessionId: sid }).then(t => {
+          if (t) broadcastTicket(t);
+        });
+      }
+    }
 
     if (type === 'assistant') {
       const msg = event.message as { id?: string; content?: Array<Record<string, unknown>>; usage?: Record<string, number> } | undefined;
@@ -376,7 +390,8 @@ async function startAgent(ticket: Ticket) {
     lastStreamActivity.delete(ticket.id);
     pendingToolApproval.delete(ticket.id);
     const wasAborted = abortedTickets.delete(ticket.id);
-    console.log(`[dispatcher] Agent for ticket #${ticket.id} exited with code ${code}${wasAborted ? ' (aborted by user)' : ''}`);
+    const wasTakenOver = takenOverTickets.delete(ticket.id);
+    console.log(`[dispatcher] Agent for ticket #${ticket.id} exited with code ${code}${wasAborted ? ' (aborted by user)' : wasTakenOver ? ' (handed off to terminal)' : ''}`);
 
     // Compute duration for effort
     const completedAt = Date.now();
@@ -388,13 +403,14 @@ async function startAgent(ticket: Ticket) {
     if (code !== 0) {
       const failedTicket = await updateTicket(ticket.id, {
         status: 'failed',
-        error: wasAborted ? 'Aborted by user' : (stderr.slice(-500) || `Agent exited with code ${code}`),
+        error: wasTakenOver ? 'Handed off to terminal' : wasAborted ? 'Aborted by user' : (stderr.slice(-500) || `Agent exited with code ${code}`),
         completedAt,
         agentPid: undefined,
         effort: { ...effort },
       });
       if (failedTicket) await broadcastTicket(failedTicket);
-      if (useWorktree) cleanupWorktree(project.repoPath, worktreePath);
+      // Preserve worktree when handed off — user needs it for --resume
+      if (useWorktree && !wasTakenOver) cleanupWorktree(project.repoPath, worktreePath);
       return;
     }
 
@@ -767,6 +783,18 @@ export function abortAgent(ticketId: string): boolean {
     abortedTickets.add(ticketId);
     proc.kill('SIGTERM');
     // Don't delete from running — let the close handler do cleanup
+    return true;
+  }
+  return false;
+}
+
+/** Hand off agent to terminal — kills process but preserves worktree for --resume */
+export function takeoverAgent(ticketId: string): boolean {
+  const proc = running.get(ticketId);
+  if (proc) {
+    console.log(`[dispatcher] Handing off agent for ticket #${ticketId} to terminal`);
+    takenOverTickets.add(ticketId);
+    proc.kill('SIGTERM');
     return true;
   }
   return false;
