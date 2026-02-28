@@ -15,8 +15,14 @@ import {
   Trash2,
   Zap,
   RefreshCw,
+  Brain,
+  Terminal,
+  MessageSquare,
+  ChevronDown,
+  ChevronRight,
+  Activity,
 } from 'lucide-react';
-import type { Ticket, TicketStatus, Project } from '../types';
+import type { Ticket, TicketStatus, Project, AgentActivity } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp } from '../types';
 
 import { XCircle, GitMerge } from 'lucide-react';
@@ -37,10 +43,38 @@ interface TicketDetailModalProps {
   onClose: () => void;
 }
 
+function ActivityIcon({ type }: { type: AgentActivity['type'] }) {
+  switch (type) {
+    case 'thinking':
+      return <Brain className="w-3 h-3 text-accent-purple" />;
+    case 'tool_use':
+      return <Terminal className="w-3 h-3 text-accent-cyan" />;
+    case 'tool_result':
+      return <CheckCircle className="w-3 h-3 text-accent-green" />;
+    case 'text':
+      return <MessageSquare className="w-3 h-3 text-slate-400" />;
+  }
+}
+
+function ActivityLabel({ entry }: { entry: AgentActivity }) {
+  switch (entry.type) {
+    case 'thinking':
+      return <span className="text-accent-purple">Reasoning</span>;
+    case 'tool_use':
+      return <span className="text-accent-cyan">{entry.tool || 'Tool'}</span>;
+    case 'tool_result':
+      return <span className="text-accent-green">Result</span>;
+    case 'text':
+      return <span className="text-slate-400">Output</span>;
+  }
+}
+
 export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModalProps) {
   const style = STATUS_STYLE[ticket.status];
   const StatusIcon = style.icon;
   const [acting, setActing] = useState(false);
+  const [showReasoning, setShowReasoning] = useState(false);
+  const [showActivity, setShowActivity] = useState(true);
 
   async function handleRetry() {
     setActing(true);
@@ -194,6 +228,106 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
               </div>
             </div>
           )}
+
+          {/* Agent reasoning — collapsible thinking block */}
+          {ticket.lastThinking && (
+            <div className="flex items-start gap-3">
+              <Brain className="w-4 h-4 text-accent-purple mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <button
+                  onClick={() => setShowReasoning(!showReasoning)}
+                  className="flex items-center gap-1.5 mb-2 text-xs text-accent-purple hover:text-accent-purple/80 transition-colors"
+                >
+                  {showReasoning
+                    ? <ChevronDown className="w-3 h-3" />
+                    : <ChevronRight className="w-3 h-3" />
+                  }
+                  Agent Reasoning
+                  {ticket.status === 'in_progress' && (
+                    <span className="flex items-center gap-1 text-[10px] text-accent-purple/70">
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent-purple animate-pulse" />
+                      live
+                    </span>
+                  )}
+                </button>
+                {showReasoning && (
+                  <pre
+                    className="text-xs text-slate-400 whitespace-pre-wrap font-mono bg-accent-purple/5 rounded-lg p-3 border border-accent-purple/20 max-h-48 overflow-y-auto"
+                    ref={el => {
+                      if (el && ticket.status === 'in_progress') {
+                        el.scrollTop = el.scrollHeight;
+                      }
+                    }}
+                  >
+                    {ticket.lastThinking}
+                  </pre>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Agent activity feed — live tool calls + output stream */}
+          {(ticket.agentActivity?.length || ticket.status === 'in_progress') ? (
+            <div className="flex items-start gap-3">
+              <Activity className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <button
+                  onClick={() => setShowActivity(!showActivity)}
+                  className="flex items-center gap-1.5 mb-2 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  {showActivity
+                    ? <ChevronDown className="w-3 h-3" />
+                    : <ChevronRight className="w-3 h-3" />
+                  }
+                  Agent Activity
+                  {ticket.agentActivity?.length ? (
+                    <span className="text-[10px] text-slate-600">
+                      ({ticket.agentActivity.length} events)
+                    </span>
+                  ) : null}
+                  {ticket.status === 'in_progress' && (
+                    <span className="flex items-center gap-1 text-[10px] text-accent-blue">
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent-blue animate-pulse" />
+                      live
+                    </span>
+                  )}
+                </button>
+                {showActivity && (
+                  <div
+                    className="space-y-1 max-h-52 overflow-y-auto bg-surface-900 rounded-lg p-2 border border-surface-700"
+                    ref={el => {
+                      if (el && ticket.status === 'in_progress') {
+                        el.scrollTop = el.scrollHeight;
+                      }
+                    }}
+                  >
+                    {(!ticket.agentActivity || ticket.agentActivity.length === 0) ? (
+                      <p className="text-xs text-slate-600 italic px-1">Waiting for activity...</p>
+                    ) : (
+                      ticket.agentActivity.map((entry, idx) => (
+                        <div key={idx} className="flex items-start gap-2 px-1 py-0.5 rounded hover:bg-surface-800">
+                          <div className="mt-0.5 shrink-0">
+                            <ActivityIcon type={entry.type} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[10px] font-medium">
+                              <ActivityLabel entry={entry} />
+                            </span>
+                            <p className="text-[11px] text-slate-500 font-mono truncate leading-tight">
+                              {entry.content}
+                            </p>
+                          </div>
+                          <span className="text-[9px] text-slate-600 shrink-0 mt-0.5">
+                            {formatTimestamp(entry.timestamp)}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
 
           {/* Agent output — live terminal */}
           {(ticket.lastOutput || ticket.status === 'in_progress') && (

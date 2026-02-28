@@ -122,6 +122,17 @@ export interface Project {
 
 export type TicketStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'merged' | 'failed' | 'error';
 
+/** A single entry in the agent's live activity stream */
+export interface AgentActivity {
+  type: 'thinking' | 'text' | 'tool_use' | 'tool_result';
+  /** For tool_use: tool name; for text/thinking: omitted */
+  tool?: string;
+  /** Content summary (truncated for display) */
+  content: string;
+  /** Timestamp of when this activity occurred */
+  timestamp: number;
+}
+
 export interface Ticket {
   id: string;
   projectId: string;
@@ -142,6 +153,10 @@ export interface Ticket {
   completedAt?: number;
   error?: string;
   lastOutput?: string;
+  /** Recent agent activity stream for live oversight */
+  agentActivity?: AgentActivity[];
+  /** Current reasoning/thinking text (most recent) */
+  lastThinking?: string;
 }
 
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {

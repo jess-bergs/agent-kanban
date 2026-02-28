@@ -1,4 +1,4 @@
-import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge, Clock } from 'lucide-react';
+import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge, Clock, Brain, Terminal } from 'lucide-react';
 import type { Ticket, TicketStatus } from '../types';
 
 const BORDER_COLORS: Record<TicketStatus, string> = {
@@ -51,13 +51,32 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         </p>
       )}
 
-      {/* In progress — live output */}
+      {/* In progress — live activity + output */}
       {ticket.status === 'in_progress' && (
         <div className="mt-2 space-y-1.5">
           <div className="flex items-center gap-1.5">
             <Loader2 className="w-3 h-3 text-accent-blue animate-spin" />
             <span className="text-xs text-accent-blue italic">Agent working...</span>
+            {ticket.lastThinking && (
+              <span className="flex items-center gap-1 text-[10px] text-accent-purple">
+                <Brain className="w-3 h-3" />
+                reasoning
+              </span>
+            )}
           </div>
+          {/* Show latest activity entry if available */}
+          {ticket.agentActivity && ticket.agentActivity.length > 0 && (() => {
+            const last = ticket.agentActivity[ticket.agentActivity.length - 1];
+            return (
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                {last.type === 'tool_use' && <Terminal className="w-3 h-3 text-accent-cyan" />}
+                {last.type === 'thinking' && <Brain className="w-3 h-3 text-accent-purple" />}
+                <span className="truncate font-mono">
+                  {last.type === 'tool_use' ? last.tool : last.type === 'thinking' ? 'Reasoning...' : last.content.slice(0, 80)}
+                </span>
+              </div>
+            );
+          })()}
           {ticket.lastOutput && (
             <pre className="text-[11px] text-slate-400 font-mono bg-surface-900/60 rounded px-2 py-1.5 line-clamp-3 whitespace-pre-wrap leading-relaxed">
               {ticket.lastOutput.slice(-200)}
