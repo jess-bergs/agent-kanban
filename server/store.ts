@@ -50,7 +50,7 @@ export async function createProject(data: {
 }): Promise<Project> {
   await ensureDirs();
   const project: Project = {
-    id: randomUUID().slice(0, 8),
+    id: randomUUID(),
     createdAt: Date.now(),
     ...data,
   };
@@ -96,14 +96,8 @@ export async function createTicket(data: {
   useRalph?: boolean;
 }): Promise<Ticket> {
   await ensureDirs();
-  // Auto-increment ticket ID
-  const existing = await listTickets();
-  const maxId = existing.reduce((max, t) => {
-    const num = parseInt(t.id, 10);
-    return isNaN(num) ? max : Math.max(max, num);
-  }, 0);
   const ticket: Ticket = {
-    id: String(maxId + 1),
+    id: randomUUID(),
     status: 'todo',
     createdAt: Date.now(),
     ...data,
