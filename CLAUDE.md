@@ -33,7 +33,8 @@ server/            # Express backend
   dispatcher.ts    # Ticket dispatcher — spawns Claude Code agents in git worktrees
   store.ts         # JSON file-based persistence for projects and tickets
   solo-agents.ts   # Detects standalone Claude Code sessions
-scripts/           # Screenshot generation tooling
+server/screenshots.ts  # Post-PR screenshot capture & upload to GitHub
+scripts/           # Screenshot generation tooling (npm run screenshot)
 .github/           # PR template, Claude PR review workflow
 ```
 
@@ -62,4 +63,13 @@ When a ticket is dispatched:
 2. A Claude Code agent is spawned with the ticket instructions
 3. The agent works, commits, pushes, and creates a PR
 4. The dispatcher detects the PR URL and moves the ticket to `in_review`
-5. Optional auto-merge when PR checks pass and reviews are approved
+5. The dispatcher captures a UI screenshot via Playwright and attaches it to the PR
+6. Optional auto-merge when PR checks pass and reviews are approved
+
+## UI Screenshots
+
+After an agent creates a PR, the dispatcher automatically captures a screenshot of the app
+using headless Chromium (Playwright) and uploads it to the PR body. This happens in
+`server/screenshots.ts` and is best-effort — failures don't block the ticket.
+
+To capture screenshots manually: `npm run screenshot`

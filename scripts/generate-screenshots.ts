@@ -1,174 +1,138 @@
 #!/usr/bin/env node
 /**
- * Screenshot Generator for Agent Kanban
+ * Captures screenshots of Agent Kanban using Playwright (headless Chromium).
  *
- * This script captures screenshots of the application for PR documentation.
- * It starts the dev server, waits for it to be ready, captures screenshots
- * of key views, and saves them to the screenshots directory.
+ * Usage:
+ *   npm run screenshot                  # Starts dev server, captures, then exits
+ *   npm run screenshot -- --url http://localhost:5174  # Use already-running server
+ *   npm run screenshot -- --out ./my-screenshots       # Custom output directory
+ *
+ * Requires Playwright to be installed (globally or via npx).
  */
 
-import { spawn } from 'child_process';
-import { mkdir, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { spawn, type ChildProcess } from 'child_process';
+import { mkdir, writeFile, rm } from 'fs/promises';
+import { join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { execFileSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, '..');
-const screenshotsDir = join(projectRoot, 'screenshots');
 
-// ANSI color codes for better console output
-const colors = {
-  reset: '\x1b[0m',
-  green: '\x1b[32m',
-  blue: '\x1b[34m',
-  yellow: '\x1b[33m',
-  red: '\x1b[31m',
-  cyan: '\x1b[36m',
-};
-
-function log(message: string, color: keyof typeof colors = 'reset') {
-  console.log(`${colors[color]}${message}${colors.reset}`);
+// Parse CLI args
+const args = process.argv.slice(2);
+function getArg(name: string): string | undefined {
+  const idx = args.indexOf(`--${name}`);
+  return idx !== -1 ? args[idx + 1] : undefined;
 }
 
-async function waitForServer(url: string, maxAttempts = 30): Promise<boolean> {
-  log(`Waiting for server at ${url}...`, 'blue');
+const appUrl = getArg('url') || 'http://localhost:5174';
+const outDir = resolve(getArg('out') || join(projectRoot, 'screenshots'));
+const shouldStartServer = !getArg('url');
 
-  for (let i = 0; i < maxAttempts; i++) {
+async function waitForServer(url: string, timeoutMs = 30_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
     try {
-      const response = await fetch(url);
-      if (response.ok) {
-        log('✓ Server is ready!', 'green');
-        return true;
-      }
-    } catch (error) {
-      // Server not ready yet
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const res = await fetch(url);
+      if (res.ok) return true;
+    } catch {
+      // not ready
     }
+    await new Promise(r => setTimeout(r, 1000));
   }
-
   return false;
 }
 
-async function captureScreenshots(): Promise<void> {
-  log('\n📸 Agent Kanban Screenshot Generator\n', 'cyan');
+async function main() {
+  console.log(`Screenshots will be saved to: ${outDir}`);
+  await mkdir(outDir, { recursive: true });
 
-  // Create screenshots directory
-  await mkdir(screenshotsDir, { recursive: true });
-  log(`✓ Screenshots directory: ${screenshotsDir}`, 'green');
-
-  // Start dev server
-  log('\n🚀 Starting development server...', 'blue');
-  const serverProcess = spawn('npm', ['run', 'dev'], {
-    cwd: projectRoot,
-    stdio: 'pipe',
-    shell: true,
-  });
-
-  let serverReady = false;
-
-  serverProcess.stdout?.on('data', (data) => {
-    const output = data.toString();
-    if (output.includes('Local:') || output.includes('localhost')) {
-      serverReady = true;
-    }
-  });
-
-  // Wait for server to be ready
-  const serverUrl = 'http://localhost:5173';
-  const isReady = await waitForServer(serverUrl, 30);
-
-  if (!isReady) {
-    log('✗ Server failed to start in time', 'red');
-    serverProcess.kill();
-    process.exit(1);
+  let serverProc: ChildProcess | undefined;
+  if (shouldStartServer) {
+    console.log('Starting dev server...');
+    serverProc = spawn('npm', ['run', 'dev'], {
+      cwd: projectRoot,
+      stdio: 'ignore',
+      shell: true,
+      detached: true,
+    });
   }
 
-  // Wait a bit more for the app to fully load
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  try {
+    console.log(`Waiting for app at ${appUrl}...`);
+    const ready = await waitForServer(appUrl);
+    if (!ready) {
+      console.error('App did not become ready in time.');
+      process.exit(1);
+    }
+    console.log('App is ready.');
+    await new Promise(r => setTimeout(r, 2000));
 
-  log('\n📸 Capturing screenshots...', 'blue');
+    // Write a Playwright capture script and run it
+    const scriptPath = join(outDir, '_capture.mjs');
+    const script = `
+import { chromium } from 'playwright';
+import { join } from 'path';
 
-  // Create instructions for manual screenshot capture
-  const instructions = `
-# Screenshot Capture Instructions
+const baseUrl = ${JSON.stringify(appUrl)};
+const outDir = ${JSON.stringify(outDir)};
 
-The development server is now running at: ${serverUrl}
+const views = [
+  { name: 'dashboard', path: '/', waitFor: 2000 },
+];
 
-## Manual Screenshot Capture (Recommended)
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
-Since this script runs in a Node.js environment without browser automation,
-please capture screenshots manually using the following steps:
+  const captured = [];
+  for (const view of views) {
+    try {
+      await page.goto(baseUrl + view.path, { waitUntil: 'networkidle', timeout: 15000 });
+      if (view.waitFor) await page.waitForTimeout(view.waitFor);
+      const filePath = join(outDir, view.name + '.png');
+      await page.screenshot({ path: filePath, fullPage: false });
+      captured.push(filePath);
+      console.error('Captured: ' + view.name + '.png');
+    } catch (err) {
+      console.error('Failed to capture ' + view.name + ':', err.message);
+    }
+  }
 
-### Main Views to Capture:
-
-1. **Projects View (Empty State)**
-   - Navigate to: ${serverUrl}
-   - Switch to "Projects" tab in sidebar
-   - Screenshot filename: projects-empty-state.png
-
-2. **Projects View (With Tickets)**
-   - Create a project and some tickets
-   - Screenshot filename: projects-with-tickets.png
-
-3. **Teams View**
-   - Switch to "Teams" tab in sidebar
-   - Screenshot filename: teams-view.png
-
-4. **Agents View**
-   - Switch to "Agents" view (if any solo agents exist)
-   - Screenshot filename: agents-view.png
-
-5. **Ticket Detail Modal**
-   - Open any ticket
-   - Screenshot filename: ticket-detail.png
-
-### How to Take Screenshots:
-
-**macOS:** Cmd + Shift + 4, then Space, then click window
-**Windows:** Snipping Tool or Snip & Sketch
-**Linux:** gnome-screenshot or spectacle
-
-Save screenshots to: ${screenshotsDir}
-
----
-
-## Automated Screenshot Capture (Claude Code)
-
-If you're using Claude Code with Playwright MCP tools, you can ask:
-"Take screenshots of the Agent Kanban app at http://localhost:5173
-showing the main views and save them to the screenshots directory"
-
----
-
-Press Ctrl+C when you're done capturing screenshots.
+  await browser.close();
+  console.log(JSON.stringify(captured));
+})();
 `;
 
-  log(instructions, 'yellow');
+    await writeFile(scriptPath, script);
 
-  // Write instructions to file
-  await writeFile(
-    join(screenshotsDir, 'INSTRUCTIONS.md'),
-    instructions.trim()
-  );
-
-  log('\n📝 Instructions saved to screenshots/INSTRUCTIONS.md', 'green');
-  log('\n⏳ Server will keep running until you press Ctrl+C\n', 'cyan');
-
-  // Keep the server running
-  await new Promise((resolve) => {
-    process.on('SIGINT', () => {
-      log('\n\n🛑 Shutting down server...', 'yellow');
-      serverProcess.kill();
-      log('✓ Done!', 'green');
-      resolve(undefined);
-    });
-  });
+    try {
+      const result = execFileSync('node', [scriptPath], {
+        encoding: 'utf-8',
+        timeout: 60_000,
+        stdio: ['ignore', 'pipe', 'inherit'],
+      });
+      const lines = result.trim().split('\n');
+      const lastLine = lines[lines.length - 1];
+      const paths: string[] = JSON.parse(lastLine);
+      console.log(`\nCaptured ${paths.length} screenshot(s):`);
+      for (const p of paths) {
+        console.log(`  ${p}`);
+      }
+    } finally {
+      try { await rm(scriptPath); } catch {}
+    }
+  } finally {
+    if (serverProc?.pid) {
+      try { process.kill(-serverProc.pid, 'SIGTERM'); } catch {}
+    }
+  }
 }
 
-// Run the script
-captureScreenshots().catch((error) => {
-  log(`\n✗ Error: ${error.message}`, 'red');
+main().catch(err => {
+  console.error(err);
   process.exit(1);
 });
