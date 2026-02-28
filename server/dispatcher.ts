@@ -178,10 +178,11 @@ async function startAgent(ticket: Ticket) {
     args.push('--dangerously-skip-permissions');
   }
 
-  // Remove CLAUDECODE env to avoid "cannot be launched inside another Claude Code session" error
+  // Remove env vars that would override subscription auth or block nested sessions
   const cleanEnv = { ...process.env };
   delete cleanEnv.CLAUDECODE;
   delete cleanEnv.CLAUDE_CODE;
+  delete cleanEnv.ANTHROPIC_API_KEY;
 
   const proc = spawn('claude', args, {
     cwd: agentCwd,
