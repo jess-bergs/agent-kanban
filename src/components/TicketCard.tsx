@@ -1,4 +1,4 @@
-import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge } from 'lucide-react';
+import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge, Clock } from 'lucide-react';
 import type { Ticket, TicketStatus } from '../types';
 
 const BORDER_COLORS: Record<TicketStatus, string> = {
@@ -26,6 +26,12 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
     >
       <div className="flex items-center gap-2">
         <p className="text-sm font-medium text-slate-100 flex-1">{ticket.subject}</p>
+        {ticket.queued && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded shrink-0">
+            <Clock className="w-3 h-3" />
+            QUEUED
+          </span>
+        )}
         {ticket.autoMerge && (
           <span className="flex items-center gap-1 text-[10px] font-medium text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded shrink-0">
             <GitMerge className="w-3 h-3" />

@@ -130,6 +130,7 @@ export interface Ticket {
   status: TicketStatus;
   yolo?: boolean;
   autoMerge?: boolean;
+  queued?: boolean;
   branchName?: string;
   worktreePath?: string;
   prUrl?: string;

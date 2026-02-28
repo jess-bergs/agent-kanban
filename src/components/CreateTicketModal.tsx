@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Send, Zap, GitMerge } from 'lucide-react';
+import { X, Send, Zap, GitMerge, Clock } from 'lucide-react';
 import type { Project } from '../types';
 
 interface CreateTicketModalProps {
@@ -13,6 +13,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
   const [instructions, setInstructions] = useState('');
   const [yolo, setYolo] = useState(false);
   const [autoMerge, setAutoMerge] = useState(false);
+  const [queued, setQueued] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -30,6 +31,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
           instructions: instructions.trim(),
           yolo,
           autoMerge,
+          queued,
         }),
       });
       if (res.ok) {
@@ -142,6 +144,32 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
             </div>
             <div className={`w-10 h-6 rounded-full transition-colors flex items-center shrink-0 ${
               autoMerge ? 'bg-accent-purple justify-end' : 'bg-surface-600 justify-start'
+            }`}>
+              <div className="w-4 h-4 bg-white rounded-full mx-1 shadow-sm" />
+            </div>
+          </button>
+
+          {/* Queue toggle */}
+          <button
+            type="button"
+            onClick={() => setQueued(!queued)}
+            className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg border transition-colors text-left ${
+              queued
+                ? 'bg-accent-cyan/10 border-accent-cyan/30 text-accent-cyan'
+                : 'bg-surface-900 border-surface-600 text-slate-400 hover:text-slate-200 hover:border-surface-500'
+            }`}
+          >
+            <Clock className={`w-5 h-5 shrink-0 ${queued ? 'text-accent-cyan' : ''}`} />
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium ${queued ? 'text-accent-cyan' : 'text-slate-200'}`}>
+                Queue for Later
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Don't start this ticket until all other non-queued tickets have finished processing.
+              </p>
+            </div>
+            <div className={`w-10 h-6 rounded-full transition-colors flex items-center shrink-0 ${
+              queued ? 'bg-accent-cyan justify-end' : 'bg-surface-600 justify-start'
             }`}>
               <div className="w-4 h-4 bg-white rounded-full mx-1 shadow-sm" />
             </div>

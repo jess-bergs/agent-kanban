@@ -356,11 +356,19 @@ export async function dispatcherTick() {
 
   // Start new agents
   if (running.size < MAX_CONCURRENT) {
-    const todo = tickets
-      .filter(t => t.status === 'todo')
-      .sort((a, b) => a.createdAt - b.createdAt);
+    const todoTickets = tickets.filter(t => t.status === 'todo');
 
-    for (const ticket of todo) {
+    // Separate queued from non-queued tickets
+    const nonQueued = todoTickets.filter(t => !t.queued);
+    const queued = todoTickets.filter(t => t.queued);
+
+    // Prioritize non-queued tickets first, then queued tickets
+    // Only process queued tickets if no non-queued tickets exist
+    const prioritized = nonQueued.length > 0
+      ? nonQueued.sort((a, b) => a.createdAt - b.createdAt)
+      : queued.sort((a, b) => a.createdAt - b.createdAt);
+
+    for (const ticket of prioritized) {
       if (running.size >= MAX_CONCURRENT) break;
       if (running.has(ticket.id)) continue;
       await startAgent(ticket);
