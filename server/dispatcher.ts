@@ -679,8 +679,44 @@ let conflictIntervalId: ReturnType<typeof setInterval> | null = null;
 
 const CONFLICT_CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
+function isProcessAlive(pid: number): boolean {
+  try { process.kill(pid, 0); return true; } catch { return false; }
+}
+
+async function recoverOrphanedTickets() {
+  const tickets = await listTickets();
+  const orphaned = tickets.filter(
+    t => t.status === 'in_progress' && !running.has(t.id),
+  );
+
+  for (const ticket of orphaned) {
+    const alive = ticket.agentPid && isProcessAlive(ticket.agentPid);
+    if (alive) continue;
+
+    console.log(`[dispatcher] Recovering orphaned ticket #${ticket.id}: ${ticket.subject}`);
+    const updated = await updateTicket(ticket.id, {
+      status: 'failed',
+      error: 'Agent process died (server restart or crash)',
+      completedAt: Date.now(),
+      agentPid: undefined,
+    });
+    if (updated) broadcastTicket(updated);
+
+    if (ticket.worktreePath) {
+      const project = await getProject(ticket.projectId);
+      if (project) cleanupWorktree(project.repoPath, ticket.worktreePath);
+    }
+  }
+
+  if (orphaned.length > 0) {
+    console.log(`[dispatcher] Recovered ${orphaned.length} orphaned ticket(s)`);
+  }
+}
+
 export function startDispatcher() {
   console.log('[dispatcher] Started (polling every 3s, max concurrent: ' + MAX_CONCURRENT + ')');
+  // Recover tickets orphaned by previous server shutdown
+  recoverOrphanedTickets();
   // Initial tick
   dispatcherTick();
   // Poll for new tickets
