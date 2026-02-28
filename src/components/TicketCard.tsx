@@ -1,5 +1,6 @@
-import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge, Clock, Brain, Terminal } from 'lucide-react';
-import type { Ticket, TicketStatus } from '../types';
+import { ExternalLink, AlertCircle, Loader2, GitPullRequest, Zap, GitMerge, Clock, Brain, Terminal, Info } from 'lucide-react';
+import type { Ticket, TicketStatus, TicketEffort } from '../types';
+import { formatDuration, formatTokenCount } from '../types';
 
 const BORDER_COLORS: Record<TicketStatus, string> = {
   todo: 'border-l-accent-amber',
@@ -10,6 +11,54 @@ const BORDER_COLORS: Record<TicketStatus, string> = {
   failed: 'border-l-accent-red',
   error: 'border-l-accent-red',
 };
+
+function EffortBadge({ effort }: { effort: TicketEffort }) {
+  return (
+    <span className="relative group/effort shrink-0" onClick={e => e.stopPropagation()}>
+      <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-surface-600/50 px-1.5 py-0.5 rounded cursor-help">
+        <Info className="w-3 h-3" />
+        {effort.turns}t
+      </span>
+      <div className="absolute right-0 top-full mt-1 z-50 hidden group-hover/effort:block">
+        <div className="bg-surface-900 border border-surface-600 rounded-lg p-2.5 shadow-xl text-[11px] text-slate-300 whitespace-nowrap space-y-1 min-w-[160px]">
+          <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mb-1.5">Agent Effort</p>
+          <p className="flex justify-between gap-4">
+            <span className="text-slate-500">API turns</span>
+            <span className="font-mono">{effort.turns}</span>
+          </p>
+          <p className="flex justify-between gap-4">
+            <span className="text-slate-500">Tool calls</span>
+            <span className="font-mono">{effort.toolCalls}</span>
+          </p>
+          {effort.durationMs != null && (
+            <p className="flex justify-between gap-4">
+              <span className="text-slate-500">Duration</span>
+              <span className="font-mono">{formatDuration(effort.durationMs)}</span>
+            </p>
+          )}
+          {effort.inputTokens != null && (
+            <p className="flex justify-between gap-4">
+              <span className="text-slate-500">Input tokens</span>
+              <span className="font-mono">{formatTokenCount(effort.inputTokens)}</span>
+            </p>
+          )}
+          {effort.outputTokens != null && (
+            <p className="flex justify-between gap-4">
+              <span className="text-slate-500">Output tokens</span>
+              <span className="font-mono">{formatTokenCount(effort.outputTokens)}</span>
+            </p>
+          )}
+          {effort.costUsd != null && (
+            <p className="flex justify-between gap-4">
+              <span className="text-slate-500">Cost</span>
+              <span className="font-mono text-accent-amber">${effort.costUsd.toFixed(4)}</span>
+            </p>
+          )}
+        </div>
+      </div>
+    </span>
+  );
+}
 
 interface TicketCardProps {
   ticket: Ticket;
@@ -42,6 +91,9 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             <Zap className="w-3 h-3 fill-accent-amber" />
             YOLO
           </span>
+        )}
+        {ticket.effort && ticket.effort.turns > 0 && (
+          <EffortBadge effort={ticket.effort} />
         )}
       </div>
 

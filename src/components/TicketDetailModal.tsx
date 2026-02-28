@@ -21,9 +21,10 @@ import {
   ChevronDown,
   ChevronRight,
   Activity,
+  Gauge,
 } from 'lucide-react';
 import type { Ticket, TicketStatus, Project, AgentActivity } from '../types';
-import { TICKET_STATUS_LABELS, formatTimestamp } from '../types';
+import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount } from '../types';
 
 import { XCircle, GitMerge } from 'lucide-react';
 
@@ -353,6 +354,50 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 >
                   {ticket.lastOutput || 'Waiting for output...'}
                 </pre>
+              </div>
+            </div>
+          )}
+
+          {/* Effort metrics */}
+          {ticket.effort && ticket.effort.turns > 0 && (
+            <div className="flex items-start gap-3">
+              <Gauge className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-slate-500 mb-2">Agent Effort</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="bg-surface-900 rounded-lg px-3 py-2 border border-surface-700">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wide">Turns</p>
+                    <p className="text-sm font-mono text-slate-200">{ticket.effort.turns}</p>
+                  </div>
+                  <div className="bg-surface-900 rounded-lg px-3 py-2 border border-surface-700">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wide">Tool Calls</p>
+                    <p className="text-sm font-mono text-slate-200">{ticket.effort.toolCalls}</p>
+                  </div>
+                  {ticket.effort.durationMs != null && (
+                    <div className="bg-surface-900 rounded-lg px-3 py-2 border border-surface-700">
+                      <p className="text-[10px] text-slate-500 uppercase tracking-wide">Duration</p>
+                      <p className="text-sm font-mono text-slate-200">{formatDuration(ticket.effort.durationMs)}</p>
+                    </div>
+                  )}
+                  {ticket.effort.inputTokens != null && (
+                    <div className="bg-surface-900 rounded-lg px-3 py-2 border border-surface-700">
+                      <p className="text-[10px] text-slate-500 uppercase tracking-wide">Input Tokens</p>
+                      <p className="text-sm font-mono text-slate-200">{formatTokenCount(ticket.effort.inputTokens)}</p>
+                    </div>
+                  )}
+                  {ticket.effort.outputTokens != null && (
+                    <div className="bg-surface-900 rounded-lg px-3 py-2 border border-surface-700">
+                      <p className="text-[10px] text-slate-500 uppercase tracking-wide">Output Tokens</p>
+                      <p className="text-sm font-mono text-slate-200">{formatTokenCount(ticket.effort.outputTokens)}</p>
+                    </div>
+                  )}
+                  {ticket.effort.costUsd != null && (
+                    <div className="bg-surface-900 rounded-lg px-3 py-2 border border-surface-700">
+                      <p className="text-[10px] text-slate-500 uppercase tracking-wide">Cost</p>
+                      <p className="text-sm font-mono text-accent-amber">${ticket.effort.costUsd.toFixed(4)}</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
