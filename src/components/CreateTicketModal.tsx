@@ -113,7 +113,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
                     ? 'bg-accent-amber/10 border-accent-amber/30'
                     : 'bg-surface-900 border-surface-600 hover:border-surface-500'
                 }`}
-                title="Skip all permission prompts. Agent runs fully autonomous."
+                title="Skip all permission prompts. Agent runs fully autonomous. Without YOLO, the ticket moves to 'Needs Approval' when waiting for tool permission."
               >
                 <Zap className={`w-4 h-4 shrink-0 ${yolo ? 'fill-accent-amber text-accent-amber' : 'text-slate-500'}`} />
                 <span className={`text-xs font-medium ${yolo ? 'text-accent-amber' : 'text-slate-300'}`}>YOLO</span>

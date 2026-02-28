@@ -120,7 +120,7 @@ export interface Project {
   createdAt: number;
 }
 
-export type TicketStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'merged' | 'failed' | 'error';
+export type TicketStatus = 'todo' | 'in_progress' | 'needs_approval' | 'in_review' | 'done' | 'merged' | 'failed' | 'error';
 
 /** A single entry in the agent's live activity stream */
 export interface AgentActivity {
@@ -184,6 +184,7 @@ export interface TicketEffort {
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
   todo: 'To Do',
   in_progress: 'In Progress',
+  needs_approval: 'Needs Approval',
   in_review: 'In Review',
   done: 'Done',
   merged: 'Merged',
@@ -194,6 +195,7 @@ export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
 export const TICKET_STATUS_COLORS: Record<TicketStatus, string> = {
   todo: 'amber',
   in_progress: 'blue',
+  needs_approval: 'orange',
   in_review: 'cyan',
   done: 'green',
   merged: 'purple',

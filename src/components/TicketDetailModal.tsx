@@ -22,6 +22,7 @@ import {
   ChevronRight,
   Activity,
   Gauge,
+  ShieldAlert,
 } from 'lucide-react';
 import type { Ticket, TicketStatus, Project, AgentActivity } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount } from '../types';
@@ -31,6 +32,7 @@ import { XCircle, GitMerge, AlertTriangle } from 'lucide-react';
 const STATUS_STYLE: Record<TicketStatus, { bg: string; text: string; icon: typeof Clock }> = {
   todo: { bg: 'bg-accent-amber/10', text: 'text-accent-amber', icon: Clock },
   in_progress: { bg: 'bg-accent-blue/10', text: 'text-accent-blue', icon: Loader2 },
+  needs_approval: { bg: 'bg-accent-orange/10', text: 'text-accent-orange', icon: ShieldAlert },
   in_review: { bg: 'bg-accent-cyan/10', text: 'text-accent-cyan', icon: GitPullRequest },
   done: { bg: 'bg-accent-green/10', text: 'text-accent-green', icon: CheckCircle },
   merged: { bg: 'bg-accent-purple/10', text: 'text-accent-purple', icon: GitMerge },
@@ -73,6 +75,7 @@ function ActivityLabel({ entry }: { entry: AgentActivity }) {
 export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModalProps) {
   const style = STATUS_STYLE[ticket.status];
   const StatusIcon = style.icon;
+  const isAgentActive = ticket.status === 'in_progress' || ticket.status === 'needs_approval';
   const [acting, setActing] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
   const [showActivity, setShowActivity] = useState(true);
@@ -129,7 +132,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 {ticket.id}
               </span>
               <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>
-                <StatusIcon className={`w-3 h-3 ${ticket.status === 'in_progress' ? 'animate-spin' : ''}`} />
+                <StatusIcon className={`w-3 h-3 ${ticket.status === 'in_progress' ? 'animate-spin' : ''} ${ticket.status === 'needs_approval' ? 'animate-pulse' : ''}`} />
                 {TICKET_STATUS_LABELS[ticket.status]}
               </span>
               {ticket.queued && (
@@ -194,6 +197,16 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   {ticket.conflictDetectedAt && (
                     <> Detected {formatTimestamp(ticket.conflictDetectedAt)}.</>
                   )}
+          {/* Needs approval banner */}
+          {ticket.status === 'needs_approval' && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent-orange/5 border border-accent-orange/20">
+              <ShieldAlert className="w-5 h-5 text-accent-orange animate-pulse shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-accent-orange">
+                  Waiting for tool approval
+                </p>
+                <p className="text-xs text-slate-400">
+                  This agent is not running in YOLO mode and needs you to approve a tool call in the terminal.
                 </p>
               </div>
             </div>
@@ -264,7 +277,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                     : <ChevronRight className="w-3 h-3" />
                   }
                   Agent Reasoning
-                  {ticket.status === 'in_progress' && (
+                  {isAgentActive && (
                     <span className="flex items-center gap-1 text-[10px] text-accent-purple/70">
                       <span className="w-1.5 h-1.5 rounded-full bg-accent-purple animate-pulse" />
                       live
@@ -275,7 +288,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   <pre
                     className="text-xs text-slate-400 whitespace-pre-wrap font-mono bg-accent-purple/5 rounded-lg p-3 border border-accent-purple/20 max-h-48 overflow-y-auto"
                     ref={el => {
-                      if (el && ticket.status === 'in_progress') {
+                      if (el && isAgentActive) {
                         el.scrollTop = el.scrollHeight;
                       }
                     }}
@@ -288,7 +301,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           )}
 
           {/* Agent activity feed — live tool calls + output stream */}
-          {(ticket.agentActivity?.length || ticket.status === 'in_progress') ? (
+          {(ticket.agentActivity?.length || isAgentActive) ? (
             <div className="flex items-start gap-3">
               <Activity className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
@@ -306,7 +319,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                       ({ticket.agentActivity.length} events)
                     </span>
                   ) : null}
-                  {ticket.status === 'in_progress' && (
+                  {isAgentActive && (
                     <span className="flex items-center gap-1 text-[10px] text-accent-blue">
                       <span className="w-1.5 h-1.5 rounded-full bg-accent-blue animate-pulse" />
                       live
@@ -317,7 +330,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   <div
                     className="space-y-1 max-h-52 overflow-y-auto bg-surface-900 rounded-lg p-2 border border-surface-700"
                     ref={el => {
-                      if (el && ticket.status === 'in_progress') {
+                      if (el && isAgentActive) {
                         el.scrollTop = el.scrollHeight;
                       }
                     }}
@@ -351,13 +364,13 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           ) : null}
 
           {/* Agent output — live terminal */}
-          {(ticket.lastOutput || ticket.status === 'in_progress') && (
+          {(ticket.lastOutput || isAgentActive) && (
             <div className="flex items-start gap-3">
               <Hash className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <p className="text-xs text-slate-500">Agent Output</p>
-                  {ticket.status === 'in_progress' && (
+                  {isAgentActive && (
                     <span className="flex items-center gap-1 text-[10px] text-accent-blue">
                       <span className="w-1.5 h-1.5 rounded-full bg-accent-blue animate-pulse" />
                       live
@@ -367,7 +380,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 <pre
                   className="text-xs text-slate-400 whitespace-pre-wrap font-mono bg-surface-900 rounded-lg p-3 border border-surface-700 max-h-64 overflow-y-auto"
                   ref={el => {
-                    if (el && ticket.status === 'in_progress') {
+                    if (el && isAgentActive) {
                       el.scrollTop = el.scrollHeight;
                     }
                   }}
