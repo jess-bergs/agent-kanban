@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Send, Zap, GitMerge, Clock, RefreshCw } from 'lucide-react';
 import type { Project } from '../types';
 
@@ -16,6 +16,14 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
   const [queued, setQueued] = useState(false);
   const [useRalph, setUseRalph] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [onClose]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
