@@ -136,12 +136,28 @@ export interface AgentActivity {
   timestamp: number;
 }
 
+/** An image attached to a ticket */
+export interface TicketImage {
+  /** Unique filename (UUID-based) stored on disk */
+  filename: string;
+  /** Original filename from the upload */
+  originalName: string;
+  /** MIME type (image/png, image/jpeg, etc.) */
+  mimeType: string;
+  /** File size in bytes */
+  size: number;
+  /** When the image was uploaded */
+  uploadedAt: number;
+}
+
 export interface Ticket {
   id: string;
   projectId: string;
   subject: string;
   instructions: string;
   status: TicketStatus;
+  /** Images attached to this ticket */
+  images?: TicketImage[];
   yolo?: boolean;
   autoMerge?: boolean;
   queued?: boolean;

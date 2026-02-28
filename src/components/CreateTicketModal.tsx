@@ -1,12 +1,20 @@
-import { useState, useEffect } from 'react';
-import { X, Send, Zap, GitMerge, Clock, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Send, Zap, GitMerge, Clock, RefreshCw, ImagePlus } from 'lucide-react';
 import type { Project } from '../types';
+
+interface PendingImage {
+  id: string;
+  dataUrl: string;
+  name: string;
+}
 
 interface CreateTicketModalProps {
   project: Project;
   onClose: () => void;
   onCreated: () => void;
 }
+
+let nextImageId = 0;
 
 export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketModalProps) {
   const [subject, setSubject] = useState('');
@@ -16,6 +24,42 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
   const [queued, setQueued] = useState(false);
   const [useRalph, setUseRalph] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [images, setImages] = useState<PendingImage[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const addFiles = useCallback((files: FileList | File[]) => {
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue;
+      const reader = new FileReader();
+      reader.onload = () => {
+        setImages(prev => [...prev, {
+          id: `img-${++nextImageId}`,
+          dataUrl: reader.result as string,
+          name: file.name,
+        }]);
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
+  function handlePaste(e: React.ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imageFiles: File[] = [];
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+    if (imageFiles.length > 0) {
+      addFiles(imageFiles);
+    }
+  }
+
+  function removeImage(id: string) {
+    setImages(prev => prev.filter(img => img.id !== id));
+  }
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -44,14 +88,32 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
           useRalph,
         }),
       });
-      if (res.ok) {
-        onCreated();
-        onClose();
+      if (!res.ok) return;
+
+      const ticket = await res.json();
+
+      // Upload images to the newly created ticket
+      for (const img of images) {
+        await fetch(`/api/tickets/${ticket.id}/images`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl: img.dataUrl, originalName: img.name }),
+        });
       }
+
+      onCreated();
+      onClose();
     } catch (err) {
       console.error('Failed to create ticket:', err);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    if (e.dataTransfer.files.length > 0) {
+      addFiles(e.dataTransfer.files);
     }
   }
 
@@ -76,7 +138,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1.5">
               Title
@@ -98,13 +160,66 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
             <textarea
               value={instructions}
               onChange={e => setInstructions(e.target.value)}
-              placeholder="Full prompt for the agent. Be specific about what you want built, changed, or fixed..."
+              onPaste={handlePaste}
+              placeholder="Full prompt for the agent. Paste screenshots here with Cmd+V..."
               rows={6}
               className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent-blue transition-colors font-mono leading-relaxed resize-y"
             />
             <p className="text-[10px] text-slate-500 mt-1">
-              The agent will work in an isolated git worktree, then create a PR when done.
+              Paste screenshots (Cmd+V) or drag images onto this form. The agent will receive them as context.
             </p>
+          </div>
+
+          {/* Image attachments */}
+          <div
+            onDragOver={e => e.preventDefault()}
+            onDrop={handleDrop}
+          >
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              Images {images.length > 0 && <span className="text-slate-500">({images.length})</span>}
+            </label>
+
+            {images.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {images.map(img => (
+                  <div key={img.id} className="relative group">
+                    <img
+                      src={img.dataUrl}
+                      alt={img.name}
+                      className="w-20 h-20 object-cover rounded-lg border border-surface-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(img.id)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-accent-red text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    <p className="text-[9px] text-slate-500 truncate w-20 mt-0.5">{img.name}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-surface-500 hover:border-accent-blue/50 hover:bg-surface-900/50 text-slate-400 hover:text-slate-300 transition-colors text-xs w-full justify-center"
+            >
+              <ImagePlus className="w-4 h-4" />
+              Add images
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={e => {
+                if (e.target.files) addFiles(e.target.files);
+                e.target.value = '';
+              }}
+            />
           </div>
 
           {/* Options grid */}

@@ -1,4 +1,4 @@
-import { 
+import {
   AlertCircle,
   AlertTriangle,
   Brain,
@@ -6,6 +6,7 @@ import {
   ExternalLink,
   GitMerge,
   GitPullRequest,
+  Images,
   Info,
   Loader2,
   ShieldAlert,
@@ -68,6 +69,12 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
           <span className="flex items-center gap-1 text-[10px] font-medium text-accent-amber bg-accent-amber/10 px-1.5 py-0.5 rounded shrink-0">
             <Zap className="w-3 h-3 fill-accent-amber" />
             YOLO
+          </span>
+        )}
+        {ticket.images && ticket.images.length > 0 && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-surface-600/40 px-1.5 py-0.5 rounded shrink-0">
+            <Images className="w-3 h-3" />
+            {ticket.images.length}
           </span>
         )}
         {ticket.hasConflict && (
