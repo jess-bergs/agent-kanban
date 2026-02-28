@@ -213,7 +213,7 @@ async function readSessionData(jsonlPath: string): Promise<{
     } finally {
       await fh.close();
     }
-  } catch {}
+  } catch { /* failed to read session file */ }
   return null;
 }
 

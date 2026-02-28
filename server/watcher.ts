@@ -57,7 +57,7 @@ export function startWatcher(callback: ChangeCallback): FSWatcher {
   const teamsDir = getTeamsDir();
   const tasksDir = getTasksDir();
 
-  let debounceTimers = new Map<string, NodeJS.Timeout>();
+  const debounceTimers = new Map<string, NodeJS.Timeout>();
 
   function debouncedEmit(key: string, event: ChangeEvent) {
     const existing = debounceTimers.get(key);
