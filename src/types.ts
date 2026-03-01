@@ -244,7 +244,7 @@ export interface Ticket {
 
 // ─── Scheduled Audits ─────────────────────────────────────────────
 
-export type AuditCadence = 'daily' | 'weekly' | 'monthly' | 'manual';
+export type AuditCadence = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'manual';
 export type AuditMode = 'report' | 'fix';
 export type AuditScheduleStatus = 'active' | 'paused';
 export type AuditRunStatus = 'pending' | 'running' | 'completed' | 'failed';
