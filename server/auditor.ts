@@ -241,6 +241,12 @@ export async function addToWatchlist(
       existing.ticketId = ticketId;
       await saveWatchlist();
     }
+    // Trigger a re-review if not currently reviewing
+    if (!existing.reviewing) {
+      reviewPr(existing).catch(err => {
+        console.error(`[auditor] Re-review failed for ${prUrl}:`, err);
+      });
+    }
     return existing;
   }
 

@@ -86,7 +86,7 @@ export async function attemptMerge(ticket: Ticket): Promise<void> {
       state: string;
       mergeable: string;
       reviewDecision: string;
-      statusCheckRollup: { state: string }[];
+      statusCheckRollup: { status: string; conclusion: string; state?: string }[];
     } = JSON.parse(prJson);
 
     if (pr.state === 'MERGED') {
@@ -98,8 +98,12 @@ export async function attemptMerge(ticket: Ticket): Promise<void> {
     if (pr.state === 'CLOSED') return;
 
     const checks = pr.statusCheckRollup || [];
-    const checksPassed = checks.length === 0 || checks.every(c => c.state === 'SUCCESS');
-    const checksFailed = checks.some(c => c.state === 'FAILURE' || c.state === 'ERROR');
+    const checksPassed = checks.length === 0 || checks.every(c =>
+      c.conclusion === 'SUCCESS' || c.conclusion === 'NEUTRAL' || c.conclusion === 'SKIPPED'
+    );
+    const checksFailed = checks.some(c =>
+      c.conclusion === 'FAILURE' || c.conclusion === 'ERROR' || c.conclusion === 'TIMED_OUT'
+    );
 
     if (pr.mergeable === 'MERGEABLE' && checksPassed) {
       console.log(`[merge] Merging PR for ticket #${ticket.id}: ${ticket.prUrl}`);
@@ -1053,7 +1057,7 @@ async function checkAutoMerge(ticket: Ticket) {
       pr.reviewDecision === 'REVIEW_REQUIRED';
     const checks = pr.statusCheckRollup || [];
     const checksPassed = checks.length === 0 ||
-      checks.every(c => c.state === 'SUCCESS');
+      checks.every(c => c.conclusion === 'SUCCESS' || c.conclusion === 'NEUTRAL' || c.conclusion === 'SKIPPED');
     const isMergeable = pr.mergeable === 'MERGEABLE';
 
     if (!reviewBlocking && checksPassed && isMergeable) {
