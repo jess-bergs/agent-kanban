@@ -51,7 +51,7 @@ const STATE_REASON_LABELS: Record<string, string> = {
   worktree_setup_failed: 'Worktree setup failed',
   orphan_recovery: 'Orphan recovery',
   auto_retry: 'Auto-retried (server restart)',
-  audit_requested_changes: 'Auditor requested changes',
+  audit_requested_changes: 'Reviewer requested changes',
   conflict_resolution_dispatched: 'Conflict resolution dispatched',
   automation_budget_exhausted: 'Automation budget exhausted',
   ci_checks_failed: 'CI checks failed',
@@ -303,7 +303,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
             </div>
           )}
 
-          {/* Audit verdict banner */}
+          {/* Review verdict banner */}
           {ticket.auditVerdict && (
             <div className={`flex items-center gap-3 px-4 py-3 rounded-lg ${
               ticket.auditVerdict === 'approve'
@@ -327,9 +327,9 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                       ? 'text-accent-orange'
                       : 'text-accent-cyan'
                 }`}>
-                  {ticket.auditVerdict === 'approve' && 'Audit: Approved'}
-                  {ticket.auditVerdict === 'request_changes' && 'Audit: Changes Requested'}
-                  {ticket.auditVerdict === 'comment' && 'Audit: Reviewed with Comments'}
+                  {ticket.auditVerdict === 'approve' && 'Review: Approved'}
+                  {ticket.auditVerdict === 'request_changes' && 'Review: Changes Requested'}
+                  {ticket.auditVerdict === 'comment' && 'Review: Comments'}
                 </p>
                 {ticket.auditResult && (
                   <p className="text-xs text-slate-400 mt-0.5">
@@ -340,16 +340,16 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
             </div>
           )}
 
-          {/* Audit in progress */}
+          {/* Review in progress */}
           {ticket.auditStatus === 'running' && !ticket.auditVerdict && (
             <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent-purple/5 border border-accent-purple/20">
               <Loader2 className="w-5 h-5 text-accent-purple animate-spin shrink-0" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-accent-purple">
-                  Audit in Progress
+                  Review in Progress
                 </p>
                 <p className="text-xs text-slate-400">
-                  The PR auditor is reviewing this pull request.
+                  The pull request is being reviewed.
                 </p>
               </div>
             </div>

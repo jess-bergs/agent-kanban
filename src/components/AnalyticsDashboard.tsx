@@ -253,8 +253,8 @@ export function AnalyticsDashboard() {
         )}
       </Section>
 
-      {/* PR Auditor Activity */}
-      <Section title="PR Auditor Activity" icon={<Shield className="w-4 h-4 text-accent-cyan" />}>
+      {/* PR Review Activity */}
+      <Section title="PR Review Activity" icon={<Shield className="w-4 h-4 text-accent-cyan" />}>
         {data.auditor.totalWatched > 0 && (
           <div className="flex gap-4 mb-4 text-xs">
             <span className="text-slate-500">
@@ -271,7 +271,7 @@ export function AnalyticsDashboard() {
         {data.auditor.recentReviews.length > 0 ? (
           <AuditorTable reviews={data.auditor.recentReviews} />
         ) : (
-          <EmptySection message="No PR auditor reviews yet" />
+          <EmptySection message="No PR reviews yet" />
         )}
       </Section>
 
@@ -292,7 +292,7 @@ export function AnalyticsDashboard() {
         {data.scheduler.recentRuns.length > 0 ? (
           <SchedulerTable runs={data.scheduler.recentRuns} />
         ) : (
-          <EmptySection message="No scheduled audit runs yet" />
+          <EmptySection message="No scheduled review runs yet" />
         )}
       </Section>
 
