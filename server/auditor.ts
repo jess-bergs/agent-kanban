@@ -49,12 +49,18 @@ export interface WatchlistEntry {
 
 // ─── State ──────────────────────────────────────────────────────
 
+const MAX_AUTOMATION_ITERATIONS = 5;
+
 type BroadcastFn = (event: WSEvent) => void;
 let broadcastFn: BroadcastFn = () => {};
 
 export function setAuditorBroadcast(fn: BroadcastFn) {
   broadcastFn = fn;
 }
+
+type MergeFn = (ticket: Ticket) => Promise<void>;
+let attemptMergeFn: MergeFn = async () => {};
+export function setAttemptMergeFn(fn: MergeFn) { attemptMergeFn = fn; }
 
 const DATA_DIR = join(import.meta.dirname, '..', 'data');
 const WATCHLIST_FILE = join(DATA_DIR, 'auditor-watchlist.json');
@@ -255,10 +261,25 @@ Review #${entry.reviewCount + 1}
 
 Evaluate each aspect and rate it: PASS, CONCERN, or FAIL.
 
+**IMPORTANT — Be strict with ratings.** Use CONCERN only for minor stylistic or cosmetic issues that don't affect correctness. If an issue could cause bugs, break invariants, leave docs stale, or means the PR is incomplete, rate it FAIL — not CONCERN.
+
+**Rating guide:**
+- **PASS**: No issues, or only trivial nitpicks that aren't worth mentioning.
+- **CONCERN**: Minor cosmetic/style issues that don't affect functionality (e.g., naming preferences, comment wording, minor formatting). The PR is still safe to merge as-is.
+- **FAIL**: Any of these → automatic FAIL:
+  - Missing guards, validation, or edge case handling that could cause bugs
+  - Stale or incorrect documentation introduced or left unfixed by the PR
+  - PR template checkboxes not filled in
+  - Missing tests for new logic paths
+  - Conflicting or incompatible feature combinations not guarded against
+  - Dead code, unused imports, or leftover TODOs from the implementation
+  - Any security issue, no matter how minor
+
 ### 1. Completeness
 - Does the PR fully implement what the description claims?
 - Are there missing pieces or TODO items left unfinished?
 - Are edge cases handled?
+- FAIL if: conflicting feature combos aren't guarded, missing validation for new inputs, incomplete implementation of stated goals
 
 ### 2. Code Quality
 - Is the code clean, readable, and well-structured?
@@ -269,18 +290,22 @@ Evaluate each aspect and rate it: PASS, CONCERN, or FAIL.
 - Were tests added or updated for the changes?
 - Do the tests cover the main paths and important edge cases?
 - Are the tests meaningful (not just "test exists" but actually validates behavior)?
+- FAIL if: new logic paths have no test coverage at all
 
 ### 4. Security
 - No hardcoded secrets, API keys, or credentials?
 - No injection vulnerabilities (command injection, XSS, SQL injection)?
 - Proper input validation at system boundaries?
 - No unsafe patterns (eval, innerHTML, dangerouslySetInnerHTML)?
+- FAIL if: any security issue is present, regardless of severity
 
 ### 5. Project Conventions
 ${conventions ? `Check adherence to these project conventions:\n${conventions}` : 'No AGENTS.md or CLAUDE.md found — check for general best practices.'}
+- FAIL if: architecture docs are stale/incorrect due to changes in this PR, or the PR contradicts documented conventions
 
 ### 6. PR Checklist
 ${prChecklist ? `Review against this PR template:\n${prChecklist}` : 'No PR template found — check for clear commit messages and focused changes.'}
+- FAIL if: PR template checkboxes exist but aren't filled in, or required sections are missing
 
 ## Output Format
 
@@ -300,6 +325,11 @@ You MUST output a JSON block wrapped in \`\`\`json fences with this exact struct
   ]
 }
 \`\`\`
+
+**Verdict rules (follow strictly):**
+- **request_changes**: If ANY aspect is rated "fail". One fail = request_changes, no exceptions.
+- **approve**: Only if ALL aspects are "pass".
+- **comment**: If no aspects are "fail" but at least one is "concern".
 
 After outputting the JSON, post the review to the PR. Format the comment as a structured markdown review:
 
@@ -432,6 +462,69 @@ async function reviewPr(entry: WatchlistEntry): Promise<void> {
 
       const updated = await updateTicket(entry.ticketId, { auditStatus, auditResult });
       if (updated) broadcastFn({ type: 'ticket_updated', data: updated });
+
+      // If auditor requested changes and ticket has a session ID, trigger re-dispatch
+      if (entry.lastResult?.overallVerdict === 'request_changes') {
+        const ticket = await getTicket(entry.ticketId);
+        if (ticket && ticket.agentSessionId) {
+          const iteration = ticket.automationIteration || 0;
+          if (iteration >= MAX_AUTOMATION_ITERATIONS) {
+            console.log(`[auditor] Ticket #${entry.ticketId} exceeded automation budget (${iteration}/${MAX_AUTOMATION_ITERATIONS})`);
+            const failed = await updateTicket(entry.ticketId, {
+              status: 'failed',
+              error: `Automation budget exhausted after ${iteration} iterations`,
+              failureReason: { type: 'automation_budget_exhausted', iterations: iteration },
+              completedAt: Date.now(),
+            }, 'automation_budget_exhausted');
+            if (failed) broadcastFn({ type: 'ticket_updated', data: failed });
+          } else {
+            // Build feedback prompt from audit result
+            const rubricDetails = entry.lastResult.rubric
+              .filter(r => r.rating !== 'pass')
+              .map(r => `- **${r.aspect}** (${r.rating}): ${r.summary}`)
+              .join('\n');
+
+            const feedback = [
+              'The PR auditor reviewed your changes and requested changes:',
+              '',
+              entry.lastResult.summary,
+              '',
+              rubricDetails ? `Issues found:\n${rubricDetails}` : '',
+              '',
+              'Please address the review feedback, commit, and push.',
+              'Do NOT create a new PR — push to the existing branch.',
+            ].filter(Boolean).join('\n');
+
+            console.log(`[auditor] Triggering re-dispatch for ticket #${entry.ticketId} (session: ${ticket.agentSessionId}, iteration: ${iteration + 1})`);
+            const redispatch = await updateTicket(entry.ticketId, {
+              status: 'todo',
+              error: undefined,
+              failureReason: undefined,
+              completedAt: undefined,
+              agentPid: undefined,
+              lastOutput: undefined,
+              resumePrompt: feedback,
+              automationIteration: iteration + 1,
+              postAgentAction: 'audit',
+              // Preserve: branchName, agentSessionId (for --resume)
+            }, 'audit_requested_changes');
+            if (redispatch) broadcastFn({ type: 'ticket_updated', data: redispatch });
+          }
+        } else {
+          console.log(`[auditor] Ticket #${entry.ticketId} has no session ID — skipping auto re-dispatch`);
+        }
+      }
+
+      // If auditor approved and ticket has autoMerge, attempt merge immediately
+      if (entry.lastResult?.overallVerdict === 'approve') {
+        const ticket = await getTicket(entry.ticketId);
+        if (ticket && ticket.autoMerge) {
+          console.log(`[auditor] Approved + autoMerge — attempting merge for ticket #${entry.ticketId}`);
+          attemptMergeFn(ticket).catch(err => {
+            console.error(`[auditor] Active merge failed for ticket #${entry.ticketId}:`, err);
+          });
+        }
+      }
     }
 
     console.log(`[auditor] Review complete for ${entry.prUrl} — ${entry.lastResult?.overallVerdict || 'no structured result'}`);

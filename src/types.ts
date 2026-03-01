@@ -168,6 +168,7 @@ export type FailureReason =
   | { type: 'project_not_found'; projectId: string }
   | { type: 'worktree_setup_failed'; detail: string }
   | { type: 'retry_budget_exhausted'; attempts: number }
+  | { type: 'automation_budget_exhausted'; iterations: number }
   | { type: 'other'; detail: string };
 
 export interface Ticket {
@@ -214,6 +215,14 @@ export interface Ticket {
   auditResult?: string;
   /** Log of all status transitions with timestamps and reasons */
   stateLog?: StateChangeEntry[];
+  /** Claude Code session ID from the most recent agent run (for --resume) */
+  agentSessionId?: string;
+  /** Prompt to send when resuming a session (e.g. auditor feedback) */
+  resumePrompt?: string;
+  /** How many automated re-dispatches have been consumed (review fixes + conflict resolution) */
+  automationIteration?: number;
+  /** What the dispatcher should do after the agent completes: 'audit' = run auditor, 'merge' = attempt merge directly */
+  postAgentAction?: 'audit' | 'merge';
 }
 
 // ─── Scheduled Audits ─────────────────────────────────────────────
