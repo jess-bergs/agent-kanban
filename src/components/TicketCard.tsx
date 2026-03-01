@@ -58,6 +58,8 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
   const compat = analyzeTicketCompat(ticket);
   const [aborting, setAborting] = useState(false);
   const isRunning = ticket.status === 'in_progress' || ticket.status === 'needs_approval';
+  const isFinished = ticket.status === 'done' || ticket.status === 'merged';
+  const pulse = isFinished ? '' : 'animate-pulse';
 
   async function handleAbort(e: React.MouseEvent) {
     e.stopPropagation();
@@ -69,7 +71,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
     }
   }
 
-  const needsReview = ticket.auditVerdict === 'request_changes';
+  const needsReview = !isFinished && ticket.auditVerdict === 'request_changes';
 
   return (
     <div
@@ -118,7 +120,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
           </span>
         )}
         {ticket.hasConflict && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded animate-pulse">
+          <span className={`flex items-center gap-1 text-[10px] font-medium text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded ${pulse}`}>
             <AlertTriangle className="w-3 h-3" />
             CONFLICT
           </span>
@@ -130,7 +132,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
           </span>
         )}
         {ticket.auditVerdict === 'request_changes' && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-orange bg-accent-orange/10 px-1.5 py-0.5 rounded animate-pulse">
+          <span className={`flex items-center gap-1 text-[10px] font-medium text-accent-orange bg-accent-orange/10 px-1.5 py-0.5 rounded ${pulse}`}>
             <ShieldAlert className="w-3 h-3" />
             CHANGES
           </span>

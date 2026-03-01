@@ -1,9 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { getProject, getTicket, updateTicket, listTickets, getImagesDir } from './store.ts';
 import { captureAndUploadScreenshots } from './screenshots.ts';
 import { runAudit } from './auditor.ts';
@@ -219,15 +219,27 @@ async function dispatchConflictResolution(ticket: Ticket, project: { repoPath: s
  */
 function discoverSessionId(worktreePath: string): string | null {
   try {
-    const slug = worktreePath.replace(/^\//, '').replace(/\//g, '-');
-    const dir = join(homedir(), '.claude', 'projects', `-${slug}`);
+    // Resolve symlinks (macOS: /tmp → /private/tmp) to match Claude Code's session path
+    let resolved = worktreePath;
+    try { resolved = realpathSync(worktreePath); } catch { /* worktree may already be removed */ }
 
-    let files: string[];
-    try {
-      files = readdirSync(dir).filter(f => f.endsWith('.jsonl'));
-    } catch {
-      return null; // directory doesn't exist
+    const projectsDir = join(homedir(), '.claude', 'projects');
+    // Try resolved path first, then original (fallback if realpath failed)
+    const candidates = [resolved, worktreePath].map(
+      p => join(projectsDir, `-${p.replace(/^\//, '').replace(/\//g, '-')}`),
+    );
+    // Deduplicate
+    const dirs = [...new Set(candidates)];
+
+    let files: string[] = [];
+    let dir = '';
+    for (const d of dirs) {
+      try {
+        files = readdirSync(d).filter(f => f.endsWith('.jsonl'));
+        if (files.length > 0) { dir = d; break; }
+      } catch { /* directory doesn't exist */ }
     }
+    if (files.length === 0) return null;
 
     if (files.length === 0) return null;
 
@@ -909,8 +921,10 @@ const TICKET_ID_PATTERN = /<!-- ticket-id:([a-f0-9-]+) -->/;
  * Idempotent — skips if the marker is already present.
  */
 function ensureTicketIdInPr(prUrl: string, ticketId: string, cwd: string) {
-  const body = execSync(
-    `gh pr view "${prUrl}" --json body --jq '.body'`,
+  // Use execFileSync to avoid shell interpretation of PR body content
+  // (PR bodies can contain JSX, backticks, braces, etc.)
+  const body = execFileSync(
+    'gh', ['pr', 'view', prUrl, '--json', 'body', '--jq', '.body'],
     { cwd, encoding: 'utf-8', timeout: 10000 },
   ).trim();
 
@@ -922,8 +936,8 @@ function ensureTicketIdInPr(prUrl: string, ticketId: string, cwd: string) {
   const footer = `\n\n---\nTicket-ID: \`${ticketId}\`\n${marker}`;
   const newBody = body + footer;
 
-  execSync(
-    `gh pr edit "${prUrl}" --body ${JSON.stringify(newBody)}`,
+  execFileSync(
+    'gh', ['pr', 'edit', prUrl, '--body', newBody],
     { cwd, encoding: 'utf-8', timeout: 10000 },
   );
   console.log(`[dispatcher] Added ticket ID ${ticketId} to PR: ${prUrl}`);
@@ -1135,16 +1149,21 @@ export async function dispatcherTick() {
     const nonQueued = todoTickets.filter(t => !t.queued);
     const queued = todoTickets.filter(t => t.queued);
 
-    // Prioritize non-queued tickets first, then queued tickets
-    // Only process queued tickets if no non-queued tickets exist
-    const prioritized = nonQueued.length > 0
-      ? nonQueued.sort((a, b) => a.createdAt - b.createdAt)
-      : queued.sort((a, b) => a.createdAt - b.createdAt);
-
-    for (const ticket of prioritized) {
+    // Always dispatch non-queued tickets first (oldest first)
+    for (const ticket of nonQueued.sort((a, b) => a.createdAt - b.createdAt)) {
       if (running.size >= MAX_CONCURRENT) break;
       if (running.has(ticket.id)) continue;
       await startAgent(ticket);
+    }
+
+    // Queued tickets only run when nothing else is running (no agents in progress).
+    // This includes both dispatched agents and non-queued tickets just started above.
+    if (running.size === 0 && nonQueued.length === 0) {
+      for (const ticket of queued.sort((a, b) => a.createdAt - b.createdAt)) {
+        if (running.size >= MAX_CONCURRENT) break;
+        if (running.has(ticket.id)) continue;
+        await startAgent(ticket);
+      }
     }
   }
 

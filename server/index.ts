@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'node:http';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { execSync } from 'node:child_process';
 import {
@@ -768,6 +770,18 @@ Keep responses short and focused. Use markdown formatting.`;
     res.status(500).json({ error: 'Chat request failed' });
   }
 });
+
+// ─── Production Static Serving (PWA) ─────────────────────────────
+// Serve the Vite build output when running in production mode.
+// In development, Vite's dev server handles this instead.
+const distDir = path.resolve(import.meta.dirname, '..', 'dist');
+if (existsSync(distDir)) {
+  app.use(express.static(distDir));
+  // SPA fallback: serve index.html for non-API routes
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(distDir, 'index.html'));
+  });
+}
 
 // ─── HTTP + WebSocket Server ─────────────────────────────────────
 

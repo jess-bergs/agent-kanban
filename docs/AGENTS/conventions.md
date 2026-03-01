@@ -6,6 +6,7 @@
 npm install
 npm run dev        # starts both server and client concurrently
 npm run build      # tsc -b && vite build
+npm start          # production server (serves API + built frontend on :3003)
 ```
 
 - **Client**: http://localhost:5174 (Vite + React)
