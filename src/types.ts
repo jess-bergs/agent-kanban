@@ -160,10 +160,23 @@ export interface TicketImage {
   uploadedAt: number;
 }
 
+/** Well-known signal names for common exit codes (128 + signal number) */
+export const SIGNAL_NAMES: Record<number, string> = {
+  130: 'SIGINT',   // Ctrl-C / interrupt
+  137: 'SIGKILL',  // force kill
+  143: 'SIGTERM',  // graceful termination
+};
+
+/** Check whether an exit code represents a signal termination (128 + signal) */
+export function isSignalExit(code: number): boolean {
+  return code > 128 && code <= 159;
+}
+
 /** Structured, machine-classifiable failure reason */
 export type FailureReason =
   | { type: 'server_crash' }
   | { type: 'agent_exit'; code: number }
+  | { type: 'signal_exit'; code: number; signal: string }
   | { type: 'user_abort' }
   | { type: 'project_not_found'; projectId: string }
   | { type: 'worktree_setup_failed'; detail: string }
