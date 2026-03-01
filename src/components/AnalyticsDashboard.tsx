@@ -288,8 +288,34 @@ export function AnalyticsDashboard() {
         />
       </div>
 
+      {/* Issues — pulled above the fold so errors are immediately visible */}
+      {data.issues.length > 0 && (
+        <Section title="Issues & Errors" icon={<AlertCircle className="w-4 h-4 text-accent-red" />}>
+          <IssuesTable issues={data.issues} />
+        </Section>
+      )}
+
+      {/* Coverage Gaps */}
+      {data.coverageGaps.length > 0 && (
+        <Section title="Data Coverage Gaps" icon={<AlertTriangle className="w-4 h-4 text-accent-amber" />}>
+          <ul className="space-y-2">
+            {data.coverageGaps.map((gap, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-slate-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent-amber mt-1.5 shrink-0" />
+                {gap}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
       {/* Dispatcher Runs */}
-      <Section title="Dispatcher Runs" icon={<Zap className="w-4 h-4 text-accent-blue" />}>
+      <Section
+        title="Dispatcher Runs"
+        icon={<Zap className="w-4 h-4 text-accent-blue" />}
+        collapsible
+        summary={`${data.dispatcher.totalDispatched} dispatched, ${data.dispatcher.currentlyRunning} running`}
+      >
         <div className="grid grid-cols-8 gap-2 mb-4">
           {(['todo', 'in_progress', 'needs_approval', 'in_review', 'done', 'merged', 'failed', 'error'] as const).map(s => (
             <MiniStat
@@ -323,7 +349,12 @@ export function AnalyticsDashboard() {
       </Section>
 
       {/* PR Review Activity */}
-      <Section title="PR Review Activity" icon={<Shield className="w-4 h-4 text-accent-cyan" />}>
+      <Section
+        title="PR Review Activity"
+        icon={<Shield className="w-4 h-4 text-accent-cyan" />}
+        collapsible
+        summary={`${data.auditor.totalReviews} reviews, ${data.auditor.activeWatchCount} active`}
+      >
         {data.auditor.totalWatched > 0 && (
           <div className="flex gap-4 mb-4 text-xs">
             <span className="text-slate-500">
@@ -345,7 +376,12 @@ export function AnalyticsDashboard() {
       </Section>
 
       {/* Scheduler Runs */}
-      <Section title="Scheduler Runs" icon={<Clock className="w-4 h-4 text-accent-purple" />}>
+      <Section
+        title="Scheduler Runs"
+        icon={<Clock className="w-4 h-4 text-accent-purple" />}
+        collapsible
+        summary={`${data.scheduler.totalCompleted} completed, ${data.scheduler.totalFailed} failed`}
+      >
         <div className="flex gap-4 mb-4">
           {(['pending', 'running', 'completed', 'failed'] as const).map(s => (
             <MiniStat
@@ -365,31 +401,6 @@ export function AnalyticsDashboard() {
         )}
       </Section>
 
-      {/* Issues */}
-      <Section title="Issues & Errors" icon={<AlertCircle className="w-4 h-4 text-accent-red" />}>
-        {data.issues.length > 0 ? (
-          <IssuesTable issues={data.issues} />
-        ) : (
-          <div className="text-center py-6 text-sm text-accent-green flex items-center justify-center gap-2">
-            <CheckCircle2 className="w-4 h-4" />
-            No issues detected
-          </div>
-        )}
-      </Section>
-
-      {/* Coverage Gaps */}
-      {data.coverageGaps.length > 0 && (
-        <Section title="Data Coverage Gaps" icon={<AlertTriangle className="w-4 h-4 text-accent-amber" />}>
-          <ul className="space-y-2">
-            {data.coverageGaps.map((gap, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs text-slate-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent-amber mt-1.5 shrink-0" />
-                {gap}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
       </>
       )}
     </div>
@@ -708,18 +719,40 @@ function Section({
   title,
   icon,
   children,
+  collapsible = false,
+  defaultCollapsed = false,
+  summary,
 }: {
   title: string;
   icon: React.ReactNode;
   children: React.ReactNode;
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
+  summary?: React.ReactNode;
 }) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+
   return (
     <div className="bg-surface-800 rounded-xl border border-surface-600 p-5">
-      <h2 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
+      <h2
+        className={`text-sm font-semibold text-slate-200 flex items-center gap-2 ${
+          collapsible ? 'cursor-pointer select-none' : 'mb-4'
+        } ${collapsible && !collapsed ? 'mb-4' : ''}`}
+        onClick={collapsible ? () => setCollapsed(c => !c) : undefined}
+      >
         {icon}
         {title}
+        {collapsible && (
+          <>
+            <span className="flex-1" />
+            {collapsed && summary && <span className="text-xs font-normal text-slate-500">{summary}</span>}
+            {collapsed
+              ? <ChevronDown className="w-4 h-4 text-slate-500" />
+              : <ChevronUp className="w-4 h-4 text-slate-500" />}
+          </>
+        )}
       </h2>
-      {children}
+      {!collapsed && children}
     </div>
   );
 }
@@ -751,7 +784,7 @@ function EmptySection({ message }: { message: string }) {
 
 function RunTable({ runs }: { runs: DispatcherRunSummary[] }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-auto max-h-64">
       <table className="w-full text-xs">
         <thead>
           <tr className="text-left text-slate-500 border-b border-surface-600">
@@ -818,7 +851,7 @@ function RunTable({ runs }: { runs: DispatcherRunSummary[] }) {
 
 function AuditorTable({ reviews }: { reviews: AuditorReviewSummary[] }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-auto max-h-64">
       <table className="w-full text-xs">
         <thead>
           <tr className="text-left text-slate-500 border-b border-surface-600">
@@ -895,7 +928,7 @@ function AuditorTable({ reviews }: { reviews: AuditorReviewSummary[] }) {
 
 function SchedulerTable({ runs }: { runs: SchedulerRunSummary[] }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-auto max-h-64">
       <table className="w-full text-xs">
         <thead>
           <tr className="text-left text-slate-500 border-b border-surface-600">
