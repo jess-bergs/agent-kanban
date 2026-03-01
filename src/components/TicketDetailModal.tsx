@@ -349,7 +349,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   Review in Progress
                 </p>
                 <p className="text-xs text-slate-400">
-                  The PR auditor is reviewing this pull request.
+                  The pull request is being reviewed.
                 </p>
               </div>
             </div>
