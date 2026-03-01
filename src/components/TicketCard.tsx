@@ -9,6 +9,7 @@ import {
   FileSearch,
   GitMerge,
   GitPullRequest,
+  Archive,
   Images,
   Loader2,
   MessageSquare,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react';
 import type { Ticket, TicketStatus, TicketEffort } from '../types';
 import { formatDuration, formatTokenCount } from '../types';
+import { safeStatus, safeEffort, analyzeTicketCompat } from '../lib/ticketCompat';
 
 const BORDER_COLORS: Record<TicketStatus, string> = {
   todo: 'border-l-accent-amber',
@@ -33,10 +35,11 @@ const BORDER_COLORS: Record<TicketStatus, string> = {
 };
 
 function EffortBadge({ effort }: { effort: TicketEffort }) {
+  const safe = safeEffort(effort);
   const parts: string[] = [];
-  if (effort.costUsd != null) parts.push(`$${effort.costUsd.toFixed(2)}`);
-  if (effort.durationMs != null) parts.push(formatDuration(effort.durationMs));
-  parts.push(`${effort.turns}t/${effort.toolCalls}tc`);
+  if (safe.costUsd != null) parts.push(`$${safe.costUsd.toFixed(2)}`);
+  if (safe.durationMs != null) parts.push(formatDuration(safe.durationMs));
+  parts.push(`${safe.turns}t/${safe.toolCalls}tc`);
   return (
     <span className="text-[10px] font-mono text-slate-500 bg-surface-600/40 px-1.5 py-0.5 rounded shrink-0">
       {parts.join(' · ')}
@@ -50,7 +53,8 @@ interface TicketCardProps {
 }
 
 export function TicketCard({ ticket, onClick }: TicketCardProps) {
-  const borderColor = BORDER_COLORS[ticket.status];
+  const borderColor = BORDER_COLORS[safeStatus(ticket.status)];
+  const compat = analyzeTicketCompat(ticket);
   const [aborting, setAborting] = useState(false);
   const isRunning = ticket.status === 'in_progress' || ticket.status === 'needs_approval';
 
@@ -144,6 +148,15 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         )}
         {ticket.effort && ticket.effort.turns > 0 && (
           <EffortBadge effort={ticket.effort} />
+        )}
+        {!compat.isFullyModern && (
+          <span
+            className="flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-surface-600/30 px-1.5 py-0.5 rounded shrink-0"
+            title={`Gen ${compat.generation} ticket — missing: ${compat.missingFeatures.join(', ')}`}
+          >
+            <Archive className="w-3 h-3" />
+            v{compat.generation}
+          </span>
         )}
       </div>
 
