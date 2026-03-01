@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { getProject, getTicket, updateTicket, listTickets, getImagesDir } from './store.ts';
 import { captureAndUploadScreenshots } from './screenshots.ts';
 import { runAudit } from './auditor.ts';
@@ -219,15 +219,27 @@ async function dispatchConflictResolution(ticket: Ticket, project: { repoPath: s
  */
 function discoverSessionId(worktreePath: string): string | null {
   try {
-    const slug = worktreePath.replace(/^\//, '').replace(/\//g, '-');
-    const dir = join(homedir(), '.claude', 'projects', `-${slug}`);
+    // Resolve symlinks (macOS: /tmp → /private/tmp) to match Claude Code's session path
+    let resolved = worktreePath;
+    try { resolved = realpathSync(worktreePath); } catch { /* worktree may already be removed */ }
 
-    let files: string[];
-    try {
-      files = readdirSync(dir).filter(f => f.endsWith('.jsonl'));
-    } catch {
-      return null; // directory doesn't exist
+    const projectsDir = join(homedir(), '.claude', 'projects');
+    // Try resolved path first, then original (fallback if realpath failed)
+    const candidates = [resolved, worktreePath].map(
+      p => join(projectsDir, `-${p.replace(/^\//, '').replace(/\//g, '-')}`),
+    );
+    // Deduplicate
+    const dirs = [...new Set(candidates)];
+
+    let files: string[] = [];
+    let dir = '';
+    for (const d of dirs) {
+      try {
+        files = readdirSync(d).filter(f => f.endsWith('.jsonl'));
+        if (files.length > 0) { dir = d; break; }
+      } catch { /* directory doesn't exist */ }
     }
+    if (files.length === 0) return null;
 
     if (files.length === 0) return null;
 
