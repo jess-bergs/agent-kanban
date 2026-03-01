@@ -12,6 +12,7 @@ import { TeamHeader } from './TeamHeader';
 import { ProjectHeader } from './ProjectHeader';
 import { EmptyState } from './EmptyState';
 import { ChatPopover } from './ChatPopover';
+import { AnalyticsDashboard } from './AnalyticsDashboard';
 
 interface LayoutProps {
   teams: TeamWithData[];
@@ -50,6 +51,7 @@ export function Layout({
     setOpenTicketId(ticketId);
   }, [setViewMode, onSelectProject]);
 
+  const showAnalyticsView = viewMode === 'analytics';
   const showAgentsView = viewMode === 'agents';
   const showTeamView = viewMode === 'teams' && selectedTeam;
   const showProjectView = viewMode === 'projects' && selectedProject;
@@ -137,7 +139,9 @@ export function Layout({
 
         {/* Main content */}
         <main className="flex-1 flex flex-col min-h-0 min-w-0">
-          {showAgentsView ? (
+          {showAnalyticsView ? (
+            <AnalyticsDashboard />
+          ) : showAgentsView ? (
             <AgentKanban agents={soloAgents} tickets={tickets} onNavigateToTicket={handleNavigateToTicket} />
           ) : showTeamView ? (
             <>

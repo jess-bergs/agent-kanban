@@ -9,6 +9,7 @@ import {
   Monitor,
   Code2,
   Trash2,
+  BarChart3,
 } from 'lucide-react';
 import type { TeamWithData, Project, Ticket, SoloAgent } from '../types';
 import { formatTimestamp } from '../types';
@@ -102,10 +103,28 @@ export function Sidebar({
             <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-accent-green animate-pulse" />
           )}
         </button>
+        <button
+          onClick={() => setViewMode('analytics')}
+          className={`flex-1 px-2 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+            viewMode === 'analytics'
+              ? 'text-accent-purple border-b-2 border-accent-purple'
+              : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          <BarChart3 className="w-3.5 h-3.5 mx-auto" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {viewMode === 'projects' ? (
+        {viewMode === 'analytics' ? (
+          <div className="px-3 py-4 text-center">
+            <BarChart3 className="w-8 h-8 text-accent-purple mx-auto mb-2 opacity-50" />
+            <p className="text-sm text-slate-400">Analytics Dashboard</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Dispatcher runs, PR auditor, scheduler, and issues
+            </p>
+          </div>
+        ) : viewMode === 'projects' ? (
           <>
             {/* Add project button */}
             <button
