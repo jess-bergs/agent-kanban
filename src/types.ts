@@ -470,6 +470,22 @@ export function shortenUuids(text: string): string {
   );
 }
 
+/**
+ * Shorten an agent-ticket identifier for pill display.
+ * "agent-ticket-470b761c-fix-the-bug" → "470b761c"
+ * "agent/ticket-470b761c-fix-the-bug" → "470b761c"
+ * Falls back to shortenUuids() then truncation for other strings.
+ */
+export function shortenPillLabel(text: string): string {
+  // Match agent-ticket or agent/ticket patterns with a short hex ID
+  const m = text.match(/agent[\/-]ticket-([0-9a-f]{7,8})/i);
+  if (m) return m[1];
+  // Fallback: shorten any embedded UUIDs, then truncate if still long
+  const shortened = shortenUuids(text);
+  if (shortened.length > 30) return shortened.slice(0, 27) + '…';
+  return shortened;
+}
+
 export function isIdleNotification(text: string): boolean {
   try {
     const parsed = JSON.parse(text);
