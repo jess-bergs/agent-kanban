@@ -477,7 +477,7 @@ export function shortenUuids(text: string): string {
  * Falls back to shortenUuids() then truncation for other strings.
  */
 export function shortenPillLabel(text: string): string {
-  const m = text.match(/agent[\/-]ticket-([0-9a-f]{7,8})/i);
+  const m = text.match(/agent[/-]ticket-([0-9a-f]{7,8})/i);
   if (m) return m[1];
   const shortened = shortenUuids(text);
   if (shortened.length > 30) return shortened.slice(0, 27) + '…';
