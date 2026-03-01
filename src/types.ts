@@ -183,6 +183,7 @@ export interface Ticket {
   queued?: boolean;
   useRalph?: boolean;
   useTeam?: boolean;
+  planOnly?: boolean;
   branchName?: string;
   worktreePath?: string;
   prUrl?: string;

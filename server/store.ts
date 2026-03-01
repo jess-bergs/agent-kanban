@@ -131,6 +131,7 @@ export async function createTicket(data: {
   queued?: boolean;
   useRalph?: boolean;
   useTeam?: boolean;
+  planOnly?: boolean;
 }): Promise<Ticket> {
   await ensureDirs();
   const now = Date.now();

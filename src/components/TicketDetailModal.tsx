@@ -29,7 +29,7 @@ import {
 import type { Ticket, TicketStatus, Project, AgentActivity, StateChangeEntry } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount, shortenUuids } from '../types';
 
-import { XCircle, GitMerge, AlertTriangle, StopCircle, History, Users } from 'lucide-react';
+import { XCircle, GitMerge, AlertTriangle, StopCircle, History, Users, FileSearch } from 'lucide-react';
 
 const STATE_REASON_LABELS: Record<string, string> = {
   ticket_created: 'Created',
@@ -228,6 +228,12 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-accent-blue/10 text-accent-blue">
                   <Users className="w-3 h-3" />
                   Team
+                </span>
+              )}
+              {ticket.planOnly && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-accent-cyan/10 text-accent-cyan">
+                  <FileSearch className="w-3 h-3" />
+                  Plan Only
                 </span>
               )}
             </div>

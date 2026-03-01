@@ -159,22 +159,56 @@ async function startAgent(ticket: Ticket) {
 
   taskLines.push(ticket.instructions, '', '---');
 
-  // Investigation-first instructions for all dispatched agents
-  taskLines.push(
-    '## Investigation-First Approach',
-    '',
-    'Before writing ANY code, you MUST thoroughly investigate the relevant parts of the codebase:',
-    '',
-    '1. **Understand the context** — Read CLAUDE.md, AGENTS.md, and any referenced docs to learn project conventions, architecture, and patterns.',
-    '2. **Trace the existing code** — Find and read ALL files related to the feature or bug. Follow imports, check call sites, and understand how data flows through the system.',
-    '3. **Identify the scope** — Map out every file that will need changes. Look for related tests, types, documentation, and downstream consumers.',
-    '4. **Check for prior art** — Search for similar patterns already in the codebase. Match existing conventions rather than inventing new ones.',
-    '5. **Form a plan** — Only after understanding the full picture, decide on your approach. If the change is non-trivial, outline what you will do before doing it.',
-    '',
-    'Do NOT skip investigation. Jumping straight to code leads to incomplete fixes, missed edge cases, and inconsistent patterns.',
-    '',
-    '---',
-  );
+  if (ticket.planOnly) {
+    // Plan-only mode: investigate and produce a report, no code changes
+    taskLines.push(
+      '## Plan-Only Mode (Investigation & Report)',
+      '',
+      'You are in PLAN-ONLY mode. Do NOT write any code or make any implementation changes.',
+      'Your job is to thoroughly investigate the codebase and produce a detailed report.',
+      '',
+      '### Investigation Steps',
+      '',
+      '1. **Understand the context** — Read CLAUDE.md, AGENTS.md, and any referenced docs to learn project conventions, architecture, and patterns.',
+      '2. **Trace the existing code** — Find and read ALL files related to the topic. Follow imports, check call sites, and understand how data flows through the system.',
+      '3. **Identify the scope** — Map out every file that would need changes. Look for related tests, types, documentation, and downstream consumers.',
+      '4. **Check for prior art** — Search for similar patterns already in the codebase. Note existing conventions and utilities.',
+      '5. **Assess risks and trade-offs** — Identify potential pitfalls, edge cases, breaking changes, and architectural implications.',
+      '',
+      '### Report Requirements',
+      '',
+      'After your investigation, write a comprehensive report as a Markdown file named `plan-report.md` in the root of the repository. The report MUST include:',
+      '',
+      '- **Summary** — One-paragraph overview of the investigation topic.',
+      '- **Relevant Files** — List of all files examined with brief descriptions of their role.',
+      '- **Current Architecture** — How the relevant parts of the system currently work.',
+      '- **Proposed Approach** — Detailed plan for how to implement the requested changes, broken into steps.',
+      '- **Files to Modify** — Specific files that would need changes, with a description of what changes are needed in each.',
+      '- **Risks & Edge Cases** — Potential issues, breaking changes, and things to watch out for.',
+      '- **Open Questions** — Any ambiguities or decisions that need human input before implementation.',
+      '',
+      'Do NOT implement any code changes. Only investigate and write the report.',
+      '',
+      '---',
+    );
+  } else {
+    // Standard investigation-first instructions for all dispatched agents
+    taskLines.push(
+      '## Investigation-First Approach',
+      '',
+      'Before writing ANY code, you MUST thoroughly investigate the relevant parts of the codebase:',
+      '',
+      '1. **Understand the context** — Read CLAUDE.md, AGENTS.md, and any referenced docs to learn project conventions, architecture, and patterns.',
+      '2. **Trace the existing code** — Find and read ALL files related to the feature or bug. Follow imports, check call sites, and understand how data flows through the system.',
+      '3. **Identify the scope** — Map out every file that will need changes. Look for related tests, types, documentation, and downstream consumers.',
+      '4. **Check for prior art** — Search for similar patterns already in the codebase. Match existing conventions rather than inventing new ones.',
+      '5. **Form a plan** — Only after understanding the full picture, decide on your approach. If the change is non-trivial, outline what you will do before doing it.',
+      '',
+      'Do NOT skip investigation. Jumping straight to code leads to incomplete fixes, missed edge cases, and inconsistent patterns.',
+      '',
+      '---',
+    );
+  }
 
   if (useWorktree) {
     taskLines.push(
@@ -209,6 +243,9 @@ async function startAgent(ticket: Ticket) {
   const taskDescription = taskLines.join('\n');
 
   console.log(`[dispatcher] Starting agent for ticket #${ticket.id}: ${ticket.subject}`);
+  if (ticket.planOnly) {
+    console.log(`[dispatcher] Plan-only mode enabled (investigation & report only)`);
+  }
   if (ticket.useTeam) {
     console.log(`[dispatcher] Team mode enabled (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1)`);
   }
