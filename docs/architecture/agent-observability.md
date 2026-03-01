@@ -100,15 +100,29 @@ interface TicketEffort {
 
 ## Approval Detection
 
+The dispatcher detects two types of agent waits:
+
+### Permission Approval (non-YOLO only)
+
 For non-YOLO tickets (`yolo: false`), the dispatcher tracks pending tool approvals:
 
 1. A `tool_use` event sets `pendingToolApproval = true`
-2. If the ticket is `in_progress`, it transitions to `needs_approval`
+2. If the ticket is `in_progress` and 15s elapse with no `tool_result`, it transitions to `needs_approval`
 3. A subsequent `tool_result` event clears `pendingToolApproval`
 4. If the ticket was `needs_approval`, it transitions back to `in_progress`
 
-This surfaces in the UI as an "Awaiting Approval" state, letting operators know the agent
-is blocked on interactive permission.
+### Interactive Tool Detection (all agents)
+
+Certain tools require user input regardless of yolo mode (e.g., `AskUserQuestion`,
+`EnterPlanMode`). When these are detected in the stream:
+
+1. A `tool_use` for an interactive tool sets `pendingUserInput = true`
+2. If the ticket is `in_progress` and 15s elapse with no `tool_result`, it transitions to `needs_approval`
+3. A subsequent `tool_result` clears `pendingUserInput`
+4. If the ticket was `needs_approval`, it transitions back to `in_progress`
+
+Both mechanisms surface in the UI as an "Awaiting Approval" state, letting operators know
+the agent is blocked.
 
 ## WebSocket Broadcasting
 
