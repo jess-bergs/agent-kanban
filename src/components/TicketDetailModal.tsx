@@ -28,8 +28,9 @@ import {
 } from 'lucide-react';
 import type { Ticket, TicketStatus, Project, AgentActivity, StateChangeEntry } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount, shortenUuids } from '../types';
+import { safeStatus, analyzeTicketCompat } from '../lib/ticketCompat';
 
-import { XCircle, GitMerge, AlertTriangle, StopCircle, History, Users } from 'lucide-react';
+import { XCircle, GitMerge, AlertTriangle, StopCircle, History, Users, Archive } from 'lucide-react';
 
 const STATE_REASON_LABELS: Record<string, string> = {
   ticket_created: 'Created',
@@ -47,6 +48,10 @@ const STATE_REASON_LABELS: Record<string, string> = {
   worktree_setup_failed: 'Worktree setup failed',
   orphan_recovery: 'Orphan recovery',
   auto_retry: 'Auto-retried (server restart)',
+  audit_requested_changes: 'Auditor requested changes',
+  conflict_resolution_dispatched: 'Conflict resolution dispatched',
+  automation_budget_exhausted: 'Automation budget exhausted',
+  ci_checks_failed: 'CI checks failed',
 };
 
 const STATUS_STYLE: Record<TicketStatus, { bg: string; text: string; icon: typeof Clock }> = {
@@ -93,8 +98,9 @@ function ActivityLabel({ entry }: { entry: AgentActivity }) {
 }
 
 export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModalProps) {
-  const style = STATUS_STYLE[ticket.status];
+  const style = STATUS_STYLE[safeStatus(ticket.status)];
   const StatusIcon = style.icon;
+  const compat = analyzeTicketCompat(ticket);
   const isAgentActive = ticket.status === 'in_progress' || ticket.status === 'needs_approval';
   const [acting, setActing] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
@@ -600,7 +606,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 {showStateLog && (
                   <div className="space-y-0 bg-surface-900 rounded-lg p-2 border border-surface-700">
                     {ticket.stateLog.map((entry, idx) => {
-                      const entryStyle = STATUS_STYLE[entry.status];
+                      const entryStyle = STATUS_STYLE[safeStatus(entry.status)];
                       const EntryIcon = entryStyle.icon;
                       const prevEntry = idx > 0 ? ticket.stateLog![idx - 1] : null;
                       const elapsed = prevEntry ? entry.timestamp - prevEntry.timestamp : null;
@@ -637,6 +643,34 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                     })}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Legacy ticket info */}
+          {!compat.isFullyModern && (
+            <div className="flex items-start gap-3 text-xs">
+              <Archive className="w-4 h-4 text-slate-600 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-slate-500 mb-1">
+                  Generation {compat.generation} ticket
+                </p>
+                <div className="text-slate-600 space-y-0.5">
+                  {compat.missingFeatures.includes('stateLog') && (
+                    <p>No state history — created before status tracking was added.</p>
+                  )}
+                  {compat.missingFeatures.includes('effort') && (
+                    <p>No effort metrics — completed before agent metrics were added.</p>
+                  )}
+                  {compat.missingFeatures.includes('uuidId') && (
+                    <p>Uses legacy numeric ID format.</p>
+                  )}
+                  {compat.hasUnknownStatus && (
+                    <p className="text-accent-amber">
+                      Unknown status value "{ticket.status}" — displaying as Error.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           )}

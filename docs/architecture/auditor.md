@@ -91,6 +91,8 @@ Each review evaluates 6 aspects:
 
 Each aspect receives a rating: `pass`, `concern`, or `fail`, with notes.
 
+**Rating strictness**: `concern` is reserved for minor cosmetic/style issues that don't affect correctness. Anything that could cause bugs, leaves docs stale, skips PR template requirements, or misses edge cases is rated `fail`. One `fail` = `request_changes` verdict.
+
 ### Verdict Parsing
 
 The agent is prompted to output a structured JSON block in its response:
