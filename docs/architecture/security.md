@@ -37,3 +37,15 @@ There is no auth on the API. This is by design (local tool), but endpoints shoul
 ### 4. Screenshots and file operations
 
 `screenshots.ts` uses `execFileSync` for most operations (good), but runs `npm run dev` via `spawn` with `shell: true`. Avoid introducing new `shell: true` usage.
+
+### 5. Chat codebase context (server/index.ts)
+
+The chat endpoint (`POST /api/chat`) reads file contents from registered project repos and sends them to the Anthropic API as system prompt context. Guardrails in place:
+
+- **Allowlisted filenames only** — `CONTEXT_FILES` is an explicit list of non-sensitive config/doc files (no `.env*`, credentials, or key files).
+- **Sensitive filename filter** — `SENSITIVE_PATTERNS` blocks files matching `.env*`, `credentials`, `secret`, `.pem`, `.key`, etc. from both the file tree listing and content reads.
+- **Path traversal prevention** — `gatherCodebaseContext()` resolves paths to absolute and verifies they stay within the project root directory.
+- **Size limits** — files over 50 KB are skipped; content is truncated at 4 KB per file.
+- **Tree depth limit** — the file tree is limited to 2 levels deep with dotfiles excluded.
+
+**Residual risk**: File contents from local repos are sent to Anthropic's API. This is acceptable for a local dev tool since the user explicitly registered these projects. Do not extend `CONTEXT_FILES` to include files that may contain secrets.
