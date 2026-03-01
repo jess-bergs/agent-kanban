@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -921,8 +921,10 @@ const TICKET_ID_PATTERN = /<!-- ticket-id:([a-f0-9-]+) -->/;
  * Idempotent — skips if the marker is already present.
  */
 function ensureTicketIdInPr(prUrl: string, ticketId: string, cwd: string) {
-  const body = execSync(
-    `gh pr view "${prUrl}" --json body --jq '.body'`,
+  // Use execFileSync to avoid shell interpretation of PR body content
+  // (PR bodies can contain JSX, backticks, braces, etc.)
+  const body = execFileSync(
+    'gh', ['pr', 'view', prUrl, '--json', 'body', '--jq', '.body'],
     { cwd, encoding: 'utf-8', timeout: 10000 },
   ).trim();
 
@@ -934,8 +936,8 @@ function ensureTicketIdInPr(prUrl: string, ticketId: string, cwd: string) {
   const footer = `\n\n---\nTicket-ID: \`${ticketId}\`\n${marker}`;
   const newBody = body + footer;
 
-  execSync(
-    `gh pr edit "${prUrl}" --body ${JSON.stringify(newBody)}`,
+  execFileSync(
+    'gh', ['pr', 'edit', prUrl, '--body', newBody],
     { cwd, encoding: 'utf-8', timeout: 10000 },
   );
   console.log(`[dispatcher] Added ticket ID ${ticketId} to PR: ${prUrl}`);
