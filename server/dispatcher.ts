@@ -23,6 +23,11 @@ const lastStreamActivity = new Map<string, number>();
 const pendingToolApproval = new Map<string, boolean>();
 /** Tracks ticket IDs that were explicitly aborted by the user (vs crashing) */
 const abortedTickets = new Set<string>();
+/** Tracks the last auto-merge check time per ticket to throttle gh CLI calls */
+const lastAutoMergeCheck = new Map<string, number>();
+/** Tracks the last auto-merge "not ready" reason per ticket to avoid duplicate logs */
+const autoMergeLastState = new Map<string, string>();
+const AUTO_MERGE_CHECK_INTERVAL_MS = 30_000; // 30 seconds between checks per ticket
 
 type BroadcastFn = (event: WSEvent) => void;
 let broadcastFn: BroadcastFn = () => {};
@@ -989,14 +994,20 @@ async function checkAutoMerge(ticket: Ticket) {
 
     const pr: PrStatus = JSON.parse(prJson);
 
-    // Already merged or closed
+    // Already merged or closed — clean up tracking state
     if (pr.state === 'MERGED') {
       const merged = await updateTicket(ticket.id, { status: 'merged' }, 'pr_merged');
       if (merged) await broadcastTicket(merged);
+      lastAutoMergeCheck.delete(ticket.id);
+      autoMergeLastState.delete(ticket.id);
       console.log(`[auto-merge] Ticket #${ticket.id} PR already merged`);
       return;
     }
-    if (pr.state === 'CLOSED') return;
+    if (pr.state === 'CLOSED') {
+      lastAutoMergeCheck.delete(ticket.id);
+      autoMergeLastState.delete(ticket.id);
+      return;
+    }
 
     // Check conditions: reviews OK + checks pass + mergeable
     // reviewDecision is "" when no reviews are required, "APPROVED" when approved,
@@ -1016,15 +1027,19 @@ async function checkAutoMerge(ticket: Ticket) {
       );
       const merged = await updateTicket(ticket.id, { status: 'merged' }, 'auto_merged');
       if (merged) await broadcastTicket(merged);
+      lastAutoMergeCheck.delete(ticket.id);
+      autoMergeLastState.delete(ticket.id);
       console.log(`[auto-merge] Ticket #${ticket.id} merged successfully`);
     } else if (!reviewBlocking && checksPassed && !isMergeable && pr.mergeable !== 'CONFLICTING') {
       // Branch is likely BEHIND — try to update it
       await updatePrBranch(ticket, project);
     } else {
-      console.log(
-        `[auto-merge] Ticket #${ticket.id} not ready — ` +
-        `reviewBlocking=${reviewBlocking}, checksPassed=${checksPassed}, isMergeable=${isMergeable}`,
-      );
+      // Only log when the reason changes to avoid flooding the console
+      const reason = `reviewBlocking=${reviewBlocking}, checksPassed=${checksPassed}, isMergeable=${isMergeable}`;
+      if (autoMergeLastState.get(ticket.id) !== reason) {
+        autoMergeLastState.set(ticket.id, reason);
+        console.log(`[auto-merge] Ticket #${ticket.id} not ready — ${reason}`);
+      }
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -1138,11 +1153,16 @@ export async function dispatcherTick() {
     // Check if PR has been merged externally
     await checkPrStatus(ticket);
 
-    // Re-read ticket from DB since checkPrStatus may have updated status to 'merged'
+    // Auto-merge: only check tickets with autoMerge enabled, throttled to avoid
+    // hammering the GitHub API every tick (every 3s → once per 30s per ticket)
     if (ticket.autoMerge) {
-      const fresh = await getTicket(ticket.id);
-      if (fresh && fresh.status === 'in_review') {
-        await checkAutoMerge(fresh);
+      const lastCheck = lastAutoMergeCheck.get(ticket.id) || 0;
+      if (now - lastCheck >= AUTO_MERGE_CHECK_INTERVAL_MS) {
+        const fresh = await getTicket(ticket.id);
+        if (fresh && fresh.status === 'in_review') {
+          lastAutoMergeCheck.set(ticket.id, now);
+          await checkAutoMerge(fresh);
+        }
       }
     }
   }
