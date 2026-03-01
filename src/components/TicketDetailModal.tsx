@@ -51,7 +51,7 @@ const STATE_REASON_LABELS: Record<string, string> = {
   worktree_setup_failed: 'Worktree setup failed',
   orphan_recovery: 'Orphan recovery',
   auto_retry: 'Auto-retried (server restart)',
-  audit_requested_changes: 'Auditor requested changes',
+  audit_requested_changes: 'Review requested changes',
   conflict_resolution_dispatched: 'Conflict resolution dispatched',
   automation_budget_exhausted: 'Automation budget exhausted',
   ci_checks_failed: 'CI checks failed',
