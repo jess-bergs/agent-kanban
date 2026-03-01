@@ -28,6 +28,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
   const [submitting, setSubmitting] = useState(false);
   const [images, setImages] = useState<PendingImage[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const addFiles = useCallback((files: FileList | File[]) => {
     for (const file of Array.from(files)) {
@@ -62,8 +63,6 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
   function removeImage(id: string) {
     setImages(prev => prev.filter(img => img.id !== id));
   }
-
-  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -373,7 +372,9 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
             >
               {yolo ? <Zap className="w-4 h-4" /> : <Send className="w-4 h-4" />}
               {submitting ? 'Creating...' : yolo ? 'YOLO & Dispatch' : 'Create & Dispatch'}
-              {!submitting && <kbd className="ml-1.5 text-[10px] opacity-60">⌘↵</kbd>}
+              <kbd className="hidden sm:inline-flex items-center gap-0.5 ml-1.5 text-[10px] opacity-60 font-sans">
+                <span>⌘</span><span>↵</span>
+              </kbd>
             </button>
           </div>
         </form>
