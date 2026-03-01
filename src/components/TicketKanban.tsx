@@ -6,7 +6,7 @@ import { TicketCard } from './TicketCard';
 import { TicketDetailModal } from './TicketDetailModal';
 import { CreateTicketModal } from './CreateTicketModal';
 
-const COLUMNS: TicketStatus[] = ['todo', 'in_progress', 'needs_approval', 'in_review', 'done', 'merged', 'failed', 'error'];
+const COLUMNS: TicketStatus[] = ['todo', 'in_progress', 'needs_approval', 'in_review', 'done', 'failed', 'error'];
 
 const COLUMN_STYLES: Record<TicketStatus, { header: string; badge: string }> = {
   todo: {
@@ -112,7 +112,9 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
 
   for (const ticket of filteredTickets) {
     if (ticket.status in grouped) {
-      grouped[ticket.status].push(ticket);
+      // Fold merged tickets into the done column
+      const bucket = ticket.status === 'merged' ? 'done' : ticket.status;
+      grouped[bucket].push(ticket);
     }
   }
 
@@ -121,9 +123,9 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
     grouped[status].sort((a, b) => b.createdAt - a.createdAt);
   }
 
-  // Hide needs_approval/done/merged/failed/error columns if empty
+  // Hide needs_approval/done/failed/error columns if empty
   const visibleColumns = COLUMNS.filter(
-    s => !['needs_approval', 'done', 'merged', 'failed', 'error'].includes(s) || grouped[s].length > 0,
+    s => !['needs_approval', 'done', 'failed', 'error'].includes(s) || grouped[s].length > 0,
   );
 
   return (

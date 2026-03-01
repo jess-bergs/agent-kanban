@@ -126,7 +126,7 @@ export function Sidebar({
               const isSelected = selectedProject?.id === project.id;
               const projectTickets = tickets.filter(t => t.projectId === project.id);
               const inProgress = projectTickets.filter(t => t.status === 'in_progress').length;
-              const completed = projectTickets.filter(t => t.status === 'in_review' || t.status === 'merged').length;
+              const completed = projectTickets.filter(t => t.status === 'done' || t.status === 'merged').length;
               const isDeleting = deletingProjectId === project.id;
 
               return (
