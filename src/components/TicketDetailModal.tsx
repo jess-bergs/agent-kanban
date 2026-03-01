@@ -36,6 +36,7 @@ const STATE_REASON_LABELS: Record<string, string> = {
   agent_started: 'Agent started',
   agent_completed: 'Agent completed',
   agent_failed: 'Agent failed',
+  signal_exit: 'Agent stopped (signal)',
   user_abort: 'Aborted by user',
   user_retry: 'Retried by user',
   user_action: 'Manual update',

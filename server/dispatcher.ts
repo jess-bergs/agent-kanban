@@ -5,6 +5,7 @@ import { getProject, getTicket, updateTicket, listTickets, getImagesDir } from '
 import { captureAndUploadScreenshots } from './screenshots.ts';
 import { runAudit } from './auditor.ts';
 import type { Ticket, AgentActivity, TicketEffort, WSEvent, FailureReason } from '../src/types.ts';
+import { isSignalExit, SIGNAL_NAMES } from '../src/types.ts';
 import { envWithNvmNode } from './nvm.ts';
 
 const MAX_CONCURRENT = 5;
@@ -419,17 +420,36 @@ async function startAgent(ticket: Ticket) {
     }
 
     if (code !== 0) {
-      const failureReason: FailureReason = wasAborted
-        ? { type: 'user_abort' }
-        : { type: 'agent_exit', code: code ?? 1 };
+      const exitCode = code ?? 1;
+      const signalTerminated = isSignalExit(exitCode);
+      const signalName = SIGNAL_NAMES[exitCode] ?? `signal ${exitCode - 128}`;
+
+      let failureReason: FailureReason;
+      let errorMsg: string;
+      let stateReason: string;
+
+      if (wasAborted) {
+        failureReason = { type: 'user_abort' };
+        errorMsg = 'Aborted by user';
+        stateReason = 'user_abort';
+      } else if (signalTerminated) {
+        failureReason = { type: 'signal_exit', code: exitCode, signal: signalName };
+        errorMsg = `Agent was stopped (${signalName})`;
+        stateReason = 'signal_exit';
+      } else {
+        failureReason = { type: 'agent_exit', code: exitCode };
+        errorMsg = stderr.slice(-500) || `Agent exited with code ${exitCode}`;
+        stateReason = 'agent_failed';
+      }
+
       const failedTicket = await updateTicket(ticket.id, {
         status: 'failed',
-        error: wasAborted ? 'Aborted by user' : (stderr.slice(-500) || `Agent exited with code ${code}`),
+        error: errorMsg,
         failureReason,
         completedAt,
         agentPid: undefined,
         effort: { ...effort },
-      }, wasAborted ? 'user_abort' : 'agent_failed');
+      }, stateReason);
       if (failedTicket) await broadcastTicket(failedTicket);
       if (useWorktree) cleanupWorktree(project.repoPath, worktreePath);
       return;
@@ -789,8 +809,9 @@ export function killAgent(ticketId: string): boolean {
   const proc = running.get(ticketId);
   if (proc) {
     console.log(`[dispatcher] Killing agent for ticket #${ticketId}`);
+    abortedTickets.add(ticketId);
     proc.kill('SIGTERM');
-    running.delete(ticketId);
+    // Don't delete from running — let the close handler do cleanup
     return true;
   }
   return false;
