@@ -17,6 +17,7 @@
     "lint": "eslint src/ server/",
     "lint:fix": "eslint --fix src/ server/",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json",
+    "test": "vitest run",
     "check": "npm run lint && npm run typecheck",
     "prepare": "husky"
   },
@@ -54,6 +55,7 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "vitest": "^4.0.18"
   }
 }

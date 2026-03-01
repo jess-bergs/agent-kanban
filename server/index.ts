@@ -62,6 +62,7 @@ import {
 } from './audit-store.ts';
 import { listTemplates, getTemplate } from './audit-templates.ts';
 import { buildAnalytics } from './analytics.ts';
+import { isPathSafe, isDirWithinRepo, SENSITIVE_PATTERNS, TREE_IGNORE } from './chat-utils.ts';
 import type { TeamWithData, WSEvent, AuditTemplateId, ChatMessage } from '../src/types.ts';
 
 const PORT = 3003;
@@ -704,29 +705,6 @@ const CONTEXT_FILES = [
   'Dockerfile',
 ];
 
-const TREE_IGNORE = new Set([
-  'node_modules', '.git', 'dist', 'build', '.next', '__pycache__',
-  '.venv', 'venv', 'target', '.turbo', '.cache', 'coverage',
-]);
-
-/** Patterns that should never be served to the chat context */
-const SENSITIVE_PATTERNS = [
-  /\.env$/i, /\.env\..*/i, /\.pem$/i, /\.key$/i, /\.p12$/i,
-  /credentials/i, /secrets?\.ya?ml$/i, /\.secret$/i,
-  /id_rsa/i, /id_ed25519/i, /\.pgpass$/i, /\.netrc$/i,
-];
-
-/** Check whether a file path is safe to read (not sensitive, within repo) */
-function isPathSafe(repoPath: string, filePath: string): boolean {
-  const resolved = path.resolve(repoPath, filePath);
-  // Must stay within the repo directory
-  if (!resolved.startsWith(path.resolve(repoPath) + path.sep) && resolved !== path.resolve(repoPath)) {
-    return false;
-  }
-  // Block sensitive patterns
-  const basename = path.basename(resolved);
-  return !SENSITIVE_PATTERNS.some(p => p.test(basename));
-}
 
 /** Build a shallow file tree (2 levels deep) for a directory */
 async function buildFileTree(dirPath: string, depth = 0, maxDepth = 2): Promise<string[]> {
@@ -803,8 +781,7 @@ app.get('/api/chat/files', async (req, res) => {
   }
 
   const dirPath = path.resolve(project.repoPath, subPath);
-  // Ensure path stays within the repo
-  if (!dirPath.startsWith(path.resolve(project.repoPath))) {
+  if (!isDirWithinRepo(project.repoPath, dirPath)) {
     res.status(403).json({ error: 'Path outside project' });
     return;
   }

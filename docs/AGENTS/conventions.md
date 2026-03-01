@@ -19,7 +19,7 @@ npm start          # production server (serves API + built frontend on :3003)
 - Path alias: `@/` maps to `src/`
 - Server TypeScript config: `tsconfig.server.json`
 - Tailwind CSS for styling
-- No test framework currently configured
+- Tests: `vitest` — run with `npm test`; test files live alongside source as `*.test.ts`
 
 ## Project Structure
 
