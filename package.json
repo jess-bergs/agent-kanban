@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "concurrently -n server,client -c blue,green \"tsx watch server/index.ts\" \"vite\"",
     "build": "tsc -b && vite build",
+    "start": "tsx server/index.ts",
     "preview": "vite preview",
     "server": "tsx watch server/index.ts",
     "screenshot": "tsx scripts/generate-screenshots.ts",
