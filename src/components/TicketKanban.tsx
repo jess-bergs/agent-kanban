@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Plus, Search, X } from 'lucide-react';
 import type { Ticket, TicketStatus, Project } from '../types';
 import { TICKET_STATUS_LABELS } from '../types';
 import { TicketCard } from './TicketCard';
@@ -53,8 +53,11 @@ interface TicketKanbanProps {
 export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }: TicketKanbanProps) {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // Cmd+N / Ctrl+N to open the create ticket modal
+  // Cmd+K / Ctrl+K to focus search
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
@@ -65,6 +68,10 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
         if (selectedTicket || showCreate) return;
         e.preventDefault();
         setShowCreate(true);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchRef.current?.focus();
       }
     }
     document.addEventListener('keydown', handleKey);
@@ -82,6 +89,16 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
     }
   }, [openTicketId, tickets, onTicketOpened]);
 
+  const filteredTickets = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return tickets;
+    return tickets.filter(t =>
+      t.id.toLowerCase().includes(q) ||
+      t.subject.toLowerCase().includes(q) ||
+      t.instructions.toLowerCase().includes(q)
+    );
+  }, [tickets, searchQuery]);
+
   const grouped: Record<TicketStatus, Ticket[]> = {
     todo: [],
     in_progress: [],
@@ -93,7 +110,7 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
     error: [],
   };
 
-  for (const ticket of tickets) {
+  for (const ticket of filteredTickets) {
     if (ticket.status in grouped) {
       grouped[ticket.status].push(ticket);
     }
@@ -111,10 +128,33 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
 
   return (
     <>
-      <div
-        className="grid gap-4 h-full"
-        style={{ gridTemplateColumns: `repeat(${visibleColumns.length}, minmax(0, 1fr))` }}
-      >
+      <div className="flex flex-col gap-4 h-full">
+        {/* Search bar */}
+        <div className="relative shrink-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+          <input
+            ref={searchRef}
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search tickets by ID, title, or description... (⌘K)"
+            className="w-full pl-9 pr-8 py-2 text-sm bg-surface-700 border border-surface-600 rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-accent-blue/50 focus:ring-1 focus:ring-accent-blue/25"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Kanban columns */}
+        <div
+          className="grid gap-4 flex-1 min-h-0"
+          style={{ gridTemplateColumns: `repeat(${visibleColumns.length}, minmax(0, 1fr))` }}
+        >
         {visibleColumns.map(status => {
           const style = COLUMN_STYLES[status];
           const columnTickets = grouped[status];
@@ -170,6 +210,7 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
             </div>
           );
         })}
+        </div>
       </div>
 
       {selectedTicket && (
