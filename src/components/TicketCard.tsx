@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -10,6 +11,7 @@ import {
   Loader2,
   Users,
   ShieldAlert,
+  StopCircle,
   Terminal,
   Zap
 } from 'lucide-react';
@@ -46,6 +48,18 @@ interface TicketCardProps {
 
 export function TicketCard({ ticket, onClick }: TicketCardProps) {
   const borderColor = BORDER_COLORS[ticket.status];
+  const [aborting, setAborting] = useState(false);
+  const isRunning = ticket.status === 'in_progress' || ticket.status === 'needs_approval';
+
+  async function handleAbort(e: React.MouseEvent) {
+    e.stopPropagation();
+    setAborting(true);
+    try {
+      await fetch(`/api/tickets/${ticket.id}/abort`, { method: 'POST' });
+    } finally {
+      setAborting(false);
+    }
+  }
 
   return (
     <div
@@ -146,6 +160,20 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
               {ticket.lastOutput.slice(-200)}
             </pre>
           )}
+        </div>
+      )}
+
+      {/* Abort button for running tickets */}
+      {isRunning && (
+        <div className="mt-2 flex justify-end">
+          <button
+            onClick={handleAbort}
+            disabled={aborting}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-accent-red bg-accent-red/10 rounded hover:bg-accent-red/20 disabled:opacity-50 transition-colors"
+          >
+            <StopCircle className="w-3 h-3" />
+            {aborting ? 'Aborting...' : 'Abort'}
+          </button>
         </div>
       )}
 
