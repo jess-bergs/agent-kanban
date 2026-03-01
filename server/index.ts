@@ -688,13 +688,14 @@ app.get('/api/analytics', async (_req, res) => {
 
 // ─── Codebase Context for Chat ───────────────────────────────────
 
-/** Key files to read from each project repo for chat context */
+/** Key files to read from each project repo for chat context.
+ *  Security: only non-sensitive config/doc files — no .env* or credentials. */
 const CONTEXT_FILES = [
   'CLAUDE.md',
+  'AGENTS.md',
   'package.json',
   'tsconfig.json',
   'README.md',
-  '.env.example',
   'Cargo.toml',
   'pyproject.toml',
   'go.mod',
@@ -708,6 +709,19 @@ const TREE_IGNORE = new Set([
   '.venv', 'venv', 'target', '.turbo', '.cache', 'coverage',
 ]);
 
+/** Filenames/patterns that should never appear in file tree or be read for context */
+const SENSITIVE_PATTERNS = [
+  /^\.env/,        // .env, .env.local, .env.example, etc.
+  /^\.netrc$/,
+  /^\.npmrc$/,
+  /credentials/i,
+  /secret/i,
+  /\.pem$/,
+  /\.key$/,
+  /id_rsa/,
+  /id_ed25519/,
+];
+
 /** Build a shallow file tree (2 levels deep) for a directory */
 async function buildFileTree(dirPath: string, depth = 0, maxDepth = 2): Promise<string[]> {
   if (depth >= maxDepth) return [];
@@ -715,8 +729,9 @@ async function buildFileTree(dirPath: string, depth = 0, maxDepth = 2): Promise<
   try {
     const entries = await readdir(dirPath, { withFileTypes: true });
     const sorted = entries
-      .filter(e => !e.name.startsWith('.') || e.name === '.env.example')
+      .filter(e => !e.name.startsWith('.'))
       .filter(e => !TREE_IGNORE.has(e.name))
+      .filter(e => !SENSITIVE_PATTERNS.some(p => p.test(e.name)))
       .sort((a, b) => {
         if (a.isDirectory() && !b.isDirectory()) return -1;
         if (!a.isDirectory() && b.isDirectory()) return 1;
@@ -736,19 +751,29 @@ async function buildFileTree(dirPath: string, depth = 0, maxDepth = 2): Promise<
   return lines;
 }
 
-/** Read key config/doc files from a project repo for chat context */
+/** Read key config/doc files from a project repo for chat context.
+ *  Security: validates that repoPath exists and all file reads stay within it. */
 async function gatherCodebaseContext(repoPath: string): Promise<string> {
+  // Resolve to an absolute path and verify the directory exists
+  const resolvedRoot = path.resolve(repoPath);
+  try {
+    const rootStat = await stat(resolvedRoot);
+    if (!rootStat.isDirectory()) return '';
+  } catch { return ''; }
+
   const sections: string[] = [];
 
   // File tree
-  const tree = await buildFileTree(repoPath);
+  const tree = await buildFileTree(resolvedRoot);
   if (tree.length > 0) {
     sections.push(`### File Tree\n\`\`\`\n${tree.join('\n')}\n\`\`\``);
   }
 
-  // Key files
+  // Key files — only if they resolve within the project root
   for (const filename of CONTEXT_FILES) {
-    const filePath = path.join(repoPath, filename);
+    const filePath = path.resolve(resolvedRoot, filename);
+    // Prevent path traversal: resolved path must be inside the project root
+    if (!filePath.startsWith(resolvedRoot + path.sep) && filePath !== resolvedRoot) continue;
     try {
       const fileStat = await stat(filePath);
       if (!fileStat.isFile() || fileStat.size > 50_000) continue;
