@@ -212,6 +212,8 @@ export interface Ticket {
   auditStatus?: 'pending' | 'running' | 'done' | 'error';
   /** Auditor review result text */
   auditResult?: string;
+  /** Structured verdict from the PR auditor */
+  auditVerdict?: 'approve' | 'request_changes' | 'comment';
   /** Log of all status transitions with timestamps and reasons */
   stateLog?: StateChangeEntry[];
 }
