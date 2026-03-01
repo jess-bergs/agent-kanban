@@ -30,7 +30,9 @@ import type { Ticket, TicketStatus, Project, AgentActivity, StateChangeEntry } f
 import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount, shortenUuids } from '../types';
 import { safeStatus, analyzeTicketCompat } from '../lib/ticketCompat';
 
-import { XCircle, GitMerge, AlertTriangle, StopCircle, History, Users, Archive } from 'lucide-react';
+
+import { XCircle, GitMerge, AlertTriangle, StopCircle, History, Users, ClipboardCheck, Archive} from 'lucide-react';
+
 
 const STATE_REASON_LABELS: Record<string, string> = {
   ticket_created: 'Created',
@@ -296,6 +298,58 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 </p>
                 <p className="text-xs text-slate-400">
                   This agent is not running in YOLO mode and needs you to approve a tool call in the terminal.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Audit verdict banner */}
+          {ticket.auditVerdict && (
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg ${
+              ticket.auditVerdict === 'approve'
+                ? 'bg-accent-green/5 border border-accent-green/20'
+                : ticket.auditVerdict === 'request_changes'
+                  ? 'bg-accent-orange/5 border border-accent-orange/20'
+                  : 'bg-accent-cyan/5 border border-accent-cyan/20'
+            }`}>
+              <ClipboardCheck className={`w-5 h-5 shrink-0 ${
+                ticket.auditVerdict === 'approve'
+                  ? 'text-accent-green'
+                  : ticket.auditVerdict === 'request_changes'
+                    ? 'text-accent-orange'
+                    : 'text-accent-cyan'
+              }`} />
+              <div className="flex-1">
+                <p className={`text-sm font-medium ${
+                  ticket.auditVerdict === 'approve'
+                    ? 'text-accent-green'
+                    : ticket.auditVerdict === 'request_changes'
+                      ? 'text-accent-orange'
+                      : 'text-accent-cyan'
+                }`}>
+                  {ticket.auditVerdict === 'approve' && 'Audit: Approved'}
+                  {ticket.auditVerdict === 'request_changes' && 'Audit: Changes Requested'}
+                  {ticket.auditVerdict === 'comment' && 'Audit: Reviewed with Comments'}
+                </p>
+                {ticket.auditResult && (
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {ticket.auditResult}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Audit in progress */}
+          {ticket.auditStatus === 'running' && !ticket.auditVerdict && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent-purple/5 border border-accent-purple/20">
+              <Loader2 className="w-5 h-5 text-accent-purple animate-spin shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-accent-purple">
+                  Audit in Progress
+                </p>
+                <p className="text-xs text-slate-400">
+                  The PR auditor is reviewing this pull request.
                 </p>
               </div>
             </div>
