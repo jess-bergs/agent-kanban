@@ -28,6 +28,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
   const [submitting, setSubmitting] = useState(false);
   const [images, setImages] = useState<PendingImage[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const addFiles = useCallback((files: FileList | File[]) => {
     for (const file of Array.from(files)) {
@@ -66,6 +67,10 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        formRef.current?.requestSubmit();
+      }
     }
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
@@ -142,7 +147,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+        <form ref={formRef} onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1.5">
               Title
@@ -367,6 +372,9 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
             >
               {yolo ? <Zap className="w-4 h-4" /> : <Send className="w-4 h-4" />}
               {submitting ? 'Creating...' : yolo ? 'YOLO & Dispatch' : 'Create & Dispatch'}
+              <kbd className="hidden sm:inline-flex items-center gap-0.5 ml-1.5 text-[10px] opacity-60 font-sans">
+                <span>⌘</span><span>↵</span>
+              </kbd>
             </button>
           </div>
         </form>
