@@ -63,9 +63,15 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
     setImages(prev => prev.filter(img => img.id !== id));
   }
 
+  const formRef = useRef<HTMLFormElement>(null);
+
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        formRef.current?.requestSubmit();
+      }
     }
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
@@ -142,7 +148,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+        <form ref={formRef} onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1.5">
               Title
@@ -367,6 +373,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
             >
               {yolo ? <Zap className="w-4 h-4" /> : <Send className="w-4 h-4" />}
               {submitting ? 'Creating...' : yolo ? 'YOLO & Dispatch' : 'Create & Dispatch'}
+              {!submitting && <kbd className="ml-1.5 text-[10px] opacity-60">⌘↵</kbd>}
             </button>
           </div>
         </form>
