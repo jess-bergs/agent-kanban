@@ -5,6 +5,7 @@ import {
   Brain,
   CheckCircle,
   Clock,
+  Eye,
   ExternalLink,
   FileSearch,
   GitMerge,
@@ -189,12 +190,22 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         </div>
       )}
 
+      {/* Audit in progress — PR being reviewed */}
+      {ticket.status === 'in_review' && ticket.auditStatus === 'running' && !ticket.auditVerdict && (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <Loader2 className="w-3 h-3 text-accent-purple animate-spin" />
+            <span className="text-xs text-accent-purple italic">PR under review...</span>
+          </div>
+        </div>
+      )}
+
       {/* Audit verdict — needs human review */}
       {ticket.status === 'in_review' && ticket.auditVerdict === 'request_changes' && (
         <div className="mt-2 space-y-1.5">
           <div className="flex items-center gap-1.5">
-            <ShieldAlert className="w-3 h-3 text-accent-orange animate-pulse" />
-            <span className="text-xs text-accent-orange font-medium">Changes requested by auditor</span>
+            <Eye className="w-3 h-3 text-accent-orange animate-pulse" />
+            <span className="text-xs text-accent-orange font-medium">Needs your review</span>
           </div>
           {ticket.auditResult && (
             <p className="text-[11px] text-slate-400 bg-accent-orange/5 border border-accent-orange/20 rounded px-2 py-1.5 line-clamp-2">

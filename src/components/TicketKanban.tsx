@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { ChevronDown, Plus, Search, X } from 'lucide-react';
+import { ChevronDown, Eye, Plus, Search, X } from 'lucide-react';
 import type { Ticket, TicketStatus, Project } from '../types';
 import { TICKET_STATUS_LABELS } from '../types';
 import { safeStatus } from '../lib/ticketCompat';
@@ -139,6 +139,11 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
     grouped[status].sort((a, b) => b.createdAt - a.createdAt);
   }
 
+  // Count tickets needing manual review in the in_review column
+  const needsReviewCount = grouped.in_review.filter(
+    t => t.auditVerdict === 'request_changes',
+  ).length;
+
   // Hide needs_approval/done/failed/error columns if empty
   const visibleColumns = COLUMNS.filter(
     s => !['needs_approval', 'done', 'failed', 'error'].includes(s) || grouped[s].length > 0,
@@ -191,6 +196,12 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${style.badge}`}>
                     {columnTickets.length}
                   </span>
+                  {status === 'in_review' && needsReviewCount > 0 && (
+                    <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-orange/20 text-accent-orange animate-pulse">
+                      <Eye className="w-3 h-3" />
+                      {needsReviewCount}
+                    </span>
+                  )}
                   {status === 'todo' && (
                     <button
                       onClick={() => setShowCreate(true)}
