@@ -1128,19 +1128,28 @@ export async function dispatcherTick() {
   }
 }
 
-/** Kill a running agent by ticket ID */
+/**
+ * Kill a running agent — for non-user-initiated stops (e.g., ticket deletion).
+ * The ticket is typically deleted right after, so the close handler's status update is a no-op.
+ * See also: abortAgent() for user-initiated aborts.
+ */
 export function killAgent(ticketId: string): boolean {
   const proc = running.get(ticketId);
   if (proc) {
     console.log(`[dispatcher] Killing agent for ticket #${ticketId}`);
+    abortedTickets.add(ticketId);
     proc.kill('SIGTERM');
-    running.delete(ticketId);
+    // Don't delete from running — let the close handler do cleanup
     return true;
   }
   return false;
 }
 
-/** Abort a running agent — marks it as user-initiated so the close handler shows a friendly message */
+/**
+ * Abort a running agent — for explicit user-initiated aborts.
+ * The ticket persists as 'failed' with a user_abort failure reason.
+ * See also: killAgent() for non-user-initiated stops.
+ */
 export function abortAgent(ticketId: string): boolean {
   const proc = running.get(ticketId);
   if (proc) {
