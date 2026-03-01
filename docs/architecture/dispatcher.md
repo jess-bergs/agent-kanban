@@ -39,7 +39,7 @@ Both fire once immediately on startup before the intervals begin.
 
 Each tick of `dispatcherTick()` does:
 1. Skip if `running.size >= MAX_CONCURRENT` (currently **5**)
-2. Find tickets with `status === 'todo'` (or `queued` tickets ready to run)
+2. Find tickets with `status === 'todo'`; dispatch non-queued first, then queued only when `running.size === 0`
 3. For each, call `startAgent(ticket)`
 4. For `in_review` tickets: call `checkPrStatus()` and `checkAutoMerge()`
 5. For `needs_approval` tickets: check if approval is still pending
