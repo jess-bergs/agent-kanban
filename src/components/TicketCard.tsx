@@ -53,10 +53,11 @@ interface TicketCardProps {
 }
 
 export function TicketCard({ ticket, onClick }: TicketCardProps) {
-  const borderColor = BORDER_COLORS[safeStatus(ticket.status)];
+  const isReworking = ticket.status === 'in_review' && ticket.auditVerdict === 'request_changes';
+  const borderColor = isReworking ? BORDER_COLORS['in_progress'] : BORDER_COLORS[safeStatus(ticket.status)];
   const compat = analyzeTicketCompat(ticket);
   const [aborting, setAborting] = useState(false);
-  const isRunning = ticket.status === 'in_progress' || ticket.status === 'needs_approval';
+  const isRunning = ticket.status === 'in_progress' || ticket.status === 'needs_approval' || isReworking;
 
   async function handleAbort(e: React.MouseEvent) {
     e.stopPropagation();
@@ -189,17 +190,34 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         </div>
       )}
 
-      {/* Audit verdict — needs human review */}
-      {ticket.status === 'in_review' && ticket.auditVerdict === 'request_changes' && (
+      {/* Audit verdict — agent addressing review feedback */}
+      {isReworking && (
         <div className="mt-2 space-y-1.5">
           <div className="flex items-center gap-1.5">
-            <ShieldAlert className="w-3 h-3 text-accent-orange animate-pulse" />
-            <span className="text-xs text-accent-orange font-medium">Changes requested by auditor</span>
+            <Loader2 className="w-3 h-3 text-accent-blue animate-spin" />
+            <span className="text-xs text-accent-blue italic">Addressing review feedback...</span>
           </div>
           {ticket.auditResult && (
             <p className="text-[11px] text-slate-400 bg-accent-orange/5 border border-accent-orange/20 rounded px-2 py-1.5 line-clamp-2">
               {ticket.auditResult}
             </p>
+          )}
+          {ticket.agentActivity && ticket.agentActivity.length > 0 && (() => {
+            const last = ticket.agentActivity[ticket.agentActivity.length - 1];
+            return (
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                {last.type === 'tool_use' && <Terminal className="w-3 h-3 text-accent-cyan" />}
+                {last.type === 'thinking' && <Brain className="w-3 h-3 text-accent-purple" />}
+                <span className="truncate font-mono">
+                  {last.type === 'tool_use' ? last.tool : last.type === 'thinking' ? 'Reasoning...' : last.content.slice(0, 80)}
+                </span>
+              </div>
+            );
+          })()}
+          {ticket.lastOutput && (
+            <pre className="text-[11px] text-slate-400 font-mono bg-surface-900/60 rounded px-2 py-1.5 line-clamp-3 whitespace-pre-wrap leading-relaxed">
+              {ticket.lastOutput.slice(-200)}
+            </pre>
           )}
         </div>
       )}

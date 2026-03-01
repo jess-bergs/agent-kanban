@@ -128,7 +128,11 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
   for (const ticket of filteredTickets) {
     const effective = safeStatus(ticket.status);
     // Fold merged tickets into the done column
-    const bucket = effective === 'merged' ? 'done' : effective;
+    // Fold reviewed tickets with changes_requested back into in_progress
+    let bucket = effective === 'merged' ? 'done' : effective;
+    if (effective === 'in_review' && ticket.auditVerdict === 'request_changes') {
+      bucket = 'in_progress';
+    }
     if (bucket in grouped) {
       grouped[bucket].push(ticket);
     }
