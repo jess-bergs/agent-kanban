@@ -73,75 +73,75 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
   return (
     <div
       onClick={() => onClick?.(ticket)}
-      className={`bg-surface-700 rounded-lg p-3 border-l-2 ${borderColor} hover:border-surface-500 transition-colors cursor-pointer ${
+      className={`bg-surface-700 rounded-lg p-3 border-l-2 ${borderColor} hover:border-surface-500 transition-colors cursor-pointer overflow-hidden ${
         needsReview
           ? 'border border-accent-orange/40 ring-1 ring-accent-orange/20'
           : 'border border-surface-600'
       }`}
     >
-      <div className="flex items-center gap-2">
-        <p className="text-sm font-medium text-slate-100 flex-1">{ticket.subject}</p>
+      <p className="text-sm font-medium text-slate-100 truncate">{ticket.subject}</p>
+      <div className="flex flex-wrap items-center gap-1 mt-1">
         {ticket.queued && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded shrink-0">
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded">
             <Clock className="w-3 h-3" />
             QUEUED
           </span>
         )}
         {ticket.autoMerge && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded shrink-0">
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded">
             <GitMerge className="w-3 h-3" />
           </span>
         )}
         {ticket.yolo && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-amber bg-accent-amber/10 px-1.5 py-0.5 rounded shrink-0">
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-amber bg-accent-amber/10 px-1.5 py-0.5 rounded">
             <Zap className="w-3 h-3 fill-accent-amber" />
             YOLO
           </span>
         )}
         {ticket.useTeam && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded shrink-0">
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded">
             <Users className="w-3 h-3" />
             {ticket.teamName || 'TEAM'}
           </span>
         )}
         {ticket.planOnly && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded shrink-0">
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded">
             <FileSearch className="w-3 h-3" />
             PLAN
           </span>
         )}
         {ticket.images && ticket.images.length > 0 && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-surface-600/40 px-1.5 py-0.5 rounded shrink-0">
+          <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-surface-600/40 px-1.5 py-0.5 rounded">
             <Images className="w-3 h-3" />
             {ticket.images.length}
           </span>
         )}
         {ticket.hasConflict && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded shrink-0 animate-pulse">
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded animate-pulse">
             <AlertTriangle className="w-3 h-3" />
             CONFLICT
           </span>
         )}
         {ticket.auditVerdict === 'approve' && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded shrink-0">
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded">
             <CheckCircle className="w-3 h-3" />
             APPROVED
           </span>
         )}
         {ticket.auditVerdict === 'request_changes' && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-orange bg-accent-orange/10 px-1.5 py-0.5 rounded shrink-0 animate-pulse">
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-orange bg-accent-orange/10 px-1.5 py-0.5 rounded animate-pulse">
             <ShieldAlert className="w-3 h-3" />
             CHANGES
           </span>
         )}
         {ticket.auditVerdict === 'comment' && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded shrink-0">
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded">
             <MessageSquare className="w-3 h-3" />
             REVIEWED
           </span>
         )}
         {ticket.status === 'in_review' && ticket.auditStatus === 'running' && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded shrink-0">
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded">
             <Loader2 className="w-3 h-3 animate-spin" />
             AUDITING
           </span>
@@ -151,7 +151,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         )}
         {!compat.isFullyModern && (
           <span
-            className="flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-surface-600/30 px-1.5 py-0.5 rounded shrink-0"
+            className="flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-surface-600/30 px-1.5 py-0.5 rounded"
             title={`Gen ${compat.generation} ticket — missing: ${compat.missingFeatures.join(', ')}`}
           >
             <Archive className="w-3 h-3" />
