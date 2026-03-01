@@ -3,13 +3,16 @@ import {
   AlertCircle,
   AlertTriangle,
   Brain,
+  CheckCircle,
   Clock,
   ExternalLink,
   FileSearch,
   GitMerge,
   GitPullRequest,
+  Archive,
   Images,
   Loader2,
+  MessageSquare,
   Users,
   ShieldAlert,
   StopCircle,
@@ -18,6 +21,7 @@ import {
 } from 'lucide-react';
 import type { Ticket, TicketStatus, TicketEffort } from '../types';
 import { formatDuration, formatTokenCount } from '../types';
+import { safeStatus, safeEffort, analyzeTicketCompat } from '../lib/ticketCompat';
 
 const BORDER_COLORS: Record<TicketStatus, string> = {
   todo: 'border-l-accent-amber',
@@ -31,10 +35,11 @@ const BORDER_COLORS: Record<TicketStatus, string> = {
 };
 
 function EffortBadge({ effort }: { effort: TicketEffort }) {
+  const safe = safeEffort(effort);
   const parts: string[] = [];
-  if (effort.costUsd != null) parts.push(`$${effort.costUsd.toFixed(2)}`);
-  if (effort.durationMs != null) parts.push(formatDuration(effort.durationMs));
-  parts.push(`${effort.turns}t/${effort.toolCalls}tc`);
+  if (safe.costUsd != null) parts.push(`$${safe.costUsd.toFixed(2)}`);
+  if (safe.durationMs != null) parts.push(formatDuration(safe.durationMs));
+  parts.push(`${safe.turns}t/${safe.toolCalls}tc`);
   return (
     <span className="text-[10px] font-mono text-slate-500 bg-surface-600/40 px-1.5 py-0.5 rounded shrink-0">
       {parts.join(' · ')}
@@ -48,7 +53,8 @@ interface TicketCardProps {
 }
 
 export function TicketCard({ ticket, onClick }: TicketCardProps) {
-  const borderColor = BORDER_COLORS[ticket.status];
+  const borderColor = BORDER_COLORS[safeStatus(ticket.status)];
+  const compat = analyzeTicketCompat(ticket);
   const [aborting, setAborting] = useState(false);
   const isRunning = ticket.status === 'in_progress' || ticket.status === 'needs_approval';
 
@@ -62,10 +68,16 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
     }
   }
 
+  const needsReview = ticket.auditVerdict === 'request_changes';
+
   return (
     <div
       onClick={() => onClick?.(ticket)}
-      className={`bg-surface-700 rounded-lg p-3 border border-surface-600 border-l-2 ${borderColor} hover:border-surface-500 transition-colors cursor-pointer`}
+      className={`bg-surface-700 rounded-lg p-3 border-l-2 ${borderColor} hover:border-surface-500 transition-colors cursor-pointer ${
+        needsReview
+          ? 'border border-accent-orange/40 ring-1 ring-accent-orange/20'
+          : 'border border-surface-600'
+      }`}
     >
       <div className="flex items-center gap-2">
         <p className="text-sm font-medium text-slate-100 flex-1">{ticket.subject}</p>
@@ -110,8 +122,41 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             CONFLICT
           </span>
         )}
+        {ticket.auditVerdict === 'approve' && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded shrink-0">
+            <CheckCircle className="w-3 h-3" />
+            APPROVED
+          </span>
+        )}
+        {ticket.auditVerdict === 'request_changes' && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-orange bg-accent-orange/10 px-1.5 py-0.5 rounded shrink-0 animate-pulse">
+            <ShieldAlert className="w-3 h-3" />
+            CHANGES
+          </span>
+        )}
+        {ticket.auditVerdict === 'comment' && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded shrink-0">
+            <MessageSquare className="w-3 h-3" />
+            REVIEWED
+          </span>
+        )}
+        {ticket.status === 'in_review' && ticket.auditStatus === 'running' && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded shrink-0">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            AUDITING
+          </span>
+        )}
         {ticket.effort && ticket.effort.turns > 0 && (
           <EffortBadge effort={ticket.effort} />
+        )}
+        {!compat.isFullyModern && (
+          <span
+            className="flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-surface-600/30 px-1.5 py-0.5 rounded shrink-0"
+            title={`Gen ${compat.generation} ticket — missing: ${compat.missingFeatures.join(', ')}`}
+          >
+            <Archive className="w-3 h-3" />
+            v{compat.generation}
+          </span>
         )}
       </div>
 
@@ -140,6 +185,21 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             <pre className="text-[11px] text-slate-400 font-mono bg-surface-900/60 rounded px-2 py-1.5 line-clamp-3 whitespace-pre-wrap leading-relaxed">
               {ticket.lastOutput.slice(-200)}
             </pre>
+          )}
+        </div>
+      )}
+
+      {/* Audit verdict — needs human review */}
+      {ticket.status === 'in_review' && ticket.auditVerdict === 'request_changes' && (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <ShieldAlert className="w-3 h-3 text-accent-orange animate-pulse" />
+            <span className="text-xs text-accent-orange font-medium">Changes requested by auditor</span>
+          </div>
+          {ticket.auditResult && (
+            <p className="text-[11px] text-slate-400 bg-accent-orange/5 border border-accent-orange/20 rounded px-2 py-1.5 line-clamp-2">
+              {ticket.auditResult}
+            </p>
           )}
         </div>
       )}

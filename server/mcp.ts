@@ -13,6 +13,20 @@ import {
   deleteTicket,
   getProject,
 } from './store.ts';
+import {
+  listSchedules,
+  listSchedulesByProject,
+  getSchedule,
+  createSchedule,
+  updateSchedule as updateAuditSchedule,
+  deleteSchedule,
+  listRuns as listAuditRuns,
+  listRunsBySchedule,
+  getRun as getAuditRun,
+} from './audit-store.ts';
+import { listTemplates, getTemplate } from './audit-templates.ts';
+import { triggerAudit } from './audit-scheduler.ts';
+import type { AuditTemplateId } from '../src/types.ts';
 
 const server = new McpServer({
   name: 'agent-kanban',
@@ -160,6 +174,10 @@ server.tool(
       completedAt: undefined,
       lastOutput: undefined,
       agentPid: undefined,
+      agentSessionId: undefined,
+      resumePrompt: undefined,
+      automationIteration: undefined,
+      postAgentAction: undefined,
     });
     if (!ticket) return { content: [{ type: 'text', text: 'Ticket not found' }], isError: true };
     return { content: [{ type: 'text', text: JSON.stringify(ticket, null, 2) }] };
@@ -185,6 +203,199 @@ server.resource(
   async () => {
     const tickets = await listTickets();
     return { contents: [{ uri: 'kanban://tickets', text: JSON.stringify(tickets, null, 2), mimeType: 'application/json' }] };
+  },
+);
+
+// ─── Audit Templates ────────────────────────────────────────────
+
+server.tool('list_audit_templates', 'List all built-in audit templates', {}, async () => {
+  const templates = listTemplates();
+  return { content: [{ type: 'text', text: JSON.stringify(templates, null, 2) }] };
+});
+
+server.tool(
+  'get_audit_template',
+  'Get a single audit template by ID',
+  { templateId: z.string().describe('Template ID (e.g. "security-scan", "readme-freshness")') },
+  async ({ templateId }) => {
+    const template = getTemplate(templateId as AuditTemplateId);
+    if (!template) return { content: [{ type: 'text', text: 'Template not found' }], isError: true };
+    return { content: [{ type: 'text', text: JSON.stringify(template, null, 2) }] };
+  },
+);
+
+// ─── Audit Schedules ────────────────────────────────────────────
+
+server.tool(
+  'list_audit_schedules',
+  'List audit schedules, optionally filtered by project',
+  { projectId: z.string().optional().describe('Filter by project UUID') },
+  async ({ projectId }) => {
+    const schedules = projectId
+      ? await listSchedulesByProject(projectId)
+      : await listSchedules();
+    return { content: [{ type: 'text', text: JSON.stringify(schedules, null, 2) }] };
+  },
+);
+
+server.tool(
+  'create_audit_schedule',
+  'Create a new scheduled audit for a project',
+  {
+    projectId: z.string().describe('Project UUID'),
+    name: z.string().describe('Display name for this schedule'),
+    templateId: z.string().optional().describe('Built-in template ID (provides default prompt)'),
+    prompt: z.string().optional().describe('Custom audit prompt (overrides template prompt)'),
+    cadence: z.enum(['daily', 'weekly', 'monthly', 'manual']).describe('How often to run'),
+    mode: z.enum(['report', 'fix']).describe('Report mode (read-only) or fix mode (creates PRs)'),
+    yolo: z.boolean().default(true).optional().describe('Skip permissions in fix mode. Defaults to true.'),
+    autoMerge: z.boolean().default(true).optional().describe('Auto-merge PRs in fix mode. Defaults to true.'),
+  },
+  async ({ projectId, name, templateId, prompt, cadence, mode, yolo, autoMerge }) => {
+    const project = await getProject(projectId);
+    if (!project) {
+      return { content: [{ type: 'text', text: `Project ${projectId} not found` }], isError: true };
+    }
+
+    let finalPrompt = prompt;
+    if (templateId && !prompt) {
+      const template = getTemplate(templateId as AuditTemplateId);
+      if (!template) {
+        return { content: [{ type: 'text', text: `Unknown template: ${templateId}` }], isError: true };
+      }
+      finalPrompt = template.prompt;
+    }
+
+    if (!finalPrompt) {
+      return { content: [{ type: 'text', text: 'Either prompt or templateId is required' }], isError: true };
+    }
+
+    const schedule = await createSchedule({
+      projectId,
+      name,
+      templateId: templateId as AuditTemplateId | undefined,
+      prompt: finalPrompt,
+      cadence,
+      mode,
+      status: 'active',
+      yolo: !!yolo,
+      autoMerge: !!autoMerge,
+    });
+    return { content: [{ type: 'text', text: JSON.stringify(schedule, null, 2) }] };
+  },
+);
+
+server.tool(
+  'get_audit_schedule',
+  'Get a single audit schedule by ID',
+  { scheduleId: z.string().describe('Schedule UUID') },
+  async ({ scheduleId }) => {
+    const schedule = await getSchedule(scheduleId);
+    if (!schedule) return { content: [{ type: 'text', text: 'Audit schedule not found' }], isError: true };
+    return { content: [{ type: 'text', text: JSON.stringify(schedule, null, 2) }] };
+  },
+);
+
+server.tool(
+  'update_audit_schedule',
+  'Update fields on an existing audit schedule',
+  {
+    scheduleId: z.string().describe('Schedule UUID'),
+    name: z.string().optional().describe('Updated name'),
+    cadence: z.enum(['daily', 'weekly', 'monthly', 'manual']).optional().describe('Updated cadence'),
+    mode: z.enum(['report', 'fix']).optional().describe('Updated mode'),
+    status: z.enum(['active', 'paused']).optional().describe('Pause or resume the schedule'),
+    prompt: z.string().optional().describe('Updated audit prompt'),
+    yolo: z.boolean().optional().describe('Updated YOLO flag'),
+    autoMerge: z.boolean().optional().describe('Updated auto-merge flag'),
+  },
+  async ({ scheduleId, ...updates }) => {
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([, v]) => v !== undefined),
+    );
+    const schedule = await updateAuditSchedule(scheduleId, cleanUpdates);
+    if (!schedule) return { content: [{ type: 'text', text: 'Audit schedule not found' }], isError: true };
+    return { content: [{ type: 'text', text: JSON.stringify(schedule, null, 2) }] };
+  },
+);
+
+server.tool(
+  'delete_audit_schedule',
+  'Delete an audit schedule by ID',
+  { scheduleId: z.string().describe('Schedule UUID') },
+  async ({ scheduleId }) => {
+    const ok = await deleteSchedule(scheduleId);
+    if (!ok) return { content: [{ type: 'text', text: 'Audit schedule not found' }], isError: true };
+    return { content: [{ type: 'text', text: 'Audit schedule deleted' }] };
+  },
+);
+
+server.tool(
+  'trigger_audit',
+  'Manually trigger an immediate run of an audit schedule',
+  { scheduleId: z.string().describe('Schedule UUID') },
+  async ({ scheduleId }) => {
+    const run = await triggerAudit(scheduleId);
+    if (!run) return { content: [{ type: 'text', text: 'Audit schedule not found' }], isError: true };
+    return { content: [{ type: 'text', text: JSON.stringify(run, null, 2) }] };
+  },
+);
+
+// ─── Audit Runs ─────────────────────────────────────────────────
+
+server.tool(
+  'list_audit_runs',
+  'List audit runs, optionally filtered by schedule',
+  { scheduleId: z.string().optional().describe('Filter by schedule UUID') },
+  async ({ scheduleId }) => {
+    const runs = scheduleId
+      ? await listRunsBySchedule(scheduleId)
+      : await listAuditRuns();
+    runs.sort((a, b) => b.startedAt - a.startedAt);
+    return { content: [{ type: 'text', text: JSON.stringify(runs, null, 2) }] };
+  },
+);
+
+server.tool(
+  'get_audit_run',
+  'Get a single audit run by ID (includes report and structured results)',
+  { runId: z.string().describe('Run UUID') },
+  async ({ runId }) => {
+    const run = await getAuditRun(runId);
+    if (!run) return { content: [{ type: 'text', text: 'Audit run not found' }], isError: true };
+    return { content: [{ type: 'text', text: JSON.stringify(run, null, 2) }] };
+  },
+);
+
+// ─── Audit Resources (read-only views) ──────────────────────────
+
+server.resource(
+  'audit-templates',
+  'kanban://audit-templates',
+  { description: 'All built-in audit templates', mimeType: 'application/json' },
+  async () => {
+    const templates = listTemplates();
+    return { contents: [{ uri: 'kanban://audit-templates', text: JSON.stringify(templates, null, 2), mimeType: 'application/json' }] };
+  },
+);
+
+server.resource(
+  'audit-schedules',
+  'kanban://audit-schedules',
+  { description: 'All audit schedules', mimeType: 'application/json' },
+  async () => {
+    const schedules = await listSchedules();
+    return { contents: [{ uri: 'kanban://audit-schedules', text: JSON.stringify(schedules, null, 2), mimeType: 'application/json' }] };
+  },
+);
+
+server.resource(
+  'audit-runs',
+  'kanban://audit-runs',
+  { description: 'All audit runs', mimeType: 'application/json' },
+  async () => {
+    const runs = await listAuditRuns();
+    return { contents: [{ uri: 'kanban://audit-runs', text: JSON.stringify(runs, null, 2), mimeType: 'application/json' }] };
   },
 );
 

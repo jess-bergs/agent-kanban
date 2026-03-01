@@ -25,12 +25,13 @@ import {
   deleteTicketImage,
   getImagesDir,
 } from './store.ts';
-import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick } from './dispatcher.ts';
+import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick, attemptMerge } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
 import {
   runAudit,
   isAuditRunning,
   setAuditorBroadcast,
+  setAttemptMergeFn,
   startAuditor,
   stopAuditor,
   addToWatchlist,
@@ -322,6 +323,10 @@ app.post('/api/tickets/:id/retry', async (req, res) => {
     completedAt: undefined,
     lastOutput: undefined,
     agentPid: undefined,
+    agentSessionId: undefined,
+    resumePrompt: undefined,
+    automationIteration: undefined,
+    postAgentAction: undefined,
   }, 'user_retry');
   if (ticket) {
     broadcast({ type: 'ticket_updated', data: ticket });
@@ -781,6 +786,8 @@ function broadcast(event: WSEvent) {
 setDispatchBroadcast(broadcast);
 setAuditorBroadcast(broadcast);
 setSchedulerBroadcast(broadcast);
+// Wire auditor → dispatcher merge callback (breaks circular import)
+setAttemptMergeFn(attemptMerge);
 
 wss.on('connection', async (ws) => {
   console.log(`[ws] Client connected (total: ${wss.clients.size})`);

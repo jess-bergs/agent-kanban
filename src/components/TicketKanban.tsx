@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { ChevronDown, Plus, Search, X } from 'lucide-react';
 import type { Ticket, TicketStatus, Project } from '../types';
 import { TICKET_STATUS_LABELS } from '../types';
+import { safeStatus } from '../lib/ticketCompat';
 import { TicketCard } from './TicketCard';
 import { TicketDetailModal } from './TicketDetailModal';
 import { CreateTicketModal } from './CreateTicketModal';
@@ -125,9 +126,10 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
   };
 
   for (const ticket of filteredTickets) {
-    if (ticket.status in grouped) {
-      // Fold merged tickets into the done column
-      const bucket = ticket.status === 'merged' ? 'done' : ticket.status;
+    const effective = safeStatus(ticket.status);
+    // Fold merged tickets into the done column
+    const bucket = effective === 'merged' ? 'done' : effective;
+    if (bucket in grouped) {
       grouped[bucket].push(ticket);
     }
   }
