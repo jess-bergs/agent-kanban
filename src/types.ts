@@ -160,14 +160,28 @@ export interface TicketImage {
   uploadedAt: number;
 }
 
+/** Well-known signal names for common exit codes (128 + signal number) */
+export const SIGNAL_NAMES: Record<number, string> = {
+  130: 'SIGINT',   // Ctrl-C / interrupt
+  137: 'SIGKILL',  // force kill
+  143: 'SIGTERM',  // graceful termination
+};
+
+/** Check whether an exit code represents a signal termination (128 + signal) */
+export function isSignalExit(code: number): boolean {
+  return code > 128 && code <= 159;
+}
+
 /** Structured, machine-classifiable failure reason */
 export type FailureReason =
   | { type: 'server_crash' }
   | { type: 'agent_exit'; code: number }
+  | { type: 'signal_exit'; code: number; signal: string }
   | { type: 'user_abort' }
   | { type: 'project_not_found'; projectId: string }
   | { type: 'worktree_setup_failed'; detail: string }
   | { type: 'retry_budget_exhausted'; attempts: number }
+  | { type: 'automation_budget_exhausted'; iterations: number }
   | { type: 'other'; detail: string };
 
 export interface Ticket {
@@ -214,6 +228,14 @@ export interface Ticket {
   auditResult?: string;
   /** Log of all status transitions with timestamps and reasons */
   stateLog?: StateChangeEntry[];
+  /** Claude Code session ID from the most recent agent run (for --resume) */
+  agentSessionId?: string;
+  /** Prompt to send when resuming a session (e.g. auditor feedback) */
+  resumePrompt?: string;
+  /** How many automated re-dispatches have been consumed (review fixes + conflict resolution) */
+  automationIteration?: number;
+  /** What the dispatcher should do after the agent completes: 'audit' = run auditor, 'merge' = attempt merge directly */
+  postAgentAction?: 'audit' | 'merge';
 }
 
 // ─── Scheduled Audits ─────────────────────────────────────────────

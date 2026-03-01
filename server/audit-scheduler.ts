@@ -16,6 +16,7 @@ import { parseStructuredReport, writeMarkdownReport } from './audit-report-parse
 import { computeTrend } from './audit-trend.ts';
 import { envWithNvmNode } from './nvm.ts';
 import type { AuditSchedule, AuditRun, WSEvent } from '../src/types.ts';
+import { isSignalExit, SIGNAL_NAMES } from '../src/types.ts';
 
 const POLL_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 const MAX_CONCURRENT_AUDITS = 2;
@@ -205,9 +206,14 @@ async function executeReportAudit(schedule: AuditSchedule, run: AuditRun): Promi
     const completedAt = Date.now();
 
     if (code !== 0) {
+      const exitCode = code ?? 1;
+      const signalName = SIGNAL_NAMES[exitCode];
+      const errorMsg = isSignalExit(exitCode)
+        ? `Audit agent was stopped (${signalName ?? `signal ${exitCode - 128}`})`
+        : (stderr.slice(-500) || `Agent exited with code ${exitCode}`);
       const failedRun = await updateRun(run.id, {
         status: 'failed',
-        error: stderr.slice(-500) || `Agent exited with code ${code}`,
+        error: errorMsg,
         completedAt,
         agentPid: undefined,
       });
