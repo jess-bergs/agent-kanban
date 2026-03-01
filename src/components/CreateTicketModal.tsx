@@ -258,18 +258,20 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
 
               <button
                 type="button"
-                onClick={() => setAutoMerge(!autoMerge)}
+                onClick={() => { if (!planOnly) setAutoMerge(!autoMerge); }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
-                  autoMerge
-                    ? 'bg-accent-purple/10 border-accent-purple/30'
-                    : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                  planOnly
+                    ? 'opacity-40 cursor-not-allowed bg-surface-900 border-surface-600'
+                    : autoMerge
+                      ? 'bg-accent-purple/10 border-accent-purple/30'
+                      : 'bg-surface-900 border-surface-600 hover:border-surface-500'
                 }`}
-                title="Automatically merge PR when approved and checks pass."
+                title={planOnly ? 'Disabled — plan-only produces a report, not mergeable code.' : 'Automatically merge PR when approved and checks pass.'}
               >
-                <GitMerge className={`w-4 h-4 shrink-0 ${autoMerge ? 'text-accent-purple' : 'text-slate-500'}`} />
-                <span className={`text-xs font-medium ${autoMerge ? 'text-accent-purple' : 'text-slate-300'}`}>Auto-Merge</span>
+                <GitMerge className={`w-4 h-4 shrink-0 ${planOnly ? 'text-slate-600' : autoMerge ? 'text-accent-purple' : 'text-slate-500'}`} />
+                <span className={`text-xs font-medium ${planOnly ? 'text-slate-600' : autoMerge ? 'text-accent-purple' : 'text-slate-300'}`}>Auto-Merge</span>
                 <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
-                  autoMerge ? 'bg-accent-purple justify-end' : 'bg-surface-600 justify-start'
+                  planOnly ? 'bg-surface-700 justify-start' : autoMerge ? 'bg-accent-purple justify-end' : 'bg-surface-600 justify-start'
                 }`}>
                   <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
                 </div>
@@ -296,18 +298,20 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
 
               <button
                 type="button"
-                onClick={() => setUseRalph(!useRalph)}
+                onClick={() => { if (!planOnly) setUseRalph(!useRalph); }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
-                  useRalph
-                    ? 'bg-accent-green/10 border-accent-green/30'
-                    : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                  planOnly
+                    ? 'opacity-40 cursor-not-allowed bg-surface-900 border-surface-600'
+                    : useRalph
+                      ? 'bg-accent-green/10 border-accent-green/30'
+                      : 'bg-surface-900 border-surface-600 hover:border-surface-500'
                 }`}
-                title="Iterative self-improving loop until criteria met."
+                title={planOnly ? "Disabled — plan-only doesn't need iterative refinement." : 'Iterative self-improving loop until criteria met.'}
               >
-                <RefreshCw className={`w-4 h-4 shrink-0 ${useRalph ? 'text-accent-green' : 'text-slate-500'}`} />
-                <span className={`text-xs font-medium ${useRalph ? 'text-accent-green' : 'text-slate-300'}`}>Ralph Loop</span>
+                <RefreshCw className={`w-4 h-4 shrink-0 ${planOnly ? 'text-slate-600' : useRalph ? 'text-accent-green' : 'text-slate-500'}`} />
+                <span className={`text-xs font-medium ${planOnly ? 'text-slate-600' : useRalph ? 'text-accent-green' : 'text-slate-300'}`}>Ralph Loop</span>
                 <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
-                  useRalph ? 'bg-accent-green justify-end' : 'bg-surface-600 justify-start'
+                  planOnly ? 'bg-surface-700 justify-start' : useRalph ? 'bg-accent-green justify-end' : 'bg-surface-600 justify-start'
                 }`}>
                   <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
                 </div>
@@ -315,18 +319,20 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
 
               <button
                 type="button"
-                onClick={() => setUseTeam(!useTeam)}
+                onClick={() => { if (!planOnly) setUseTeam(!useTeam); }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
-                  useTeam
-                    ? 'bg-accent-blue/10 border-accent-blue/30'
-                    : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                  planOnly
+                    ? 'opacity-40 cursor-not-allowed bg-surface-900 border-surface-600'
+                    : useTeam
+                      ? 'bg-accent-blue/10 border-accent-blue/30'
+                      : 'bg-surface-900 border-surface-600 hover:border-surface-500'
                 }`}
-                title="Agent spawns a team of sub-agents for heavy-lifting tasks."
+                title={planOnly ? "Disabled — plan-only doesn't benefit from team mode." : 'Agent spawns a team of sub-agents for heavy-lifting tasks.'}
               >
-                <Users className={`w-4 h-4 shrink-0 ${useTeam ? 'text-accent-blue' : 'text-slate-500'}`} />
-                <span className={`text-xs font-medium ${useTeam ? 'text-accent-blue' : 'text-slate-300'}`}>Team</span>
+                <Users className={`w-4 h-4 shrink-0 ${planOnly ? 'text-slate-600' : useTeam ? 'text-accent-blue' : 'text-slate-500'}`} />
+                <span className={`text-xs font-medium ${planOnly ? 'text-slate-600' : useTeam ? 'text-accent-blue' : 'text-slate-300'}`}>Team</span>
                 <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
-                  useTeam ? 'bg-accent-blue justify-end' : 'bg-surface-600 justify-start'
+                  planOnly ? 'bg-surface-700 justify-start' : useTeam ? 'bg-accent-blue justify-end' : 'bg-surface-600 justify-start'
                 }`}>
                   <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
                 </div>
@@ -334,7 +340,15 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
 
               <button
                 type="button"
-                onClick={() => setPlanOnly(!planOnly)}
+                onClick={() => {
+                  const next = !planOnly;
+                  setPlanOnly(next);
+                  if (next) {
+                    setAutoMerge(false);
+                    setUseTeam(false);
+                    setUseRalph(false);
+                  }
+                }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
                   planOnly
                     ? 'bg-accent-cyan/10 border-accent-cyan/30'
