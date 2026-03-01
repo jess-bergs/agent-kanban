@@ -105,6 +105,19 @@ export async function attemptMerge(ticket: Ticket): Promise<void> {
       c.conclusion === 'FAILURE' || c.conclusion === 'ERROR' || c.conclusion === 'TIMED_OUT'
     );
 
+    // Gate: don't merge while auditor is still running or has requested changes
+    const freshTicket = await getTicket(ticket.id);
+    const auditStatus = freshTicket?.auditStatus;
+    const auditVerdict = freshTicket?.auditVerdict;
+    if (auditStatus === 'running' || auditStatus === 'pending') {
+      console.log(`[merge] Ticket #${ticket.id} audit still ${auditStatus} — deferring merge`);
+      return;
+    }
+    if (auditVerdict === 'request_changes') {
+      console.log(`[merge] Ticket #${ticket.id} audit requested changes — skipping merge`);
+      return;
+    }
+
     if (pr.mergeable === 'MERGEABLE' && checksPassed) {
       console.log(`[merge] Merging PR for ticket #${ticket.id}: ${ticket.prUrl}`);
       execSync(
@@ -1059,6 +1072,19 @@ async function checkAutoMerge(ticket: Ticket) {
     const checksPassed = checks.length === 0 ||
       checks.every(c => c.conclusion === 'SUCCESS' || c.conclusion === 'NEUTRAL' || c.conclusion === 'SKIPPED');
     const isMergeable = pr.mergeable === 'MERGEABLE';
+
+    // Gate: don't merge while auditor is still running or has requested changes
+    const freshTicket = await getTicket(ticket.id);
+    const auditStatus = freshTicket?.auditStatus;
+    const auditVerdict = freshTicket?.auditVerdict;
+    if (auditStatus === 'running' || auditStatus === 'pending') {
+      console.log(`[auto-merge] Ticket #${ticket.id} audit still ${auditStatus} — deferring`);
+      return;
+    }
+    if (auditVerdict === 'request_changes') {
+      console.log(`[auto-merge] Ticket #${ticket.id} audit requested changes — skipping`);
+      return;
+    }
 
     if (!reviewBlocking && checksPassed && isMergeable) {
       console.log(`[auto-merge] Merging PR for ticket #${ticket.id}: ${ticket.prUrl}`);
