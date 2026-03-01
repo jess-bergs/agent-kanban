@@ -28,14 +28,18 @@ import {
 } from 'lucide-react';
 import type { Ticket, TicketStatus, Project, AgentActivity, StateChangeEntry } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount, shortenUuids } from '../types';
+import { safeStatus, analyzeTicketCompat } from '../lib/ticketCompat';
 
-import { XCircle, GitMerge, AlertTriangle, StopCircle, History, Users } from 'lucide-react';
+
+import { XCircle, GitMerge, AlertTriangle, StopCircle, History, Users, ClipboardCheck, Archive} from 'lucide-react';
+
 
 const STATE_REASON_LABELS: Record<string, string> = {
   ticket_created: 'Created',
   agent_started: 'Agent started',
   agent_completed: 'Agent completed',
   agent_failed: 'Agent failed',
+  signal_exit: 'Agent stopped (signal)',
   user_abort: 'Aborted by user',
   user_retry: 'Retried by user',
   user_action: 'Manual update',
@@ -47,6 +51,10 @@ const STATE_REASON_LABELS: Record<string, string> = {
   worktree_setup_failed: 'Worktree setup failed',
   orphan_recovery: 'Orphan recovery',
   auto_retry: 'Auto-retried (server restart)',
+  audit_requested_changes: 'Auditor requested changes',
+  conflict_resolution_dispatched: 'Conflict resolution dispatched',
+  automation_budget_exhausted: 'Automation budget exhausted',
+  ci_checks_failed: 'CI checks failed',
 };
 
 const STATUS_STYLE: Record<TicketStatus, { bg: string; text: string; icon: typeof Clock }> = {
@@ -93,8 +101,9 @@ function ActivityLabel({ entry }: { entry: AgentActivity }) {
 }
 
 export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModalProps) {
-  const style = STATUS_STYLE[ticket.status];
+  const style = STATUS_STYLE[safeStatus(ticket.status)];
   const StatusIcon = style.icon;
+  const compat = analyzeTicketCompat(ticket);
   const isAgentActive = ticket.status === 'in_progress' || ticket.status === 'needs_approval';
   const [acting, setActing] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
@@ -289,6 +298,58 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 </p>
                 <p className="text-xs text-slate-400">
                   This agent is not running in YOLO mode and needs you to approve a tool call in the terminal.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Audit verdict banner */}
+          {ticket.auditVerdict && (
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg ${
+              ticket.auditVerdict === 'approve'
+                ? 'bg-accent-green/5 border border-accent-green/20'
+                : ticket.auditVerdict === 'request_changes'
+                  ? 'bg-accent-orange/5 border border-accent-orange/20'
+                  : 'bg-accent-cyan/5 border border-accent-cyan/20'
+            }`}>
+              <ClipboardCheck className={`w-5 h-5 shrink-0 ${
+                ticket.auditVerdict === 'approve'
+                  ? 'text-accent-green'
+                  : ticket.auditVerdict === 'request_changes'
+                    ? 'text-accent-orange'
+                    : 'text-accent-cyan'
+              }`} />
+              <div className="flex-1">
+                <p className={`text-sm font-medium ${
+                  ticket.auditVerdict === 'approve'
+                    ? 'text-accent-green'
+                    : ticket.auditVerdict === 'request_changes'
+                      ? 'text-accent-orange'
+                      : 'text-accent-cyan'
+                }`}>
+                  {ticket.auditVerdict === 'approve' && 'Audit: Approved'}
+                  {ticket.auditVerdict === 'request_changes' && 'Audit: Changes Requested'}
+                  {ticket.auditVerdict === 'comment' && 'Audit: Reviewed with Comments'}
+                </p>
+                {ticket.auditResult && (
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {ticket.auditResult}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Audit in progress */}
+          {ticket.auditStatus === 'running' && !ticket.auditVerdict && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent-purple/5 border border-accent-purple/20">
+              <Loader2 className="w-5 h-5 text-accent-purple animate-spin shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-accent-purple">
+                  Audit in Progress
+                </p>
+                <p className="text-xs text-slate-400">
+                  The PR auditor is reviewing this pull request.
                 </p>
               </div>
             </div>
@@ -600,7 +661,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 {showStateLog && (
                   <div className="space-y-0 bg-surface-900 rounded-lg p-2 border border-surface-700">
                     {ticket.stateLog.map((entry, idx) => {
-                      const entryStyle = STATUS_STYLE[entry.status];
+                      const entryStyle = STATUS_STYLE[safeStatus(entry.status)];
                       const EntryIcon = entryStyle.icon;
                       const prevEntry = idx > 0 ? ticket.stateLog![idx - 1] : null;
                       const elapsed = prevEntry ? entry.timestamp - prevEntry.timestamp : null;
@@ -637,6 +698,34 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                     })}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Legacy ticket info */}
+          {!compat.isFullyModern && (
+            <div className="flex items-start gap-3 text-xs">
+              <Archive className="w-4 h-4 text-slate-600 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-slate-500 mb-1">
+                  Generation {compat.generation} ticket
+                </p>
+                <div className="text-slate-600 space-y-0.5">
+                  {compat.missingFeatures.includes('stateLog') && (
+                    <p>No state history — created before status tracking was added.</p>
+                  )}
+                  {compat.missingFeatures.includes('effort') && (
+                    <p>No effort metrics — completed before agent metrics were added.</p>
+                  )}
+                  {compat.missingFeatures.includes('uuidId') && (
+                    <p>Uses legacy numeric ID format.</p>
+                  )}
+                  {compat.hasUnknownStatus && (
+                    <p className="text-accent-amber">
+                      Unknown status value "{ticket.status}" — displaying as Error.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           )}

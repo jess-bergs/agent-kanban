@@ -174,6 +174,10 @@ server.tool(
       completedAt: undefined,
       lastOutput: undefined,
       agentPid: undefined,
+      agentSessionId: undefined,
+      resumePrompt: undefined,
+      automationIteration: undefined,
+      postAgentAction: undefined,
     });
     if (!ticket) return { content: [{ type: 'text', text: 'Ticket not found' }], isError: true };
     return { content: [{ type: 'text', text: JSON.stringify(ticket, null, 2) }] };
