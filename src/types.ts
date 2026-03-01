@@ -183,6 +183,9 @@ export interface Ticket {
   queued?: boolean;
   useRalph?: boolean;
   useTeam?: boolean;
+  planOnly?: boolean;
+  /** Mini summary extracted from plan-report.md after plan-only mode completes */
+  planSummary?: string;
   branchName?: string;
   worktreePath?: string;
   prUrl?: string;

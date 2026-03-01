@@ -5,6 +5,7 @@ import {
   Brain,
   Clock,
   ExternalLink,
+  FileSearch,
   GitMerge,
   GitPullRequest,
   Images,
@@ -91,6 +92,12 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             TEAM
           </span>
         )}
+        {ticket.planOnly && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded shrink-0">
+            <FileSearch className="w-3 h-3" />
+            PLAN
+          </span>
+        )}
         {ticket.images && ticket.images.length > 0 && (
           <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-surface-600/40 px-1.5 py-0.5 rounded shrink-0">
             <Images className="w-3 h-3" />
@@ -112,6 +119,14 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         <p className="text-xs text-slate-400 mt-1 line-clamp-2">
           {ticket.instructions}
         </p>
+      )}
+
+      {/* Plan summary from plan-report.md */}
+      {ticket.planSummary && (
+        <div className="mt-2 bg-accent-cyan/5 border border-accent-cyan/20 rounded px-2 py-1.5">
+          <p className="text-[10px] font-medium text-accent-cyan mb-0.5">Plan Summary</p>
+          <p className="text-xs text-slate-300 line-clamp-3">{ticket.planSummary}</p>
+        </div>
       )}
 
       {/* Needs approval — waiting for human in terminal */}
