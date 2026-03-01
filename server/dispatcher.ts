@@ -27,7 +27,10 @@ const abortedTickets = new Set<string>();
 const lastAutoMergeCheck = new Map<string, number>();
 /** Tracks the last auto-merge "not ready" reason per ticket to avoid duplicate logs */
 const autoMergeLastState = new Map<string, string>();
+/** Tracks consecutive not-ready checks per ticket for exponential backoff */
+const autoMergeNotReadyCount = new Map<string, number>();
 const AUTO_MERGE_CHECK_INTERVAL_MS = 30_000; // 30 seconds between checks per ticket
+const AUTO_MERGE_MAX_INTERVAL_MS = 5 * 60_000; // 5 minutes max backoff
 
 type BroadcastFn = (event: WSEvent) => void;
 let broadcastFn: BroadcastFn = () => {};
@@ -1007,12 +1010,14 @@ async function checkAutoMerge(ticket: Ticket) {
       if (merged) await broadcastTicket(merged);
       lastAutoMergeCheck.delete(ticket.id);
       autoMergeLastState.delete(ticket.id);
+      autoMergeNotReadyCount.delete(ticket.id);
       console.log(`[auto-merge] Ticket #${ticket.id} PR already merged`);
       return;
     }
     if (pr.state === 'CLOSED') {
       lastAutoMergeCheck.delete(ticket.id);
       autoMergeLastState.delete(ticket.id);
+      autoMergeNotReadyCount.delete(ticket.id);
       return;
     }
 
@@ -1036,16 +1041,22 @@ async function checkAutoMerge(ticket: Ticket) {
       if (merged) await broadcastTicket(merged);
       lastAutoMergeCheck.delete(ticket.id);
       autoMergeLastState.delete(ticket.id);
+      autoMergeNotReadyCount.delete(ticket.id);
       console.log(`[auto-merge] Ticket #${ticket.id} merged successfully`);
     } else if (!reviewBlocking && checksPassed && !isMergeable && pr.mergeable !== 'CONFLICTING') {
       // Branch is likely BEHIND — try to update it
+      autoMergeNotReadyCount.delete(ticket.id);
       await updatePrBranch(ticket, project);
     } else {
-      // Only log when the reason changes to avoid flooding the console
+      // Only log when the reason changes to avoid flooding the console;
+      // increment not-ready count for exponential backoff
       const reason = `reviewBlocking=${reviewBlocking}, checksPassed=${checksPassed}, isMergeable=${isMergeable}`;
       if (autoMergeLastState.get(ticket.id) !== reason) {
         autoMergeLastState.set(ticket.id, reason);
+        autoMergeNotReadyCount.set(ticket.id, 1);
         console.log(`[auto-merge] Ticket #${ticket.id} not ready — ${reason}`);
+      } else {
+        autoMergeNotReadyCount.set(ticket.id, (autoMergeNotReadyCount.get(ticket.id) || 0) + 1);
       }
     }
   } catch (err) {
@@ -1160,11 +1171,17 @@ export async function dispatcherTick() {
     // Check if PR has been merged externally
     await checkPrStatus(ticket);
 
-    // Auto-merge: only check tickets with autoMerge enabled, throttled to avoid
-    // hammering the GitHub API every tick (every 3s → once per 30s per ticket)
+    // Auto-merge: only check tickets with autoMerge enabled, with exponential
+    // backoff to avoid hammering the GitHub API for tickets that aren't ready
     if (ticket.autoMerge) {
       const lastCheck = lastAutoMergeCheck.get(ticket.id) || 0;
-      if (now - lastCheck >= AUTO_MERGE_CHECK_INTERVAL_MS) {
+      const notReadyCount = autoMergeNotReadyCount.get(ticket.id) || 0;
+      // Backoff: 30s base, doubling each consecutive not-ready, capped at 5min
+      const interval = Math.min(
+        AUTO_MERGE_CHECK_INTERVAL_MS * Math.pow(2, notReadyCount),
+        AUTO_MERGE_MAX_INTERVAL_MS,
+      );
+      if (now - lastCheck >= interval) {
         const fresh = await getTicket(ticket.id);
         if (fresh && fresh.status === 'in_review') {
           lastAutoMergeCheck.set(ticket.id, now);
