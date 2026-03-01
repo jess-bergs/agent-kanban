@@ -144,7 +144,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         {ticket.status === 'in_review' && ticket.auditStatus === 'running' && (
           <span className="flex items-center gap-1 text-[10px] font-medium text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded">
             <Loader2 className="w-3 h-3 animate-spin" />
-            AUDITING
+            REVIEWING
           </span>
         )}
         {ticket.effort && ticket.effort.turns > 0 && (
@@ -190,7 +190,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         </div>
       )}
 
-      {/* Audit in progress — PR being reviewed */}
+      {/* Review in progress — PR being reviewed */}
       {ticket.status === 'in_review' && ticket.auditStatus === 'running' && !ticket.auditVerdict && (
         <div className="mt-2 space-y-1.5">
           <div className="flex items-center gap-1.5">
@@ -200,7 +200,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         </div>
       )}
 
-      {/* Audit verdict — needs human review */}
+      {/* Review verdict — needs human review */}
       {ticket.status === 'in_review' && ticket.auditVerdict === 'request_changes' && (
         <div className="mt-2 space-y-1.5">
           <div className="flex items-center gap-1.5">
