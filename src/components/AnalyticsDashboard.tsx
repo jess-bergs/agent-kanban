@@ -19,6 +19,8 @@ import {
   AlertCircle,
   Zap,
   Eye,
+  Target,
+  BarChart3,
 } from 'lucide-react';
 import { formatDuration, formatTokenCount } from '../types';
 import type { AuditReport, AuditRubricScore, AuditFinding, SeverityCounts as SeverityCountsType } from '../types';
@@ -459,17 +461,89 @@ function ReportsView() {
     );
   }
 
+  // ── Aggregate stats across all completed reports ──
+  const stats = computeReportStats(runs);
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* Summary stat cards */}
+      <div className="grid grid-cols-4 gap-4">
+        <StatCard
+          label="Avg Score"
+          value={stats.avgScore.toFixed(1)}
+          sub={`${runs.length} report${runs.length !== 1 ? 's' : ''}`}
+          icon={<Target className="w-4 h-4" />}
+          color={stats.avgScore >= 8 ? 'green' : stats.avgScore >= 5 ? 'amber' : 'red'}
+        />
+        <StatCard
+          label="Needs Attention"
+          value={stats.needsAttention}
+          sub={stats.needsAttention > 0 ? `${stats.criticalFindings}C ${stats.highFindings}H findings` : 'All clear'}
+          icon={<AlertTriangle className="w-4 h-4" />}
+          color={stats.needsAttention > 0 ? 'red' : 'green'}
+        />
+        <StatCard
+          label="Total Findings"
+          value={stats.totalFindings}
+          sub={`${stats.criticalFindings + stats.highFindings} critical/high`}
+          icon={<BarChart3 className="w-4 h-4" />}
+          color={stats.criticalFindings > 0 ? 'red' : stats.highFindings > 0 ? 'amber' : 'cyan'}
+        />
+        <StatCard
+          label="Trend"
+          value={stats.improvingCount > stats.decliningCount ? 'Improving' : stats.decliningCount > stats.improvingCount ? 'Declining' : 'Stable'}
+          sub={`${stats.improvingCount}↑ ${stats.decliningCount}↓ ${stats.stableCount}→`}
+          icon={stats.improvingCount > stats.decliningCount
+            ? <TrendingUp className="w-4 h-4" />
+            : stats.decliningCount > stats.improvingCount
+            ? <TrendingDown className="w-4 h-4" />
+            : <Minus className="w-4 h-4" />}
+          color={stats.improvingCount > stats.decliningCount ? 'green' : stats.decliningCount > stats.improvingCount ? 'red' : 'cyan'}
+        />
+      </div>
+
+      {/* Score distribution bar */}
+      {runs.length > 1 && (
+        <div className="bg-surface-800 rounded-xl border border-surface-600 p-4">
+          <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-3">Score Distribution</h3>
+          <div className="flex items-end gap-1 h-16">
+            {stats.scoreBuckets.map((count, i) => {
+              const maxCount = Math.max(...stats.scoreBuckets, 1);
+              const height = count > 0 ? Math.max((count / maxCount) * 100, 8) : 0;
+              const bucketColor = i >= 8 ? 'bg-accent-green' : i >= 5 ? 'bg-accent-amber' : 'bg-accent-red';
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="w-full flex flex-col items-center justify-end" style={{ height: '48px' }}>
+                    {count > 0 && (
+                      <span className="text-[9px] text-slate-500 mb-0.5">{count}</span>
+                    )}
+                    <div
+                      className={`w-full rounded-sm ${bucketColor} ${count === 0 ? 'opacity-10' : 'opacity-70'}`}
+                      style={{ height: `${height}%`, minHeight: count > 0 ? '4px' : '2px' }}
+                    />
+                  </div>
+                  <span className="text-[9px] text-slate-600">{i}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Report cards */}
+      <div className="space-y-3">
       {runs.map(run => {
         const report = run.structuredReport!;
         const schedule = scheduleMap.get(run.scheduleId);
         const isExpanded = expandedRunId === run.id;
+        const isAttention = stats.attentionRunIds.has(run.id);
 
         return (
           <div
             key={run.id}
-            className="bg-surface-800 rounded-xl border border-surface-600 overflow-hidden"
+            className={`bg-surface-800 rounded-xl border overflow-hidden ${
+              isAttention ? 'border-accent-red/40' : 'border-surface-600'
+            }`}
           >
             {/* Report header row — clickable */}
             <button
@@ -654,8 +728,63 @@ function ReportsView() {
           </div>
         );
       })}
+      </div>
     </div>
   );
+}
+
+/** Compute aggregate statistics from completed report runs */
+function computeReportStats(runs: AuditRunEntry[]) {
+  let totalScore = 0;
+  let totalFindings = 0;
+  let criticalFindings = 0;
+  let highFindings = 0;
+  let improvingCount = 0;
+  let decliningCount = 0;
+  let stableCount = 0;
+  // Score buckets 0-10 (index = integer score)
+  const scoreBuckets = new Array(11).fill(0);
+  const attentionRunIds = new Set<string>();
+
+  for (const run of runs) {
+    const report = run.structuredReport!;
+    totalScore += report.overallScore;
+    totalFindings += report.findings.length;
+
+    const sev = run.severityCounts || report.severityCounts;
+    if (sev) {
+      criticalFindings += sev.critical;
+      highFindings += sev.high;
+    }
+
+    if (run.trend) {
+      if (run.trend.direction === 'improving') improvingCount++;
+      else if (run.trend.direction === 'declining') decliningCount++;
+      else stableCount++;
+    }
+
+    const bucketIdx = Math.min(10, Math.max(0, Math.floor(report.overallScore)));
+    scoreBuckets[bucketIdx]++;
+
+    // Flag for attention: score < 5, or has critical/high findings
+    const hasCriticalOrHigh = (sev?.critical || 0) > 0 || (sev?.high || 0) > 0;
+    if (report.overallScore < 5 || hasCriticalOrHigh) {
+      attentionRunIds.add(run.id);
+    }
+  }
+
+  return {
+    avgScore: runs.length > 0 ? totalScore / runs.length : 0,
+    totalFindings,
+    criticalFindings,
+    highFindings,
+    needsAttention: attentionRunIds.size,
+    improvingCount,
+    decliningCount,
+    stableCount,
+    scoreBuckets,
+    attentionRunIds,
+  };
 }
 
 /** Small circular score indicator */
