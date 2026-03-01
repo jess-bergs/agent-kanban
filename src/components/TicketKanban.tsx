@@ -1,12 +1,14 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Search, X } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { ChevronDown, Plus, Search, X } from 'lucide-react';
 import type { Ticket, TicketStatus, Project } from '../types';
 import { TICKET_STATUS_LABELS } from '../types';
+import { safeStatus } from '../lib/ticketCompat';
 import { TicketCard } from './TicketCard';
 import { TicketDetailModal } from './TicketDetailModal';
 import { CreateTicketModal } from './CreateTicketModal';
 
 const COLUMNS: TicketStatus[] = ['todo', 'in_progress', 'needs_approval', 'in_review', 'done', 'failed', 'error'];
+const PAGE_SIZE = 10;
 
 const COLUMN_STYLES: Record<TicketStatus, { header: string; badge: string }> = {
   todo: {
@@ -54,7 +56,20 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [visibleCount, setVisibleCount] = useState<Partial<Record<TicketStatus, number>>>({});
   const searchRef = useRef<HTMLInputElement>(null);
+
+  const getVisibleCount = useCallback(
+    (status: TicketStatus) => visibleCount[status] ?? PAGE_SIZE,
+    [visibleCount],
+  );
+
+  const showMore = useCallback((status: TicketStatus) => {
+    setVisibleCount(prev => ({
+      ...prev,
+      [status]: (prev[status] ?? PAGE_SIZE) + PAGE_SIZE,
+    }));
+  }, []);
 
   // Cmd+N / Ctrl+N to open the create ticket modal
   // Cmd+K / Ctrl+K to focus search
@@ -111,9 +126,10 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
   };
 
   for (const ticket of filteredTickets) {
-    if (ticket.status in grouped) {
-      // Fold merged tickets into the done column
-      const bucket = ticket.status === 'merged' ? 'done' : ticket.status;
+    const effective = safeStatus(ticket.status);
+    // Fold merged tickets into the done column
+    const bucket = effective === 'merged' ? 'done' : effective;
+    if (bucket in grouped) {
       grouped[bucket].push(ticket);
     }
   }
@@ -160,6 +176,9 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
         {visibleColumns.map(status => {
           const style = COLUMN_STYLES[status];
           const columnTickets = grouped[status];
+          const limit = getVisibleCount(status);
+          const visibleTickets = columnTickets.slice(0, limit);
+          const hiddenCount = columnTickets.length - visibleTickets.length;
 
           return (
             <div key={status} className="bg-surface-800 rounded-xl flex flex-col min-h-0">
@@ -200,13 +219,24 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
                     )}
                   </div>
                 ) : (
-                  columnTickets.map(ticket => (
-                    <TicketCard
-                      key={ticket.id}
-                      ticket={ticket}
-                      onClick={setSelectedTicket}
-                    />
-                  ))
+                  <>
+                    {visibleTickets.map(ticket => (
+                      <TicketCard
+                        key={ticket.id}
+                        ticket={ticket}
+                        onClick={setSelectedTicket}
+                      />
+                    ))}
+                    {hiddenCount > 0 && (
+                      <button
+                        onClick={() => showMore(status)}
+                        className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-surface-600/40 rounded-lg transition-colors"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                        Show more ({hiddenCount} older)
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>

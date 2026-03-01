@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Send, Zap, GitMerge, Clock, RefreshCw, Users, ImagePlus } from 'lucide-react';
+import { X, Send, Zap, GitMerge, Clock, RefreshCw, Users, ImagePlus, FileSearch } from 'lucide-react';
 import type { Project } from '../types';
 
 interface PendingImage {
@@ -24,9 +24,11 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
   const [queued, setQueued] = useState(false);
   const [useRalph, setUseRalph] = useState(false);
   const [useTeam, setUseTeam] = useState(false);
+  const [planOnly, setPlanOnly] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [images, setImages] = useState<PendingImage[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const addFiles = useCallback((files: FileList | File[]) => {
     for (const file of Array.from(files)) {
@@ -65,6 +67,10 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        formRef.current?.requestSubmit();
+      }
     }
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
@@ -88,6 +94,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
           queued,
           useRalph,
           useTeam,
+          planOnly,
         }),
       });
       if (!res.ok) return;
@@ -140,7 +147,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+        <form ref={formRef} onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1.5">
               Title
@@ -324,6 +331,25 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
                   <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
                 </div>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setPlanOnly(!planOnly)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
+                  planOnly
+                    ? 'bg-accent-cyan/10 border-accent-cyan/30'
+                    : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                }`}
+                title="Investigation only — agent produces a plan-report.md instead of code changes."
+              >
+                <FileSearch className={`w-4 h-4 shrink-0 ${planOnly ? 'text-accent-cyan' : 'text-slate-500'}`} />
+                <span className={`text-xs font-medium ${planOnly ? 'text-accent-cyan' : 'text-slate-300'}`}>Plan Only</span>
+                <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
+                  planOnly ? 'bg-accent-cyan justify-end' : 'bg-surface-600 justify-start'
+                }`}>
+                  <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
+                </div>
+              </button>
             </div>
           </div>
 
@@ -346,6 +372,9 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
             >
               {yolo ? <Zap className="w-4 h-4" /> : <Send className="w-4 h-4" />}
               {submitting ? 'Creating...' : yolo ? 'YOLO & Dispatch' : 'Create & Dispatch'}
+              <kbd className="hidden sm:inline-flex items-center gap-0.5 ml-1.5 text-[10px] opacity-60 font-sans">
+                <span>⌘</span><span>↵</span>
+              </kbd>
             </button>
           </div>
         </form>

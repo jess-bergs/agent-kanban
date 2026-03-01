@@ -1,6 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { getProject, getTicket, updateTicket, listTickets, getImagesDir } from './store.ts';
 import { captureAndUploadScreenshots } from './screenshots.ts';
 import { runAudit } from './auditor.ts';
@@ -10,6 +13,7 @@ import { envWithNvmNode } from './nvm.ts';
 
 const MAX_CONCURRENT = 5;
 const MAX_AUTO_RETRIES = 2;
+const MAX_AUTOMATION_ITERATIONS = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
 const APPROVAL_WAIT_THRESHOLD_MS = 15_000; // 15s without tool_result = likely waiting for approval
 const running = new Map<string, ChildProcess>();
@@ -39,6 +43,211 @@ async function broadcastTicket(ticket: Ticket) {
   broadcastFn({ type: 'ticket_updated', data: ticket });
 }
 
+// ─── Active Merge + Conflict Resolution ─────────────────────────
+
+/**
+ * Parse "owner/repo" from a GitHub remote URL (HTTPS or SSH).
+ */
+function parseOwnerRepo(remoteUrl: string): string | null {
+  const httpsMatch = remoteUrl.match(/github\.com\/([^/]+\/[^/.]+)/);
+  const sshMatch = remoteUrl.match(/github\.com:([^/]+\/[^/.]+)/);
+  const repo = (httpsMatch?.[1] || sshMatch?.[1])?.replace(/\.git$/, '');
+  return repo || null;
+}
+
+/**
+ * Attempt to merge a PR for a ticket. Handles MERGEABLE, BEHIND, CONFLICTING states.
+ */
+export async function attemptMerge(ticket: Ticket): Promise<void> {
+  if (!ticket.prUrl || !ticket.prNumber) return;
+
+  const project = await getProject(ticket.projectId);
+  if (!project) return;
+
+  try {
+    const prJson = execSync(
+      `gh pr view "${ticket.prUrl}" --json state,mergeable,reviewDecision,statusCheckRollup`,
+      { cwd: project.repoPath, encoding: 'utf-8', timeout: 15000 },
+    ).trim();
+
+    const pr: {
+      state: string;
+      mergeable: string;
+      reviewDecision: string;
+      statusCheckRollup: { state: string }[];
+    } = JSON.parse(prJson);
+
+    if (pr.state === 'MERGED') {
+      const merged = await updateTicket(ticket.id, { status: 'merged', hasConflict: false }, 'pr_merged');
+      if (merged) await broadcastTicket(merged);
+      console.log(`[merge] Ticket #${ticket.id} PR already merged`);
+      return;
+    }
+    if (pr.state === 'CLOSED') return;
+
+    const checks = pr.statusCheckRollup || [];
+    const checksPassed = checks.length === 0 || checks.every(c => c.state === 'SUCCESS');
+    const checksFailed = checks.some(c => c.state === 'FAILURE' || c.state === 'ERROR');
+
+    if (pr.mergeable === 'MERGEABLE' && checksPassed) {
+      console.log(`[merge] Merging PR for ticket #${ticket.id}: ${ticket.prUrl}`);
+      execSync(
+        `gh pr merge "${ticket.prUrl}" --squash --delete-branch`,
+        { cwd: project.repoPath, encoding: 'utf-8', timeout: 30000 },
+      );
+      const merged = await updateTicket(ticket.id, { status: 'merged', hasConflict: false }, 'auto_merged');
+      if (merged) await broadcastTicket(merged);
+      console.log(`[merge] Ticket #${ticket.id} merged successfully`);
+      return;
+    }
+
+    if (pr.mergeable === 'UNKNOWN') {
+      console.log(`[merge] Ticket #${ticket.id} mergeable=UNKNOWN, will retry on next tick`);
+      return;
+    }
+
+    if (checksFailed) {
+      console.log(`[merge] Ticket #${ticket.id} CI checks failed`);
+      const failed = await updateTicket(ticket.id, {
+        status: 'failed',
+        error: 'CI checks failed on PR',
+        failureReason: { type: 'other', detail: 'ci_checks_failed' },
+        completedAt: Date.now(),
+      }, 'ci_checks_failed');
+      if (failed) await broadcastTicket(failed);
+      return;
+    }
+
+    if (pr.mergeable === 'CONFLICTING') {
+      await dispatchConflictResolution(ticket, project);
+      return;
+    }
+
+    // BEHIND or checks still pending — try branch update, let poller retry
+    if (!checksPassed && !checksFailed) {
+      console.log(`[merge] Ticket #${ticket.id} checks still pending, will retry on next tick`);
+      return;
+    }
+
+    await updatePrBranch(ticket, project);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[merge] Error for ticket #${ticket.id}: ${msg}`);
+  }
+}
+
+/**
+ * Update PR branch via GitHub API (for when branch is behind base).
+ */
+async function updatePrBranch(ticket: Ticket, project: { repoPath: string; remoteUrl?: string }): Promise<void> {
+  if (!ticket.prNumber || !project.remoteUrl) return;
+
+  const ownerRepo = parseOwnerRepo(project.remoteUrl);
+  if (!ownerRepo) return;
+
+  try {
+    console.log(`[merge] Updating branch for PR #${ticket.prNumber} on ${ownerRepo}`);
+    execSync(
+      `gh api -X PUT repos/${ownerRepo}/pulls/${ticket.prNumber}/update-branch`,
+      { cwd: project.repoPath, encoding: 'utf-8', timeout: 15000 },
+    );
+    console.log(`[merge] Branch update requested for ticket #${ticket.id}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[merge] Branch update failed for ticket #${ticket.id}: ${msg}`);
+  }
+}
+
+/**
+ * Dispatch an agent to resolve merge conflicts on the PR branch.
+ */
+async function dispatchConflictResolution(ticket: Ticket, project: { repoPath: string; defaultBranch: string }): Promise<void> {
+  const iteration = ticket.automationIteration || 0;
+
+  if (iteration >= MAX_AUTOMATION_ITERATIONS) {
+    console.log(`[merge] Ticket #${ticket.id} conflict resolution exceeded automation budget (${iteration}/${MAX_AUTOMATION_ITERATIONS})`);
+    const failed = await updateTicket(ticket.id, {
+      status: 'failed',
+      error: `Automation budget exhausted after ${iteration} iterations (conflict resolution)`,
+      failureReason: { type: 'automation_budget_exhausted', iterations: iteration },
+      completedAt: Date.now(),
+    }, 'automation_budget_exhausted');
+    if (failed) await broadcastTicket(failed);
+    return;
+  }
+
+  const conflictPrompt = [
+    `The PR branch has merge conflicts with ${project.defaultBranch}.`,
+    '',
+    'Please resolve the conflicts:',
+    `1. Merge the base branch: git merge origin/${project.defaultBranch}`,
+    '2. Resolve any conflicts in the affected files',
+    '3. Stage the resolved files and commit',
+    '4. Push the updated branch',
+    '',
+    'Do NOT create a new PR — push to the existing branch.',
+  ].join('\n');
+
+  console.log(`[merge] Dispatching conflict resolution for ticket #${ticket.id} (iteration: ${iteration + 1})`);
+  const updated = await updateTicket(ticket.id, {
+    status: 'todo',
+    error: undefined,
+    failureReason: undefined,
+    completedAt: undefined,
+    agentPid: undefined,
+    lastOutput: undefined,
+    hasConflict: true,
+    resumePrompt: conflictPrompt,
+    automationIteration: iteration + 1,
+    postAgentAction: 'merge',
+  }, 'conflict_resolution_dispatched');
+  if (updated) await broadcastTicket(updated);
+}
+
+/**
+ * Discover the Claude Code session ID from JSONL files in the projects directory.
+ * Claude stores sessions at ~/.claude/projects/{slug}/{session-id}.jsonl
+ * where slug = worktreePath with '/' replaced by '-' and leading '/' stripped, prefixed with '-'.
+ */
+function discoverSessionId(worktreePath: string): string | null {
+  try {
+    const slug = worktreePath.replace(/^\//, '').replace(/\//g, '-');
+    const dir = join(homedir(), '.claude', 'projects', `-${slug}`);
+
+    let files: string[];
+    try {
+      files = readdirSync(dir).filter(f => f.endsWith('.jsonl'));
+    } catch {
+      return null; // directory doesn't exist
+    }
+
+    if (files.length === 0) return null;
+
+    // Find most recently modified JSONL file
+    let newest: { file: string; mtime: number } | null = null;
+    for (const file of files) {
+      const fullPath = join(dir, file);
+      const st = statSync(fullPath);
+      if (!newest || st.mtimeMs > newest.mtime) {
+        newest = { file: fullPath, mtime: st.mtimeMs };
+      }
+    }
+
+    if (!newest) return null;
+
+    // Read first line to extract sessionId from metadata
+    const content = readFileSync(newest.file, 'utf-8');
+    const firstLine = content.split('\n')[0];
+    if (!firstLine) return null;
+
+    const metadata = JSON.parse(firstLine);
+    return metadata.sessionId || null;
+  } catch (err) {
+    console.error(`[dispatcher] Failed to discover session ID for ${worktreePath}:`, err);
+    return null;
+  }
+}
+
 async function startAgent(ticket: Ticket) {
   const project = await getProject(ticket.projectId);
   if (!project) {
@@ -50,7 +259,9 @@ async function startAgent(ticket: Ticket) {
     return;
   }
 
-  const branchName = `agent/ticket-${ticket.id}-${slugify(ticket.subject)}`;
+  // Resume mode: reuse existing branch if the auditor requested changes
+  const isResume = !!(ticket.agentSessionId && ticket.branchName && ticket.resumePrompt);
+  const branchName = isResume ? ticket.branchName! : `agent/ticket-${ticket.id}-${slugify(ticket.subject)}`;
   const worktreePath = `/tmp/agent-kanban-worktrees/${branchName.replace(/\//g, '-')}`;
 
   // Check if repo has any commits
@@ -91,35 +302,52 @@ async function startAgent(ticket: Ticket) {
         });
       } catch { /* worktree may not exist */ }
 
-      // Try to delete the branch if it exists from a previous run
-      try {
-        execSync(`git branch -D "${branchName}"`, {
-          cwd: project.repoPath,
-          stdio: 'ignore',
-        });
-      } catch { /* branch may not exist */ }
-
-      // Determine the best base ref
-      let baseRef = `origin/${project.defaultBranch}`;
-      try {
-        execSync(`git rev-parse --verify "${baseRef}"`, {
-          cwd: project.repoPath, stdio: 'ignore',
-        });
-      } catch {
+      if (isResume) {
+        // Resume: create worktree from existing remote branch
+        console.log(`[dispatcher] Resume mode: creating worktree from origin/${branchName}`);
         try {
-          execSync(`git rev-parse --verify "${project.defaultBranch}"`, {
+          // Delete stale local branch if it exists
+          execSync(`git branch -D "${branchName}"`, {
             cwd: project.repoPath, stdio: 'ignore',
           });
-          baseRef = project.defaultBranch;
+        } catch { /* branch may not exist locally */ }
+
+        execSync(
+          `git worktree add "${worktreePath}" "origin/${branchName}"`,
+          { cwd: project.repoPath, stdio: 'ignore' },
+        );
+      } else {
+        // Fresh: create new branch from default branch
+        try {
+          execSync(`git branch -D "${branchName}"`, {
+            cwd: project.repoPath,
+            stdio: 'ignore',
+          });
+        } catch { /* branch may not exist */ }
+
+        // Determine the best base ref
+        let baseRef = `origin/${project.defaultBranch}`;
+        try {
+          execSync(`git rev-parse --verify "${baseRef}"`, {
+            cwd: project.repoPath, stdio: 'ignore',
+          });
         } catch {
-          baseRef = 'HEAD';
+          try {
+            execSync(`git rev-parse --verify "${project.defaultBranch}"`, {
+              cwd: project.repoPath, stdio: 'ignore',
+            });
+            baseRef = project.defaultBranch;
+          } catch {
+            baseRef = 'HEAD';
+          }
         }
+
+        execSync(
+          `git worktree add "${worktreePath}" -b "${branchName}" "${baseRef}"`,
+          { cwd: project.repoPath, stdio: 'ignore' },
+        );
       }
 
-      execSync(
-        `git worktree add "${worktreePath}" -b "${branchName}" "${baseRef}"`,
-        { cwd: project.repoPath, stdio: 'ignore' },
-      );
       agentCwd = worktreePath;
       useWorktree = true;
     } catch (err) {
@@ -160,22 +388,56 @@ async function startAgent(ticket: Ticket) {
 
   taskLines.push(ticket.instructions, '', '---');
 
-  // Investigation-first instructions for all dispatched agents
-  taskLines.push(
-    '## Investigation-First Approach',
-    '',
-    'Before writing ANY code, you MUST thoroughly investigate the relevant parts of the codebase:',
-    '',
-    '1. **Understand the context** — Read CLAUDE.md, AGENTS.md, and any referenced docs to learn project conventions, architecture, and patterns.',
-    '2. **Trace the existing code** — Find and read ALL files related to the feature or bug. Follow imports, check call sites, and understand how data flows through the system.',
-    '3. **Identify the scope** — Map out every file that will need changes. Look for related tests, types, documentation, and downstream consumers.',
-    '4. **Check for prior art** — Search for similar patterns already in the codebase. Match existing conventions rather than inventing new ones.',
-    '5. **Form a plan** — Only after understanding the full picture, decide on your approach. If the change is non-trivial, outline what you will do before doing it.',
-    '',
-    'Do NOT skip investigation. Jumping straight to code leads to incomplete fixes, missed edge cases, and inconsistent patterns.',
-    '',
-    '---',
-  );
+  if (ticket.planOnly) {
+    // Plan-only mode: investigate and produce a report, no code changes
+    taskLines.push(
+      '## Plan-Only Mode (Investigation & Report)',
+      '',
+      'You are in PLAN-ONLY mode. Do NOT write any code or make any implementation changes.',
+      'Your job is to thoroughly investigate the codebase and produce a detailed report.',
+      '',
+      '### Investigation Steps',
+      '',
+      '1. **Understand the context** — Read CLAUDE.md, AGENTS.md, and any referenced docs to learn project conventions, architecture, and patterns.',
+      '2. **Trace the existing code** — Find and read ALL files related to the topic. Follow imports, check call sites, and understand how data flows through the system.',
+      '3. **Identify the scope** — Map out every file that would need changes. Look for related tests, types, documentation, and downstream consumers.',
+      '4. **Check for prior art** — Search for similar patterns already in the codebase. Note existing conventions and utilities.',
+      '5. **Assess risks and trade-offs** — Identify potential pitfalls, edge cases, breaking changes, and architectural implications.',
+      '',
+      '### Report Requirements',
+      '',
+      'After your investigation, write a comprehensive report as a Markdown file named `plan-report.md` in the root of the repository. The report MUST include:',
+      '',
+      '- **Summary** — One-paragraph overview of the investigation topic.',
+      '- **Relevant Files** — List of all files examined with brief descriptions of their role.',
+      '- **Current Architecture** — How the relevant parts of the system currently work.',
+      '- **Proposed Approach** — Detailed plan for how to implement the requested changes, broken into steps.',
+      '- **Files to Modify** — Specific files that would need changes, with a description of what changes are needed in each.',
+      '- **Risks & Edge Cases** — Potential issues, breaking changes, and things to watch out for.',
+      '- **Open Questions** — Any ambiguities or decisions that need human input before implementation.',
+      '',
+      'Do NOT implement any code changes. Only investigate and write the report.',
+      '',
+      '---',
+    );
+  } else {
+    // Standard investigation-first instructions for all dispatched agents
+    taskLines.push(
+      '## Investigation-First Approach',
+      '',
+      'Before writing ANY code, you MUST thoroughly investigate the relevant parts of the codebase:',
+      '',
+      '1. **Understand the context** — Read CLAUDE.md, AGENTS.md, and any referenced docs to learn project conventions, architecture, and patterns.',
+      '2. **Trace the existing code** — Find and read ALL files related to the feature or bug. Follow imports, check call sites, and understand how data flows through the system.',
+      '3. **Identify the scope** — Map out every file that will need changes. Look for related tests, types, documentation, and downstream consumers.',
+      '4. **Check for prior art** — Search for similar patterns already in the codebase. Match existing conventions rather than inventing new ones.',
+      '5. **Form a plan** — Only after understanding the full picture, decide on your approach. If the change is non-trivial, outline what you will do before doing it.',
+      '',
+      'Do NOT skip investigation. Jumping straight to code leads to incomplete fixes, missed edge cases, and inconsistent patterns.',
+      '',
+      '---',
+    );
+  }
 
   if (useWorktree) {
     taskLines.push(
@@ -210,6 +472,9 @@ async function startAgent(ticket: Ticket) {
   const taskDescription = taskLines.join('\n');
 
   console.log(`[dispatcher] Starting agent for ticket #${ticket.id}: ${ticket.subject}`);
+  if (ticket.planOnly) {
+    console.log(`[dispatcher] Plan-only mode enabled (investigation & report only)`);
+  }
   if (ticket.useTeam) {
     console.log(`[dispatcher] Team mode enabled (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1)`);
   }
@@ -226,7 +491,14 @@ async function startAgent(ticket: Ticket) {
     prompt = taskDescription;
   }
 
-  const args = ['-p', prompt, '--output-format', 'stream-json', '--verbose'];
+  let args: string[];
+  if (isResume && ticket.agentSessionId) {
+    // Resume existing session with auditor feedback
+    console.log(`[dispatcher] Resuming session ${ticket.agentSessionId} with review feedback`);
+    args = ['--resume', ticket.agentSessionId, '-p', ticket.resumePrompt!, '--output-format', 'stream-json', '--verbose'];
+  } else {
+    args = ['-p', prompt, '--output-format', 'stream-json', '--verbose'];
+  }
   if (ticket.yolo) {
     args.push('--dangerously-skip-permissions');
   }
@@ -455,32 +727,69 @@ async function startAgent(ticket: Ticket) {
       return;
     }
 
+    // Read the current ticket to check for existing prUrl (preserve on resume)
+    const preUpdateTicket = await getTicket(ticket.id);
+
     let prUrl: string | undefined;
     let prNumber: number | undefined;
 
-    const prUrlMatch = fullText.match(
-      /https:\/\/github\.com\/[^\s]+\/pull\/(\d+)/,
-    );
-    if (prUrlMatch) {
-      prUrl = prUrlMatch[0];
-      prNumber = parseInt(prUrlMatch[1], 10);
-    }
+    // Preserve existing PR info on resume — agent shouldn't clobber it
+    if (preUpdateTicket?.prUrl) {
+      prUrl = preUpdateTicket.prUrl;
+      prNumber = preUpdateTicket.prNumber;
+    } else {
+      const prUrlMatch = fullText.match(
+        /https:\/\/github\.com\/[^\s]+\/pull\/(\d+)/,
+      );
+      if (prUrlMatch) {
+        prUrl = prUrlMatch[0];
+        prNumber = parseInt(prUrlMatch[1], 10);
+      }
 
-    if (!prUrl) {
-      try {
-        const ghResult = execSync(
-          `gh pr list --head "${branchName}" --json url,number --jq '.[0]'`,
-          { cwd: agentCwd, encoding: 'utf-8', timeout: 10000 },
-        ).trim();
-        if (ghResult) {
-          const parsed = JSON.parse(ghResult);
-          prUrl = parsed.url;
-          prNumber = parsed.number;
+      if (!prUrl) {
+        try {
+          const ghResult = execSync(
+            `gh pr list --head "${branchName}" --json url,number --jq '.[0]'`,
+            { cwd: agentCwd, encoding: 'utf-8', timeout: 10000 },
+          ).trim();
+          if (ghResult) {
+            const parsed = JSON.parse(ghResult);
+            prUrl = parsed.url;
+            prNumber = parsed.number;
+          }
+        } catch {
+          // no PR found
         }
-      } catch {
-        // no PR found
       }
     }
+
+    // Extract plan summary from plan-report.md for plan-only tickets
+    let planSummary: string | undefined;
+    if (ticket.planOnly) {
+      try {
+        const reportPath = join(agentCwd, 'plan-report.md');
+        const report = await readFile(reportPath, 'utf-8');
+        planSummary = extractPlanSummary(report);
+        if (planSummary) {
+          console.log(`[dispatcher] Extracted plan summary for ticket #${ticket.id}`);
+        }
+      } catch {
+        // plan-report.md may not exist if agent failed to create it
+      }
+    }
+
+    // Capture Claude Code session ID before worktree cleanup (JNSLs persist after cleanup)
+    let agentSessionId: string | undefined;
+    if (useWorktree) {
+      const sessionId = discoverSessionId(worktreePath);
+      if (sessionId) {
+        agentSessionId = sessionId;
+        console.log(`[dispatcher] Captured session ID ${sessionId} for ticket #${ticket.id}`);
+      }
+    }
+
+    // Read postAgentAction before clearing it (one-shot field)
+    const postAgentAction = preUpdateTicket?.postAgentAction;
 
     const reviewTicket = await updateTicket(ticket.id, {
       status: 'in_review',
@@ -492,12 +801,16 @@ async function startAgent(ticket: Ticket) {
       lastThinking: lastThinking || undefined,
       agentPid: undefined,
       effort: { ...effort },
+      ...(planSummary ? { planSummary } : {}),
+      agentSessionId,
+      postAgentAction: undefined, // Clear one-shot field
     }, 'agent_completed');
     if (reviewTicket) await broadcastTicket(reviewTicket);
 
     console.log(
       `[dispatcher] Ticket #${ticket.id} completed` +
-        (prUrl ? ` — PR: ${prUrl}` : ' (no PR detected)'),
+        (prUrl ? ` — PR: ${prUrl}` : ' (no PR detected)') +
+        (postAgentAction ? ` (postAgentAction: ${postAgentAction})` : ''),
     );
 
     // Ensure ticket ID is in the PR body for cross-referencing
@@ -520,13 +833,22 @@ async function startAgent(ticket: Ticket) {
 
     cleanupWorktree(project.repoPath, worktreePath);
 
-    // Run local auditor review on the PR (best-effort, non-blocking)
+    // Post-completion action: branch on postAgentAction
     if (prUrl) {
-      const auditTicket = await getTicket(ticket.id);
-      if (auditTicket) {
-        runAudit(auditTicket).catch(err => {
-          console.error(`[dispatcher] Auditor failed for ticket #${ticket.id}:`, err);
-        });
+      const freshTicket = await getTicket(ticket.id);
+      if (freshTicket) {
+        if (postAgentAction === 'merge') {
+          // After conflict resolution → straight to merge (skip auditor)
+          console.log(`[dispatcher] Post-action: attempting merge for ticket #${ticket.id}`);
+          attemptMerge(freshTicket).catch(err => {
+            console.error(`[dispatcher] Post-action merge failed for ticket #${ticket.id}:`, err);
+          });
+        } else {
+          // Default ('audit' or undefined) → run auditor
+          runAudit(freshTicket).catch(err => {
+            console.error(`[dispatcher] Auditor failed for ticket #${ticket.id}:`, err);
+          });
+        }
       }
     }
   });
@@ -541,6 +863,25 @@ function cleanupWorktree(repoPath: string, worktreePath: string) {
   } catch {
     // non-critical
   }
+}
+
+/**
+ * Extract a mini summary from a plan-report.md file.
+ * Looks for a "Summary" heading and returns its content (up to 500 chars).
+ */
+function extractPlanSummary(report: string): string | undefined {
+  // Match ## Summary or **Summary** heading and grab the content until the next heading
+  const match = report.match(/^##\s+Summary\b[^\n]*\n([\s\S]*?)(?=\n##\s|\n\*\*[A-Z]|$)/mi);
+  if (match) {
+    const summary = match[1].trim();
+    if (summary) return summary.slice(0, 500);
+  }
+  // Fallback: try the first non-heading paragraph
+  const lines = report.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+  if (lines.length > 0) {
+    return lines.slice(0, 3).join(' ').trim().slice(0, 500);
+  }
+  return undefined;
 }
 
 // ─── Ticket ID ↔ PR Cross-Referencing ───────────────────────────
@@ -676,6 +1017,9 @@ async function checkAutoMerge(ticket: Ticket) {
       const merged = await updateTicket(ticket.id, { status: 'merged' }, 'auto_merged');
       if (merged) await broadcastTicket(merged);
       console.log(`[auto-merge] Ticket #${ticket.id} merged successfully`);
+    } else if (!reviewBlocking && checksPassed && !isMergeable && pr.mergeable !== 'CONFLICTING') {
+      // Branch is likely BEHIND — try to update it
+      await updatePrBranch(ticket, project);
     } else {
       console.log(
         `[auto-merge] Ticket #${ticket.id} not ready — ` +
@@ -804,7 +1148,11 @@ export async function dispatcherTick() {
   }
 }
 
-/** Kill a running agent by ticket ID */
+/**
+ * Kill a running agent — for non-user-initiated stops (e.g., ticket deletion).
+ * The ticket is typically deleted right after, so the close handler's status update is a no-op.
+ * See also: abortAgent() for user-initiated aborts.
+ */
 export function killAgent(ticketId: string): boolean {
   const proc = running.get(ticketId);
   if (proc) {
@@ -817,7 +1165,11 @@ export function killAgent(ticketId: string): boolean {
   return false;
 }
 
-/** Abort a running agent — marks it as user-initiated so the close handler shows a friendly message */
+/**
+ * Abort a running agent — for explicit user-initiated aborts.
+ * The ticket persists as 'failed' with a user_abort failure reason.
+ * See also: killAgent() for non-user-initiated stops.
+ */
 export function abortAgent(ticketId: string): boolean {
   const proc = running.get(ticketId);
   if (proc) {

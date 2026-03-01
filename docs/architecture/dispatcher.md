@@ -157,9 +157,16 @@ After a PR is detected, three things happen in sequence:
 
 ## Abort & Recovery
 
-### Kill Agent
-`killAgent(ticketId)` sends SIGTERM to the running process and removes it from the `running`
-map. The process's `close` event handler updates the ticket status to `failed`.
+### Kill vs Abort
+
+Both `killAgent(ticketId)` and `abortAgent(ticketId)` send SIGTERM and add the ticket to
+`abortedTickets` so the close handler can distinguish intentional stops from crashes. Neither
+removes from `running` eagerly — cleanup is deferred to the close handler for consistency.
+
+- **`killAgent`** — non-user-initiated termination (e.g., ticket deletion). The ticket is
+  typically deleted immediately after, so the close handler's status update is a no-op.
+- **`abortAgent`** — explicit user abort. The ticket persists as `failed` with a `user_abort`
+  failure reason.
 
 ### Orphan Recovery
 On server startup, `recoverOrphanedTickets()` finds any `in_progress` tickets whose `agentPid`
