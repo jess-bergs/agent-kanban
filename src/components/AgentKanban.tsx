@@ -2,6 +2,20 @@ import { Bot, Monitor, Code2, Terminal, GitBranch, Clock, MessageSquare, Rocket,
 import type { SoloAgent, Ticket } from '../types';
 import { formatTimestamp, shortenUuids } from '../types';
 
+/** Extract a human-readable name from a dispatched agent's slug or branch.
+ *  Strips the `agent-ticket-{uuid}-` or `agent/ticket-{uuid}-` prefix. */
+function humanName(agent: SoloAgent, ticket?: Ticket): string {
+  // Best case: we have the ticket subject
+  if (ticket?.subject) return ticket.subject;
+
+  // Otherwise extract readable part from slug/branch
+  const raw = agent.slug || agent.gitBranch || agent.sessionId.slice(0, 8);
+  return raw
+    .replace(/^agent[-/]ticket-[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}-?/i, '')
+    .replace(/^agent[-/]ticket-[0-9a-f]{8,}-?/i, '')
+    .replace(/^-+|-+$/g, '') || raw;
+}
+
 interface AgentKanbanProps {
   agents: SoloAgent[];
   tickets: Ticket[];
@@ -28,7 +42,7 @@ function AgentCard({ agent, ticket, onNavigateToTicket }: {
 }) {
   const isActive = agent.status === 'active';
   const dispatched = isDispatched(agent);
-  const { label: srcLabel, icon: SrcIcon } = sourceLabel(agent.source);
+  const { label: srcLabel, icon: SrcIcon } = sourceLabel(dispatched ? 'dispatched' : agent.source);
 
   return (
     <div
@@ -56,7 +70,7 @@ function AgentCard({ agent, ticket, onNavigateToTicket }: {
             />
           )}
           <span className="font-medium text-sm text-slate-100 truncate">
-            {agent.slug || agent.sessionId.slice(0, 8)}
+            {dispatched ? humanName(agent, ticket) : (agent.slug || agent.sessionId.slice(0, 8))}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -78,7 +92,7 @@ function AgentCard({ agent, ticket, onNavigateToTicket }: {
       </div>
 
       <div className="mt-2 space-y-1 text-xs text-slate-400">
-        {agent.gitBranch && agent.gitBranch !== 'HEAD' && (
+        {agent.gitBranch && agent.gitBranch !== 'HEAD' && !(dispatched && ticket) && (
           <div className="flex items-center gap-1.5">
             <GitBranch className="w-3 h-3 text-accent-purple shrink-0" />
             <span className="font-mono truncate text-accent-purple">{shortenUuids(agent.gitBranch)}</span>

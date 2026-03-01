@@ -6,9 +6,9 @@ import {
   createProject,
   deleteProject,
   listTickets,
-  listTicketsByProject,
+  listTicketsFiltered,
   createTicket,
-  getTicket,
+  resolveTicket,
   updateTicket,
   deleteTicket,
   getProject,
@@ -73,13 +73,16 @@ server.tool(
 
 server.tool(
   'list_tickets',
-  'List tickets, optionally filtered by project',
-  { projectId: z.string().optional().describe('Filter by project UUID') },
-  async ({ projectId }) => {
-    const tickets = projectId
-      ? await listTicketsByProject(projectId)
-      : await listTickets();
-    return { content: [{ type: 'text', text: JSON.stringify(tickets, null, 2) }] };
+  'List tickets with optional filtering and pagination. Returns { tickets, total, limit, offset }.',
+  {
+    projectId: z.string().optional().describe('Filter by project UUID'),
+    status: z.enum(['todo', 'in_progress', 'needs_approval', 'in_review', 'done', 'merged', 'failed', 'error']).optional().describe('Filter by ticket status'),
+    limit: z.number().optional().describe('Max tickets to return (default 50)'),
+    offset: z.number().optional().describe('Number of tickets to skip (default 0)'),
+  },
+  async ({ projectId, status, limit, offset }) => {
+    const result = await listTicketsFiltered({ projectId, status, limit, offset });
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   },
 );
 
@@ -116,10 +119,10 @@ server.tool(
 
 server.tool(
   'get_ticket',
-  'Get a single ticket by ID',
-  { ticketId: z.string().describe('Ticket UUID') },
+  'Get a single ticket by ID or short prefix (minimum 4 characters)',
+  { ticketId: z.string().describe('Full ticket UUID or short prefix (min 4 chars)') },
   async ({ ticketId }) => {
-    const ticket = await getTicket(ticketId);
+    const ticket = await resolveTicket(ticketId);
     if (!ticket) return { content: [{ type: 'text', text: 'Ticket not found' }], isError: true };
     return { content: [{ type: 'text', text: JSON.stringify(ticket, null, 2) }] };
   },
@@ -150,21 +153,27 @@ server.tool(
 
 server.tool(
   'delete_ticket',
-  'Delete a ticket by ID',
-  { ticketId: z.string().describe('Ticket UUID') },
+  'Delete a ticket by ID or short prefix (minimum 4 characters)',
+  { ticketId: z.string().describe('Full ticket UUID or short prefix (min 4 chars)') },
   async ({ ticketId }) => {
-    const ok = await deleteTicket(ticketId);
-    if (!ok) return { content: [{ type: 'text', text: 'Ticket not found' }], isError: true };
-    return { content: [{ type: 'text', text: 'Ticket deleted' }] };
+    // Resolve prefix to full ID first
+    const ticket = await resolveTicket(ticketId);
+    if (!ticket) return { content: [{ type: 'text', text: 'Ticket not found' }], isError: true };
+    const ok = await deleteTicket(ticket.id);
+    if (!ok) return { content: [{ type: 'text', text: 'Failed to delete ticket' }], isError: true };
+    return { content: [{ type: 'text', text: `Ticket ${ticket.id} deleted` }] };
   },
 );
 
 server.tool(
   'retry_ticket',
   'Reset a failed/error ticket back to todo so the dispatcher picks it up again',
-  { ticketId: z.string().describe('Ticket UUID') },
+  { ticketId: z.string().describe('Full ticket UUID or short prefix (min 4 chars)') },
   async ({ ticketId }) => {
-    const ticket = await updateTicket(ticketId, {
+    // Resolve prefix to full ID
+    const resolved = await resolveTicket(ticketId);
+    if (!resolved) return { content: [{ type: 'text', text: 'Ticket not found' }], isError: true };
+    const ticket = await updateTicket(resolved.id, {
       status: 'todo',
       error: undefined,
       failureReason: undefined,
@@ -246,7 +255,7 @@ server.tool(
     name: z.string().describe('Display name for this schedule'),
     templateId: z.string().optional().describe('Built-in template ID (provides default prompt)'),
     prompt: z.string().optional().describe('Custom audit prompt (overrides template prompt)'),
-    cadence: z.enum(['daily', 'weekly', 'monthly', 'manual']).describe('How often to run'),
+    cadence: z.enum(['hourly', 'daily', 'weekly', 'monthly', 'manual']).describe('How often to run'),
     mode: z.enum(['report', 'fix']).describe('Report mode (read-only) or fix mode (creates PRs)'),
     yolo: z.boolean().default(true).optional().describe('Skip permissions in fix mode. Defaults to true.'),
     autoMerge: z.boolean().default(true).optional().describe('Auto-merge PRs in fix mode. Defaults to true.'),
@@ -302,7 +311,7 @@ server.tool(
   {
     scheduleId: z.string().describe('Schedule UUID'),
     name: z.string().optional().describe('Updated name'),
-    cadence: z.enum(['daily', 'weekly', 'monthly', 'manual']).optional().describe('Updated cadence'),
+    cadence: z.enum(['hourly', 'daily', 'weekly', 'monthly', 'manual']).optional().describe('Updated cadence'),
     mode: z.enum(['report', 'fix']).optional().describe('Updated mode'),
     status: z.enum(['active', 'paused']).optional().describe('Pause or resume the schedule'),
     prompt: z.string().optional().describe('Updated audit prompt'),

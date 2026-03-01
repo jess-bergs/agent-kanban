@@ -1,7 +1,7 @@
 import { readdir, readFile, writeFile, mkdir, rename, unlink as fsUnlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { Project, Ticket, TicketImage, StateChangeEntry } from '../src/types.ts';
+import type { Project, Ticket, TicketImage, TicketStatus, StateChangeEntry } from '../src/types.ts';
 
 const DATA_DIR = join(import.meta.dirname, '..', 'data');
 const PROJECTS_DIR = join(DATA_DIR, 'projects');
@@ -118,8 +118,56 @@ export async function listTicketsByProject(projectId: string): Promise<Ticket[]>
   return all.filter(t => t.projectId === projectId);
 }
 
+export interface ListTicketsFilteredOpts {
+  projectId?: string;
+  status?: TicketStatus;
+  limit?: number;
+  offset?: number;
+}
+
+export async function listTicketsFiltered(
+  opts: ListTicketsFilteredOpts,
+): Promise<{ tickets: Ticket[]; total: number }> {
+  let tickets = await listTickets();
+  if (opts.projectId) tickets = tickets.filter(t => t.projectId === opts.projectId);
+  if (opts.status) tickets = tickets.filter(t => t.status === opts.status);
+  // Sort newest first
+  tickets.sort((a, b) => b.createdAt - a.createdAt);
+  const total = tickets.length;
+  const offset = opts.offset ?? 0;
+  const limit = opts.limit ?? 50;
+  return { tickets: tickets.slice(offset, offset + limit), total };
+}
+
 export async function getTicket(id: string): Promise<Ticket | null> {
   return safeReadJson<Ticket>(join(TICKETS_DIR, `${id}.json`));
+}
+
+/**
+ * Find a ticket by UUID prefix (minimum 4 chars).
+ * Returns the ticket if exactly one match, null otherwise.
+ */
+export async function getTicketByPrefix(prefix: string): Promise<Ticket | null> {
+  if (prefix.length < 4) return null;
+  const lowerPrefix = prefix.toLowerCase();
+  await ensureDirs();
+  const entries = await readdir(TICKETS_DIR).catch(() => [] as string[]);
+  const matches = entries.filter(
+    e => e.endsWith('.json') && e.toLowerCase().startsWith(lowerPrefix),
+  );
+  if (matches.length !== 1) return null;
+  return safeReadJson<Ticket>(join(TICKETS_DIR, matches[0]));
+}
+
+/**
+ * Resolve a ticket ID — supports both full UUIDs and short prefixes.
+ */
+export async function resolveTicket(idOrPrefix: string): Promise<Ticket | null> {
+  // Try exact match first (full UUID = 36 chars)
+  const exact = await getTicket(idOrPrefix);
+  if (exact) return exact;
+  // Fall back to prefix search
+  return getTicketByPrefix(idOrPrefix);
 }
 
 export async function createTicket(data: {

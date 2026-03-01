@@ -20,6 +20,7 @@ export function computeNextRun(cadence: AuditCadence, lastRunAt: number | undefi
 
   const base = lastRunAt || Date.now();
   switch (cadence) {
+    case 'hourly':  return base + 60 * 60 * 1000;
     case 'daily':   return base + 24 * 60 * 60 * 1000;
     case 'weekly':  return base + 7 * 24 * 60 * 60 * 1000;
     case 'monthly': return base + 30 * 24 * 60 * 60 * 1000;

@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { execSync } from 'node:child_process';
@@ -685,6 +686,84 @@ app.get('/api/analytics', async (_req, res) => {
   }
 });
 
+// ─── Codebase Context for Chat ───────────────────────────────────
+
+/** Key files to read from each project repo for chat context */
+const CONTEXT_FILES = [
+  'CLAUDE.md',
+  'package.json',
+  'tsconfig.json',
+  'README.md',
+  '.env.example',
+  'Cargo.toml',
+  'pyproject.toml',
+  'go.mod',
+  'Makefile',
+  'docker-compose.yml',
+  'Dockerfile',
+];
+
+const TREE_IGNORE = new Set([
+  'node_modules', '.git', 'dist', 'build', '.next', '__pycache__',
+  '.venv', 'venv', 'target', '.turbo', '.cache', 'coverage',
+]);
+
+/** Build a shallow file tree (2 levels deep) for a directory */
+async function buildFileTree(dirPath: string, depth = 0, maxDepth = 2): Promise<string[]> {
+  if (depth >= maxDepth) return [];
+  const lines: string[] = [];
+  try {
+    const entries = await readdir(dirPath, { withFileTypes: true });
+    const sorted = entries
+      .filter(e => !e.name.startsWith('.') || e.name === '.env.example')
+      .filter(e => !TREE_IGNORE.has(e.name))
+      .sort((a, b) => {
+        if (a.isDirectory() && !b.isDirectory()) return -1;
+        if (!a.isDirectory() && b.isDirectory()) return 1;
+        return a.name.localeCompare(b.name);
+      });
+    for (const entry of sorted) {
+      const prefix = '  '.repeat(depth);
+      if (entry.isDirectory()) {
+        lines.push(`${prefix}${entry.name}/`);
+        const children = await buildFileTree(path.join(dirPath, entry.name), depth + 1, maxDepth);
+        lines.push(...children);
+      } else {
+        lines.push(`${prefix}${entry.name}`);
+      }
+    }
+  } catch { /* directory unreadable */ }
+  return lines;
+}
+
+/** Read key config/doc files from a project repo for chat context */
+async function gatherCodebaseContext(repoPath: string): Promise<string> {
+  const sections: string[] = [];
+
+  // File tree
+  const tree = await buildFileTree(repoPath);
+  if (tree.length > 0) {
+    sections.push(`### File Tree\n\`\`\`\n${tree.join('\n')}\n\`\`\``);
+  }
+
+  // Key files
+  for (const filename of CONTEXT_FILES) {
+    const filePath = path.join(repoPath, filename);
+    try {
+      const fileStat = await stat(filePath);
+      if (!fileStat.isFile() || fileStat.size > 50_000) continue;
+      const content = await readFile(filePath, 'utf-8');
+      // Truncate very long files to keep context manageable
+      const truncated = content.length > 4000
+        ? content.slice(0, 4000) + '\n... (truncated)'
+        : content;
+      sections.push(`### ${filename}\n\`\`\`\n${truncated}\n\`\`\``);
+    } catch { /* file doesn't exist */ }
+  }
+
+  return sections.join('\n\n');
+}
+
 // ─── Chat Bot API ────────────────────────────────────────────────
 
 app.post('/api/chat', async (req, res) => {
@@ -701,18 +780,27 @@ app.post('/api/chat', async (req, res) => {
   }
 
   try {
-    // Gather current dashboard state for context
+    // Gather current dashboard state and codebase context
     const [projectsData, teams, agents] = await Promise.all([
       getProjectsPayload(),
       getAllTeamsWithData(),
       detectSoloAgents(),
     ]);
 
+    // Gather codebase context from each project's repo
+    const codebaseContexts = await Promise.all(
+      projectsData.projects.map(async (p) => {
+        const ctx = await gatherCodebaseContext(p.repoPath);
+        return ctx ? `## ${p.name} (${p.repoPath})\n\n${ctx}` : '';
+      }),
+    );
+    const codebaseSection = codebaseContexts.filter(Boolean).join('\n\n---\n\n');
+
     const systemPrompt = `You are a helpful assistant embedded in the Agent Kanban dashboard — a real-time monitoring tool for Claude Code agents.
 
-You have access to the current state of projects, tickets, teams, and agents. Answer questions about them concisely.
+You have access to the current state of projects, tickets, teams, and agents, as well as key files from each project's codebase. You can answer questions about project configuration, code structure, dependencies, and setup.
 
-Current dashboard state:
+# Dashboard State
 
 ## Projects (${projectsData.projects.length})
 ${projectsData.projects.map(p => `- **${p.name}** (${p.repoPath}) — branch: ${p.defaultBranch}${p.remoteUrl ? `, remote: ${p.remoteUrl}` : ''}`).join('\n') || 'None'}
@@ -729,7 +817,11 @@ ${teams.map(t => `- **${t.name}**: ${t.members.length} members (${t.members.map(
 ## Solo Agents (${agents.length})
 ${agents.map(a => `- **${a.projectName}** (${a.source}, ${a.status}) — branch: ${a.gitBranch ?? 'N/A'}, model: ${a.model ?? 'unknown'}`).join('\n') || 'None'}
 
-Keep responses short and focused. Use markdown formatting.`;
+# Codebase Context
+
+${codebaseSection || 'No project codebases available.'}
+
+Keep responses short and focused. Use markdown formatting. When asked about configuration, dependencies, or project structure, refer to the codebase context above.`;
 
     const anthropicMessages = messages.map(m => ({
       role: m.role,
@@ -745,7 +837,7 @@ Keep responses short and focused. Use markdown formatting.`;
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
+        max_tokens: 2048,
         system: systemPrompt,
         messages: anthropicMessages,
       }),

@@ -21,6 +21,10 @@ const running = new Map<string, ChildProcess>();
 const lastStreamActivity = new Map<string, number>();
 /** Tracks whether the last emitted event was a tool_use without a matching tool_result */
 const pendingToolApproval = new Map<string, boolean>();
+/** Tracks whether the agent called an interactive tool (AskUserQuestion, EnterPlanMode) that needs user input */
+const pendingUserInput = new Map<string, boolean>();
+/** Tools that require user input regardless of yolo mode */
+const INTERACTIVE_TOOLS = new Set(['AskUserQuestion', 'EnterPlanMode']);
 /** Tracks ticket IDs that were explicitly aborted by the user (vs crashing) */
 const abortedTickets = new Set<string>();
 /** Tracks the last auto-merge check time per ticket to throttle gh CLI calls */
@@ -548,6 +552,7 @@ async function startAgent(ticket: Ticket) {
   running.set(ticket.id, proc);
   lastStreamActivity.set(ticket.id, Date.now());
   pendingToolApproval.set(ticket.id, false);
+  pendingUserInput.set(ticket.id, false);
 
   const pidUpdate = await updateTicket(ticket.id, { agentPid: proc.pid });
   if (pidUpdate) await broadcastTicket(pidUpdate);
@@ -633,6 +638,10 @@ async function startAgent(ticket: Ticket) {
             if (!ticket.yolo) {
               pendingToolApproval.set(ticket.id, true);
             }
+            // Interactive tools need user input regardless of yolo mode
+            if (INTERACTIVE_TOOLS.has(toolName)) {
+              pendingUserInput.set(ticket.id, true);
+            }
           } else if (block.type === 'tool_result') {
             const content = typeof block.content === 'string'
               ? block.content.slice(0, 150)
@@ -643,8 +652,9 @@ async function startAgent(ticket: Ticket) {
               timestamp: now,
             });
             // Tool result received — agent is no longer waiting for approval
-            if (pendingToolApproval.get(ticket.id)) {
+            if (pendingToolApproval.get(ticket.id) || pendingUserInput.get(ticket.id)) {
               pendingToolApproval.set(ticket.id, false);
+              pendingUserInput.set(ticket.id, false);
               // Transition back to in_progress if we were in needs_approval
               getTicket(ticket.id).then(t => {
                 if (t && t.status === 'needs_approval') {
@@ -708,6 +718,7 @@ async function startAgent(ticket: Ticket) {
     running.delete(ticket.id);
     lastStreamActivity.delete(ticket.id);
     pendingToolApproval.delete(ticket.id);
+    pendingUserInput.delete(ticket.id);
     const wasAborted = abortedTickets.delete(ticket.id);
     console.log(`[dispatcher] Agent for ticket #${ticket.id} exited with code ${code}${wasAborted ? ' (aborted by user)' : ''}`);
 
@@ -1167,18 +1178,20 @@ export async function dispatcherTick() {
     }
   }
 
-  // Check for non-YOLO agents that may be waiting for permission approval
+  // Check for agents that may be waiting for approval or user input
   const inProgressTickets = tickets.filter(
-    t => t.status === 'in_progress' && !t.yolo && running.has(t.id),
+    t => t.status === 'in_progress' && running.has(t.id),
   );
   const now = Date.now();
   for (const ticket of inProgressTickets) {
     const lastActivity = lastStreamActivity.get(ticket.id);
-    const hasPendingTool = pendingToolApproval.get(ticket.id);
-    if (hasPendingTool && lastActivity && (now - lastActivity) > APPROVAL_WAIT_THRESHOLD_MS) {
-      const updated = await updateTicket(ticket.id, { status: 'needs_approval' }, 'waiting_tool_approval');
+    const hasPendingTool = !ticket.yolo && pendingToolApproval.get(ticket.id);
+    const hasPendingInput = pendingUserInput.get(ticket.id);
+    if ((hasPendingTool || hasPendingInput) && lastActivity && (now - lastActivity) > APPROVAL_WAIT_THRESHOLD_MS) {
+      const reason = hasPendingInput ? 'waiting_user_input' : 'waiting_tool_approval';
+      const updated = await updateTicket(ticket.id, { status: 'needs_approval' }, reason);
       if (updated) await broadcastTicket(updated);
-      console.log(`[dispatcher] Ticket #${ticket.id} appears to be waiting for tool approval`);
+      console.log(`[dispatcher] Ticket #${ticket.id} appears to be waiting for ${hasPendingInput ? 'user input' : 'tool approval'}`);
     }
   }
 
