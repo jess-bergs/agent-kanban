@@ -292,7 +292,7 @@ export function AnalyticsDashboard() {
         {data.scheduler.recentRuns.length > 0 ? (
           <SchedulerTable runs={data.scheduler.recentRuns} />
         ) : (
-          <EmptySection message="No scheduled audit runs yet" />
+          <EmptySection message="No scheduled review runs yet" />
         )}
       </Section>
 
