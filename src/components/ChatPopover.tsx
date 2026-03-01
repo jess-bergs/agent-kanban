@@ -98,7 +98,7 @@ export function ChatPopover() {
           <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-700 shrink-0">
             <MessageCircle className="w-4 h-4 text-accent-blue" />
             <span className="text-sm font-semibold text-slate-100">Agent Kanban Chat</span>
-            <span className="text-[10px] text-slate-500 ml-auto">Ask about projects, tickets, agents</span>
+            <span className="text-[10px] text-slate-500 ml-auto">Ask about projects, code, config</span>
           </div>
 
           {/* Messages */}
@@ -106,7 +106,7 @@ export function ChatPopover() {
             {messages.length === 0 && (
               <div className="text-center text-xs text-slate-500 mt-8 space-y-2">
                 <MessageCircle className="w-8 h-8 mx-auto text-slate-600" />
-                <p>Ask me about your projects, tickets, or agents.</p>
+                <p>Ask me about your projects, code, or agents.</p>
                 <div className="space-y-1 text-[11px]">
                   <p className="text-slate-600">Try:</p>
                   <button
@@ -116,16 +116,22 @@ export function ChatPopover() {
                     "What tickets are in progress?"
                   </button>
                   <button
-                    onClick={() => setInput('Show me a summary of all projects')}
+                    onClick={() => setInput('What dependencies does this project use?')}
                     className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
                   >
-                    "Show me a summary of all projects"
+                    "What dependencies does this project use?"
                   </button>
                   <button
-                    onClick={() => setInput('Are any agents running right now?')}
+                    onClick={() => setInput('Show me the project structure')}
                     className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
                   >
-                    "Are any agents running right now?"
+                    "Show me the project structure"
+                  </button>
+                  <button
+                    onClick={() => setInput('What\'s in the CLAUDE.md config?')}
+                    className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
+                  >
+                    "What&apos;s in the CLAUDE.md config?"
                   </button>
                 </div>
               </div>
