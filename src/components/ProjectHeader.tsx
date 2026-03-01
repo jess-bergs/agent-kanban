@@ -9,7 +9,7 @@ interface ProjectHeaderProps {
 
 export function ProjectHeader({ project, tickets }: ProjectHeaderProps) {
   const inProgress = tickets.filter(t => t.status === 'in_progress').length;
-  const completed = tickets.filter(t => t.status === 'in_review' || t.status === 'merged').length;
+  const completed = tickets.filter(t => t.status === 'done' || t.status === 'merged').length;
   const total = tickets.length;
 
   return (
