@@ -101,7 +101,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         {ticket.useTeam && (
           <span className="flex items-center gap-1 text-[10px] font-medium text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded shrink-0">
             <Users className="w-3 h-3" />
-            TEAM
+            {ticket.teamName || 'TEAM'}
           </span>
         )}
         {ticket.planOnly && (

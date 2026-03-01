@@ -319,6 +319,7 @@ app.post('/api/tickets/:id/retry', async (req, res) => {
     failureReason: undefined,
     branchName: undefined,
     worktreePath: undefined,
+    teamName: undefined,
     startedAt: undefined,
     completedAt: undefined,
     lastOutput: undefined,

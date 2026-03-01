@@ -10,6 +10,7 @@ import {
   Code2,
   Trash2,
   BarChart3,
+  Loader2,
 } from 'lucide-react';
 import type { TeamWithData, Project, Ticket, SoloAgent } from '../types';
 import { formatTimestamp } from '../types';
@@ -288,11 +289,36 @@ export function Sidebar({
           </>
         ) : (
           <>
-            {teams.length === 0 && (
-              <p className="text-sm text-slate-500 px-2 py-4 text-center">
-                No active teams
-              </p>
-            )}
+            {(() => {
+              const pendingTeamTickets = tickets.filter(
+                t => t.useTeam && t.teamName && t.status === 'in_progress' && !teams.some(team => team.name === t.teamName)
+              );
+              return (
+                <>
+                  {teams.length === 0 && pendingTeamTickets.length === 0 && (
+                    <p className="text-sm text-slate-500 px-2 py-4 text-center">
+                      No active teams
+                    </p>
+                  )}
+                  {pendingTeamTickets.map(ticket => (
+                    <div key={`pending-${ticket.teamName}`} className="rounded-lg p-3 border border-dashed border-accent-blue/30 bg-accent-blue/5">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-3.5 h-3.5 text-accent-blue animate-spin" />
+                        <p className="font-medium text-sm text-accent-blue/70 truncate">
+                          {ticket.teamName}
+                        </p>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1 truncate">
+                        Waiting for agent to create team…
+                      </p>
+                      <p className="text-[10px] text-slate-600 mt-0.5 truncate">
+                        {ticket.subject}
+                      </p>
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
             {teams.map(team => {
               const isSelected = selectedTeam?.name === team.name;
               return (

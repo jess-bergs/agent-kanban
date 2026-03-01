@@ -197,6 +197,8 @@ export interface Ticket {
   queued?: boolean;
   useRalph?: boolean;
   useTeam?: boolean;
+  /** Deterministic team name derived from ticket ID, set at dispatch time */
+  teamName?: string;
   planOnly?: boolean;
   /** Mini summary extracted from plan-report.md after plan-only mode completes */
   planSummary?: string;

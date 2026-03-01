@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
@@ -86,6 +87,104 @@ async function loadWatchlist(): Promise<void> {
 async function saveWatchlist(): Promise<void> {
   await mkdir(DATA_DIR, { recursive: true });
   await writeFile(WATCHLIST_FILE, JSON.stringify(watchlist, null, 2));
+}
+
+// ─── PR Template Parsing & Cache ─────────────────────────────────
+
+interface CheckboxSection {
+  heading: string;
+  items: string[];
+  /** 'all' = every box must be checked; 'any' = at least one */
+  rule: 'all' | 'any';
+}
+
+interface TemplateRequirements {
+  /** Headings that must have non-placeholder content */
+  requiredSections: string[];
+  /** Checkbox groups extracted from the template */
+  checkboxSections: CheckboxSection[];
+  /** Compact one-line summary per section for the prompt */
+  compact: string;
+}
+
+interface TemplateCacheEntry {
+  hash: string;
+  requirements: TemplateRequirements;
+}
+
+const templateCache = new Map<string, TemplateCacheEntry>();
+
+/** Parse a PR template into compact requirements */
+function parseTemplateRequirements(raw: string): TemplateRequirements {
+  const lines = raw.split('\n');
+  const requiredSections: string[] = [];
+  const checkboxSections: CheckboxSection[] = [];
+  let currentHeading = '';
+  let currentCheckboxes: string[] = [];
+
+  function flushCheckboxes() {
+    if (currentHeading && currentCheckboxes.length > 0) {
+      // "Checklist" items must ALL be checked; others need at least one
+      const rule = currentHeading.toLowerCase() === 'checklist' ? 'all' as const : 'any' as const;
+      checkboxSections.push({ heading: currentHeading, items: [...currentCheckboxes], rule });
+      currentCheckboxes = [];
+    }
+  }
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^#{1,3}\s+(.+)/);
+    if (headingMatch) {
+      flushCheckboxes();
+      currentHeading = headingMatch[1].trim();
+      // Sections that need content (not just checkboxes)
+      if (['Description', 'Changes'].includes(currentHeading)) {
+        requiredSections.push(currentHeading);
+      }
+      continue;
+    }
+    const cbMatch = line.match(/^- \[[ x]\]\s+(.+)/);
+    if (cbMatch) {
+      currentCheckboxes.push(cbMatch[1].trim());
+    }
+  }
+  flushCheckboxes();
+
+  // Build compact summary
+  const parts: string[] = [];
+  for (const s of requiredSections) {
+    parts.push(`"${s}" must be filled in`);
+  }
+  for (const cb of checkboxSections) {
+    if (cb.rule === 'all') {
+      parts.push(`"${cb.heading}" — all ${cb.items.length} checkboxes must be [x]`);
+    } else {
+      parts.push(`"${cb.heading}" — at least 1 of ${cb.items.length} checkboxes must be [x]`);
+    }
+  }
+  const compact = parts.join('; ');
+
+  return { requiredSections, checkboxSections, compact };
+}
+
+/** Get cached template requirements, refreshing if the file changed */
+async function getTemplateRequirements(repoPath: string): Promise<TemplateRequirements | null> {
+  const templatePath = join(repoPath, '.github', 'pull_request_template.md');
+  let raw: string;
+  try {
+    raw = await readFile(templatePath, 'utf-8');
+  } catch {
+    templateCache.delete(repoPath);
+    return null;
+  }
+
+  const hash = createHash('sha256').update(raw).digest('hex').slice(0, 16);
+  const cached = templateCache.get(repoPath);
+  if (cached && cached.hash === hash) return cached.requirements;
+
+  const requirements = parseTemplateRequirements(raw);
+  templateCache.set(repoPath, { hash, requirements });
+  console.log(`[auditor] Template requirements updated for ${repoPath} (hash: ${hash})`);
+  return requirements;
 }
 
 // ─── Allowlist (derived from registered projects) ───────────────
@@ -243,7 +342,7 @@ async function readFileOrEmpty(path: string): Promise<string> {
   }
 }
 
-function buildReviewPrompt(entry: WatchlistEntry, conventions: string, prChecklist: string): string {
+function buildReviewPrompt(entry: WatchlistEntry, conventions: string, templateReqs: TemplateRequirements | null): string {
   return `You are a local PR auditor performing a structured code review.
 
 PR: ${entry.prUrl}
@@ -304,8 +403,8 @@ ${conventions ? `Check adherence to these project conventions:\n${conventions}` 
 - FAIL if: architecture docs are stale/incorrect due to changes in this PR, or the PR contradicts documented conventions
 
 ### 6. PR Checklist
-${prChecklist ? `Review against this PR template:\n${prChecklist}` : 'No PR template found — check for clear commit messages and focused changes.'}
-- FAIL if: PR template checkboxes exist but aren't filled in, or required sections are missing
+${templateReqs ? `The repo has a PR template. The PR body MUST satisfy these requirements:\n${templateReqs.compact}\n\n${templateReqs.checkboxSections.map(cb => `**${cb.heading}** (${cb.rule === 'all' ? 'ALL must be [x]' : 'at least 1 must be [x]'}):\n${cb.items.map(i => `  - ${i}`).join('\n')}`).join('\n')}\n\n${templateReqs.requiredSections.length > 0 ? `**Required text sections** (must not be empty/placeholder): ${templateReqs.requiredSections.join(', ')}` : ''}` : 'No PR template found — check for clear commit messages and focused changes.'}
+- FAIL if: PR body doesn't follow the repo's PR template structure, required checkbox sections are missing, checkboxes are left unchecked, or required sections are empty/placeholder-only
 
 ## Output Format
 
@@ -366,12 +465,12 @@ async function reviewPr(entry: WatchlistEntry): Promise<void> {
   console.log(`[auditor] Starting review for ${entry.prUrl} (review #${entry.reviewCount + 1})`);
 
   // Load project conventions
-  const prChecklist = await readFileOrEmpty(join(entry.repoPath, '.github', 'pull_request_template.md'));
+  const templateReqs = await getTemplateRequirements(entry.repoPath);
   const agentsMd = await readFileOrEmpty(join(entry.repoPath, 'AGENTS.md'));
   const claudeMd = await readFileOrEmpty(join(entry.repoPath, 'CLAUDE.md'));
   const conventions = [agentsMd, claudeMd].filter(Boolean).join('\n\n');
 
-  const prompt = buildReviewPrompt(entry, conventions, prChecklist);
+  const prompt = buildReviewPrompt(entry, conventions, templateReqs);
 
   const args = [
     '-p', prompt,
@@ -621,8 +720,19 @@ async function pollPr(entry: WatchlistEntry): Promise<void> {
   }
 }
 
+/** Refresh template caches for all unique repo paths on the active watchlist */
+async function refreshTemplateCache(): Promise<void> {
+  const repoPaths = new Set(watchlist.filter(e => !e.resolved).map(e => e.repoPath));
+  for (const repoPath of repoPaths) {
+    await getTemplateRequirements(repoPath);
+  }
+}
+
 /** Single tick of the polling loop — checks all active watchlist entries */
 export async function auditorTick(): Promise<void> {
+  // Refresh template caches (cheap — only re-parses if file hash changed)
+  await refreshTemplateCache();
+
   const active = watchlist.filter(e => !e.resolved && !e.reviewing);
   for (const entry of active) {
     await pollPr(entry);

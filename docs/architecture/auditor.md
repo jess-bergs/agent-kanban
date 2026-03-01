@@ -72,9 +72,21 @@ The agent always runs in YOLO mode (reviews are read-only analysis).
 Before spawning, the auditor reads project-level context files from the repo:
 - `AGENTS.md`
 - `CLAUDE.md`
-- `.github/pull_request_template.md`
+- `.github/pull_request_template.md` — parsed into compact requirements (see below)
 
 These are injected into the review prompt so the agent can check convention compliance.
+
+### PR Template Parsing
+
+The raw PR template is **not** passed verbatim into the review prompt. Instead, the auditor
+parses it into a `TemplateRequirements` object that extracts:
+- **Required text sections**: Headings like "Description" and "Changes" that must have content
+- **Checkbox sections**: Each group with its items and a rule (`all` = every box checked, `any` = at least one)
+- **Compact summary**: A one-line spec string used in the prompt
+
+The parsed result is cached per repo path with a content hash. Every poll tick calls
+`refreshTemplateCache()`, which re-reads the file and re-parses only if the hash changed.
+This keeps the review prompt focused and ensures the auditor always uses the latest template.
 
 ### Rubric
 

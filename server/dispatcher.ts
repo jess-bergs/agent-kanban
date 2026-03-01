@@ -268,6 +268,7 @@ async function startAgent(ticket: Ticket) {
   const isResume = !!(ticket.agentSessionId && ticket.branchName && ticket.resumePrompt);
   const branchName = isResume ? ticket.branchName! : `agent/ticket-${ticket.id}-${slugify(ticket.subject)}`;
   const worktreePath = `/tmp/agent-kanban-worktrees/${branchName.replace(/\//g, '-')}`;
+  const teamName = ticket.useTeam ? `ticket-${ticket.id.slice(0, 8)}` : undefined;
 
   // Check if repo has any commits
   let hasCommits = false;
@@ -287,6 +288,7 @@ async function startAgent(ticket: Ticket) {
       status: 'in_progress',
       branchName,
       worktreePath,
+      teamName,
       startedAt: Date.now(),
     }, 'agent_started');
     if (updated) await broadcastTicket(updated);
@@ -370,6 +372,7 @@ async function startAgent(ticket: Ticket) {
     agentCwd = project.repoPath;
     const updated = await updateTicket(ticket.id, {
       status: 'in_progress',
+      teamName,
       startedAt: Date.now(),
     }, 'agent_started');
     if (updated) await broadcastTicket(updated);
@@ -467,10 +470,14 @@ async function startAgent(ticket: Ticket) {
     );
   }
 
-  if (ticket.useTeam) {
+  if (ticket.useTeam && teamName) {
     taskLines.push(
       '',
-      'IMPORTANT: You should spawn a team of sub-agents to help you accomplish this task. Use the TeamCreate and Agent tools to coordinate parallel work across teammates. This is a heavy-lifting task that benefits from multiple agents working together.',
+      `IMPORTANT — Team Mode:`,
+      `Your FIRST action must be to create a team using TeamCreate with the team name "${teamName}".`,
+      `Then use the Task tool with team_name: "${teamName}" to spawn teammates and coordinate parallel work.`,
+      'This is a heavy-lifting task that benefits from multiple agents working together.',
+      `Do NOT use any other team name. The dashboard tracks this ticket by the team name "${teamName}".`,
     );
   }
 
