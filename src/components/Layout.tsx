@@ -176,7 +176,7 @@ export function Layout({
         )}
       </div>
 
-      <ChatPopover />
+      <ChatPopover projects={projects} />
     </div>
   );
 }

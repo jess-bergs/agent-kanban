@@ -17,6 +17,7 @@ import {
   listProjects,
   createProject,
   deleteProject,
+  getProject,
   listTickets,
   listTicketsByProject,
   createTicket,
@@ -708,6 +709,25 @@ const TREE_IGNORE = new Set([
   '.venv', 'venv', 'target', '.turbo', '.cache', 'coverage',
 ]);
 
+/** Patterns that should never be served to the chat context */
+const SENSITIVE_PATTERNS = [
+  /\.env$/i, /\.env\..*/i, /\.pem$/i, /\.key$/i, /\.p12$/i,
+  /credentials/i, /secrets?\.ya?ml$/i, /\.secret$/i,
+  /id_rsa/i, /id_ed25519/i, /\.pgpass$/i, /\.netrc$/i,
+];
+
+/** Check whether a file path is safe to read (not sensitive, within repo) */
+function isPathSafe(repoPath: string, filePath: string): boolean {
+  const resolved = path.resolve(repoPath, filePath);
+  // Must stay within the repo directory
+  if (!resolved.startsWith(path.resolve(repoPath) + path.sep) && resolved !== path.resolve(repoPath)) {
+    return false;
+  }
+  // Block sensitive patterns
+  const basename = path.basename(resolved);
+  return !SENSITIVE_PATTERNS.some(p => p.test(basename));
+}
+
 /** Build a shallow file tree (2 levels deep) for a directory */
 async function buildFileTree(dirPath: string, depth = 0, maxDepth = 2): Promise<string[]> {
   if (depth >= maxDepth) return [];
@@ -764,6 +784,98 @@ async function gatherCodebaseContext(repoPath: string): Promise<string> {
   return sections.join('\n\n');
 }
 
+// ─── Chat File Browser API ───────────────────────────────────────
+
+/** List files in a project directory (for chat file picker) */
+app.get('/api/chat/files', async (req, res) => {
+  const projectId = req.query.projectId as string;
+  const subPath = (req.query.path as string) || '';
+
+  if (!projectId) {
+    res.status(400).json({ error: 'projectId is required' });
+    return;
+  }
+
+  const project = await getProject(projectId);
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  const dirPath = path.resolve(project.repoPath, subPath);
+  // Ensure path stays within the repo
+  if (!dirPath.startsWith(path.resolve(project.repoPath))) {
+    res.status(403).json({ error: 'Path outside project' });
+    return;
+  }
+
+  try {
+    const entries = await readdir(dirPath, { withFileTypes: true });
+    const items: { name: string; path: string; type: 'file' | 'dir' }[] = [];
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') && entry.name !== '.env.example') continue;
+      if (TREE_IGNORE.has(entry.name)) continue;
+
+      const relPath = subPath ? `${subPath}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        items.push({ name: entry.name, path: relPath, type: 'dir' });
+      } else {
+        if (SENSITIVE_PATTERNS.some(p => p.test(entry.name))) continue;
+        items.push({ name: entry.name, path: relPath, type: 'file' });
+      }
+    }
+
+    items.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    res.json({ items, current: subPath || '/' });
+  } catch {
+    res.status(400).json({ error: 'Cannot read directory' });
+  }
+});
+
+/** Read a specific file from a project repo (for chat context) */
+app.get('/api/chat/file', async (req, res) => {
+  const projectId = req.query.projectId as string;
+  const filePath = req.query.path as string;
+
+  if (!projectId || !filePath) {
+    res.status(400).json({ error: 'projectId and path are required' });
+    return;
+  }
+
+  const project = await getProject(projectId);
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+
+  if (!isPathSafe(project.repoPath, filePath)) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+
+  const fullPath = path.resolve(project.repoPath, filePath);
+  try {
+    const fileStat = await stat(fullPath);
+    if (!fileStat.isFile()) {
+      res.status(400).json({ error: 'Not a file' });
+      return;
+    }
+    if (fileStat.size > 100_000) {
+      res.status(413).json({ error: 'File too large (>100KB)' });
+      return;
+    }
+    const content = await readFile(fullPath, 'utf-8');
+    res.json({ path: filePath, content });
+  } catch {
+    res.status(404).json({ error: 'File not found' });
+  }
+});
+
 // ─── Chat Bot API ────────────────────────────────────────────────
 
 app.post('/api/chat', async (req, res) => {
@@ -773,7 +885,11 @@ app.post('/api/chat', async (req, res) => {
     return;
   }
 
-  const { messages } = req.body as { messages: ChatMessage[] };
+  const { messages, projectId, filePaths } = req.body as {
+    messages: ChatMessage[];
+    projectId?: string;
+    filePaths?: string[];
+  };
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({ error: 'messages array is required' });
     return;
@@ -787,19 +903,56 @@ app.post('/api/chat', async (req, res) => {
       detectSoloAgents(),
     ]);
 
-    // Gather codebase context from each project's repo
-    const codebaseContexts = await Promise.all(
-      projectsData.projects.map(async (p) => {
-        const ctx = await gatherCodebaseContext(p.repoPath);
-        return ctx ? `## ${p.name} (${p.repoPath})\n\n${ctx}` : '';
-      }),
-    );
-    const codebaseSection = codebaseContexts.filter(Boolean).join('\n\n---\n\n');
+    // Gather codebase context — scoped to selected project if provided
+    let codebaseSection = '';
+    const selectedProject = projectId
+      ? projectsData.projects.find(p => p.id === projectId)
+      : null;
+
+    if (selectedProject) {
+      // Scoped: show only the selected project's context
+      const ctx = await gatherCodebaseContext(selectedProject.repoPath);
+      codebaseSection = ctx ? `## ${selectedProject.name} (${selectedProject.repoPath})\n\n${ctx}` : '';
+
+      // Append any explicitly requested file contents
+      if (filePaths && filePaths.length > 0) {
+        const fileContents: string[] = [];
+        for (const fp of filePaths.slice(0, 10)) { // cap at 10 files
+          if (!isPathSafe(selectedProject.repoPath, fp)) continue;
+          const fullPath = path.resolve(selectedProject.repoPath, fp);
+          try {
+            const fileStat = await stat(fullPath);
+            if (!fileStat.isFile() || fileStat.size > 100_000) continue;
+            const content = await readFile(fullPath, 'utf-8');
+            const truncated = content.length > 8000
+              ? content.slice(0, 8000) + '\n... (truncated)'
+              : content;
+            fileContents.push(`### ${fp}\n\`\`\`\n${truncated}\n\`\`\``);
+          } catch { /* skip unreadable files */ }
+        }
+        if (fileContents.length > 0) {
+          codebaseSection += '\n\n## Attached Files\n\n' + fileContents.join('\n\n');
+        }
+      }
+    } else {
+      // No project selected: show all projects (original behavior)
+      const codebaseContexts = await Promise.all(
+        projectsData.projects.map(async (p) => {
+          const ctx = await gatherCodebaseContext(p.repoPath);
+          return ctx ? `## ${p.name} (${p.repoPath})\n\n${ctx}` : '';
+        }),
+      );
+      codebaseSection = codebaseContexts.filter(Boolean).join('\n\n---\n\n');
+    }
+
+    const focusNote = selectedProject
+      ? `The user is currently focused on the **${selectedProject.name}** project. Answer questions in that context.`
+      : '';
 
     const systemPrompt = `You are a helpful assistant embedded in the Agent Kanban dashboard — a real-time monitoring tool for Claude Code agents.
 
 You have access to the current state of projects, tickets, teams, and agents, as well as key files from each project's codebase. You can answer questions about project configuration, code structure, dependencies, and setup.
-
+${focusNote ? `\n${focusNote}\n` : ''}
 # Dashboard State
 
 ## Projects (${projectsData.projects.length})

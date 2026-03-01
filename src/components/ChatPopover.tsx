@@ -1,14 +1,34 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
-import { MessageCircle, X, Send, Loader2 } from 'lucide-react';
-import type { ChatMessage } from '../types';
+import { MessageCircle, X, Send, Loader2, FolderOpen, File, ChevronRight, ChevronLeft, Paperclip } from 'lucide-react';
+import type { ChatMessage, Project } from '../types';
 
-export function ChatPopover() {
+interface FileItem {
+  name: string;
+  path: string;
+  type: 'file' | 'dir';
+}
+
+interface ChatPopoverProps {
+  projects: Project[];
+}
+
+export function ChatPopover({ projects }: ChatPopoverProps) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Project & file selection
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<string[]>([]);
+  const [showFilePicker, setShowFilePicker] = useState(false);
+  const [browseDir, setBrowseDir] = useState('');
+  const [browseItems, setBrowseItems] = useState<FileItem[]>([]);
+  const [browseLoading, setBrowseLoading] = useState(false);
+
+  const selectedProject = projects.find(p => p.id === selectedProjectId) ?? null;
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -19,10 +39,41 @@ export function ChatPopover() {
   }, [messages, scrollToBottom]);
 
   useEffect(() => {
-    if (open) {
+    if (open && !showFilePicker) {
       setTimeout(() => inputRef.current?.focus(), 150);
     }
-  }, [open]);
+  }, [open, showFilePicker]);
+
+  // Load file listing when browsing
+  useEffect(() => {
+    if (!showFilePicker || !selectedProjectId) return;
+    setBrowseLoading(true);
+    const params = new URLSearchParams({ projectId: selectedProjectId });
+    if (browseDir) params.set('path', browseDir);
+    fetch(`/api/chat/files?${params}`)
+      .then(r => r.json())
+      .then((data: { items: FileItem[] }) => setBrowseItems(data.items))
+      .catch(() => setBrowseItems([]))
+      .finally(() => setBrowseLoading(false));
+  }, [showFilePicker, selectedProjectId, browseDir]);
+
+  function handleProjectChange(id: string) {
+    setSelectedProjectId(id || null);
+    setAttachedFiles([]);
+    setBrowseDir('');
+  }
+
+  function toggleFile(filePath: string) {
+    setAttachedFiles(prev =>
+      prev.includes(filePath)
+        ? prev.filter(f => f !== filePath)
+        : prev.length < 10 ? [...prev, filePath] : prev
+    );
+  }
+
+  function removeFile(filePath: string) {
+    setAttachedFiles(prev => prev.filter(f => f !== filePath));
+  }
 
   async function handleSend() {
     const text = input.trim();
@@ -40,10 +91,14 @@ export function ChatPopover() {
     setLoading(true);
 
     try {
+      const body: Record<string, unknown> = { messages: updatedMessages };
+      if (selectedProjectId) body.projectId = selectedProjectId;
+      if (attachedFiles.length > 0) body.filePaths = attachedFiles;
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: updatedMessages }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -98,73 +153,190 @@ export function ChatPopover() {
           <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-700 shrink-0">
             <MessageCircle className="w-4 h-4 text-accent-blue" />
             <span className="text-sm font-semibold text-slate-100">Agent Kanban Chat</span>
-            <span className="text-[10px] text-slate-500 ml-auto">Ask about projects, code, config</span>
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
-            {messages.length === 0 && (
-              <div className="text-center text-xs text-slate-500 mt-8 space-y-2">
-                <MessageCircle className="w-8 h-8 mx-auto text-slate-600" />
-                <p>Ask me about your projects, code, or agents.</p>
-                <div className="space-y-1 text-[11px]">
-                  <p className="text-slate-600">Try:</p>
-                  <button
-                    onClick={() => setInput('What tickets are in progress?')}
-                    className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
-                  >
-                    "What tickets are in progress?"
-                  </button>
-                  <button
-                    onClick={() => setInput('What dependencies does this project use?')}
-                    className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
-                  >
-                    "What dependencies does this project use?"
-                  </button>
-                  <button
-                    onClick={() => setInput('Show me the project structure')}
-                    className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
-                  >
-                    "Show me the project structure"
-                  </button>
-                  <button
-                    onClick={() => setInput('What\'s in the CLAUDE.md config?')}
-                    className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
-                  >
-                    "What&apos;s in the CLAUDE.md config?"
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {messages.map((msg, i) => (
-              <div
-                key={i}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          {/* Project selector bar */}
+          <div className="px-3 py-2 border-b border-surface-700 shrink-0 flex items-center gap-2">
+            <FolderOpen className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <select
+              value={selectedProjectId ?? ''}
+              onChange={e => handleProjectChange(e.target.value)}
+              className="flex-1 bg-surface-900 border border-surface-600 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-accent-blue"
+            >
+              <option value="">All projects</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            {selectedProjectId && (
+              <button
+                onClick={() => { setShowFilePicker(!showFilePicker); setBrowseDir(''); }}
+                className={`p-1 rounded transition-colors ${
+                  showFilePicker
+                    ? 'bg-accent-blue/20 text-accent-blue'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-surface-700'
+                }`}
+                title="Attach files"
               >
-                <div
-                  className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'bg-accent-blue/20 text-slate-100'
-                      : 'bg-surface-700 text-slate-200'
-                  }`}
-                >
-                  <MessageContent content={msg.content} />
-                </div>
-              </div>
-            ))}
-
-            {loading && (
-              <div className="flex justify-start">
-                <div className="bg-surface-700 rounded-lg px-3 py-2 text-xs text-slate-400 flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Thinking...
-                </div>
-              </div>
+                <Paperclip className="w-3.5 h-3.5" />
+              </button>
             )}
-
-            <div ref={messagesEndRef} />
           </div>
+
+          {/* Attached files pills */}
+          {attachedFiles.length > 0 && (
+            <div className="px-3 py-1.5 border-b border-surface-700 shrink-0 flex flex-wrap gap-1">
+              {attachedFiles.map(f => (
+                <span
+                  key={f}
+                  className="inline-flex items-center gap-1 bg-accent-blue/15 text-accent-blue text-[10px] px-2 py-0.5 rounded-full"
+                >
+                  <File className="w-2.5 h-2.5" />
+                  {f.split('/').pop()}
+                  <button
+                    onClick={() => removeFile(f)}
+                    className="hover:text-white transition-colors"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* File picker overlay */}
+          {showFilePicker && selectedProjectId ? (
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="px-3 py-2 border-b border-surface-700 flex items-center gap-2 text-xs text-slate-400">
+                {browseDir && (
+                  <button
+                    onClick={() => {
+                      const parent = browseDir.includes('/')
+                        ? browseDir.slice(0, browseDir.lastIndexOf('/'))
+                        : '';
+                      setBrowseDir(parent);
+                    }}
+                    className="flex items-center gap-0.5 text-slate-400 hover:text-slate-200 transition-colors"
+                  >
+                    <ChevronLeft className="w-3 h-3" />
+                    Back
+                  </button>
+                )}
+                <span className="font-mono truncate">
+                  /{browseDir || selectedProject?.name || ''}
+                </span>
+                <button
+                  onClick={() => setShowFilePicker(false)}
+                  className="ml-auto text-slate-500 hover:text-slate-300 text-[10px]"
+                >
+                  Done
+                </button>
+              </div>
+              {browseLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
+                </div>
+              ) : browseItems.length === 0 ? (
+                <div className="text-center text-xs text-slate-500 py-8">Empty directory</div>
+              ) : (
+                <div className="divide-y divide-surface-700/50">
+                  {browseItems.map(item => (
+                    <button
+                      key={item.path}
+                      onClick={() => {
+                        if (item.type === 'dir') {
+                          setBrowseDir(item.path);
+                        } else {
+                          toggleFile(item.path);
+                        }
+                      }}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-surface-700/50 transition-colors ${
+                        attachedFiles.includes(item.path) ? 'bg-accent-blue/10' : ''
+                      }`}
+                    >
+                      {item.type === 'dir' ? (
+                        <FolderOpen className="w-3.5 h-3.5 text-accent-amber shrink-0" />
+                      ) : (
+                        <File className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      )}
+                      <span className="truncate text-slate-200">{item.name}</span>
+                      {item.type === 'dir' && (
+                        <ChevronRight className="w-3 h-3 text-slate-500 ml-auto shrink-0" />
+                      )}
+                      {item.type === 'file' && attachedFiles.includes(item.path) && (
+                        <span className="ml-auto text-[10px] text-accent-blue">attached</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Messages */
+            <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+              {messages.length === 0 && (
+                <div className="text-center text-xs text-slate-500 mt-8 space-y-2">
+                  <MessageCircle className="w-8 h-8 mx-auto text-slate-600" />
+                  <p>Ask me about your projects, code, or agents.</p>
+                  <div className="space-y-1 text-[11px]">
+                    <p className="text-slate-600">Try:</p>
+                    <button
+                      onClick={() => setInput('What tickets are in progress?')}
+                      className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
+                    >
+                      "What tickets are in progress?"
+                    </button>
+                    <button
+                      onClick={() => setInput('What dependencies does this project use?')}
+                      className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
+                    >
+                      "What dependencies does this project use?"
+                    </button>
+                    <button
+                      onClick={() => setInput('Show me the project structure')}
+                      className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
+                    >
+                      "Show me the project structure"
+                    </button>
+                    <button
+                      onClick={() => setInput('What\'s in the CLAUDE.md config?')}
+                      className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
+                    >
+                      "What&apos;s in the CLAUDE.md config?"
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {messages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
+                      msg.role === 'user'
+                        ? 'bg-accent-blue/20 text-slate-100'
+                        : 'bg-surface-700 text-slate-200'
+                    }`}
+                  >
+                    <MessageContent content={msg.content} />
+                  </div>
+                </div>
+              ))}
+
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="bg-surface-700 rounded-lg px-3 py-2 text-xs text-slate-400 flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Thinking...
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+          )}
 
           {/* Input */}
           <div className="p-3 border-t border-surface-700 shrink-0">
@@ -174,7 +346,7 @@ export function ChatPopover() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask a question..."
+                placeholder={selectedProject ? `Ask about ${selectedProject.name}...` : 'Ask a question...'}
                 rows={1}
                 className="flex-1 bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent-blue transition-colors resize-none max-h-20"
               />
