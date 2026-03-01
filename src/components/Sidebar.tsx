@@ -122,7 +122,7 @@ export function Sidebar({
             <BarChart3 className="w-8 h-8 text-accent-purple mx-auto mb-2 opacity-50" />
             <p className="text-sm text-slate-400">Analytics Dashboard</p>
             <p className="text-xs text-slate-500 mt-1">
-              Dispatcher runs, PR reviewer, scheduler, and issues
+              Dispatcher runs, PR reviews, audit reports, and issues
             </p>
           </div>
         ) : viewMode === 'projects' ? (

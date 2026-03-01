@@ -973,7 +973,7 @@ interface PrStatus {
   state: string;
   mergeable: string;
   reviewDecision: string;
-  statusCheckRollup: { state: string }[];
+  statusCheckRollup: { state: string; conclusion: string }[];
 }
 
 export async function checkPrStatus(ticket: Ticket) {
