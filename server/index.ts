@@ -56,6 +56,7 @@ import {
   getRun as getAuditRun,
 } from './audit-store.ts';
 import { listTemplates, getTemplate } from './audit-templates.ts';
+import { buildAnalytics } from './analytics.ts';
 import type { TeamWithData, WSEvent, AuditTemplateId, ChatMessage } from '../src/types.ts';
 
 const PORT = 3003;
@@ -661,6 +662,18 @@ app.delete('/api/tickets/:id', async (req, res) => {
     res.json({ success: true });
   } else {
     res.status(404).json({ error: 'Ticket not found' });
+  }
+});
+
+// ─── Analytics API ───────────────────────────────────────────────
+
+app.get('/api/analytics', async (_req, res) => {
+  try {
+    const analytics = await buildAnalytics();
+    res.json(analytics);
+  } catch (err) {
+    console.error('Error building analytics:', err);
+    res.status(500).json({ error: 'Failed to build analytics' });
   }
 });
 
