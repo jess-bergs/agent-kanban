@@ -153,6 +153,7 @@ server.tool(
     const ticket = await updateTicket(ticketId, {
       status: 'todo',
       error: undefined,
+      failureReason: undefined,
       branchName: undefined,
       worktreePath: undefined,
       startedAt: undefined,

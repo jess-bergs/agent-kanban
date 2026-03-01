@@ -160,6 +160,16 @@ export interface TicketImage {
   uploadedAt: number;
 }
 
+/** Structured, machine-classifiable failure reason */
+export type FailureReason =
+  | { type: 'server_crash' }
+  | { type: 'agent_exit'; code: number }
+  | { type: 'user_abort' }
+  | { type: 'project_not_found'; projectId: string }
+  | { type: 'worktree_setup_failed'; detail: string }
+  | { type: 'retry_budget_exhausted'; attempts: number }
+  | { type: 'other'; detail: string };
+
 export interface Ticket {
   id: string;
   projectId: string;
@@ -186,6 +196,8 @@ export interface Ticket {
   startedAt?: number;
   completedAt?: number;
   error?: string;
+  /** Structured, machine-readable failure classification */
+  failureReason?: FailureReason;
   lastOutput?: string;
   /** Recent agent activity stream for live oversight */
   agentActivity?: AgentActivity[];

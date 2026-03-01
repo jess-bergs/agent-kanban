@@ -313,6 +313,7 @@ app.post('/api/tickets/:id/retry', async (req, res) => {
   const ticket = await updateTicket(req.params.id, {
     status: 'todo',
     error: undefined,
+    failureReason: undefined,
     branchName: undefined,
     worktreePath: undefined,
     startedAt: undefined,

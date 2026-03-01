@@ -4,10 +4,11 @@ import { join } from 'node:path';
 import { getProject, getTicket, updateTicket, listTickets, getImagesDir } from './store.ts';
 import { captureAndUploadScreenshots } from './screenshots.ts';
 import { runAudit } from './auditor.ts';
-import type { Ticket, AgentActivity, TicketEffort, WSEvent } from '../src/types.ts';
+import type { Ticket, AgentActivity, TicketEffort, WSEvent, FailureReason } from '../src/types.ts';
 import { envWithNvmNode } from './nvm.ts';
 
 const MAX_CONCURRENT = 5;
+const MAX_AUTO_RETRIES = 2;
 const MAX_ACTIVITY_ENTRIES = 20;
 const APPROVAL_WAIT_THRESHOLD_MS = 15_000; // 15s without tool_result = likely waiting for approval
 const running = new Map<string, ChildProcess>();
@@ -43,6 +44,7 @@ async function startAgent(ticket: Ticket) {
     await updateTicket(ticket.id, {
       status: 'error',
       error: `Project ${ticket.projectId} not found`,
+      failureReason: { type: 'project_not_found', projectId: ticket.projectId },
     }, 'project_not_found');
     return;
   }
@@ -124,6 +126,7 @@ async function startAgent(ticket: Ticket) {
       const errTicket = await updateTicket(ticket.id, {
         status: 'error',
         error: `Git worktree setup failed: ${errMsg}`,
+        failureReason: { type: 'worktree_setup_failed', detail: errMsg },
       }, 'worktree_setup_failed');
       if (errTicket) await broadcastTicket(errTicket);
       return;
@@ -416,9 +419,13 @@ async function startAgent(ticket: Ticket) {
     }
 
     if (code !== 0) {
+      const failureReason: FailureReason = wasAborted
+        ? { type: 'user_abort' }
+        : { type: 'agent_exit', code: code ?? 1 };
       const failedTicket = await updateTicket(ticket.id, {
         status: 'failed',
         error: wasAborted ? 'Aborted by user' : (stderr.slice(-500) || `Agent exited with code ${code}`),
+        failureReason,
         completedAt,
         agentPid: undefined,
         effort: { ...effort },
@@ -811,33 +818,67 @@ function isProcessAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
+function countOrphanRecoveries(ticket: Ticket): number {
+  if (!ticket.stateLog) return 0;
+  return ticket.stateLog.filter(
+    e => e.reason === 'orphan_recovery' || e.reason === 'auto_retry',
+  ).length;
+}
+
 async function recoverOrphanedTickets() {
   const tickets = await listTickets();
   const orphaned = tickets.filter(
     t => t.status === 'in_progress' && !running.has(t.id),
   );
 
+  let retried = 0;
+  let failed = 0;
+
   for (const ticket of orphaned) {
     const alive = ticket.agentPid && isProcessAlive(ticket.agentPid);
     if (alive) continue;
 
-    console.log(`[dispatcher] Recovering orphaned ticket #${ticket.id}: ${ticket.subject}`);
-    const updated = await updateTicket(ticket.id, {
-      status: 'failed',
-      error: 'Agent process died (server restart or crash)',
-      completedAt: Date.now(),
-      agentPid: undefined,
-    }, 'orphan_recovery');
-    if (updated) broadcastTicket(updated);
-
+    // Clean up stale worktree in all cases (startAgent creates a fresh one)
     if (ticket.worktreePath) {
       const project = await getProject(ticket.projectId);
       if (project) cleanupWorktree(project.repoPath, ticket.worktreePath);
     }
+
+    const priorAttempts = countOrphanRecoveries(ticket);
+
+    if (priorAttempts < MAX_AUTO_RETRIES) {
+      // Under budget — reset to todo for automatic re-dispatch
+      console.log(`[dispatcher] Auto-retrying orphaned ticket #${ticket.id}: ${ticket.subject} (attempt ${priorAttempts + 1}/${MAX_AUTO_RETRIES})`);
+      const updated = await updateTicket(ticket.id, {
+        status: 'todo',
+        error: undefined,
+        failureReason: undefined,
+        branchName: undefined,
+        worktreePath: undefined,
+        startedAt: undefined,
+        completedAt: undefined,
+        lastOutput: undefined,
+        agentPid: undefined,
+      }, 'auto_retry');
+      if (updated) broadcastTicket(updated);
+      retried++;
+    } else {
+      // Budget exhausted — mark failed
+      console.log(`[dispatcher] Orphaned ticket #${ticket.id} exceeded auto-retry budget (${priorAttempts}/${MAX_AUTO_RETRIES})`);
+      const updated = await updateTicket(ticket.id, {
+        status: 'failed',
+        error: `Auto-retry budget exhausted (${priorAttempts} attempts)`,
+        failureReason: { type: 'retry_budget_exhausted', attempts: priorAttempts },
+        completedAt: Date.now(),
+        agentPid: undefined,
+      }, 'orphan_recovery');
+      if (updated) broadcastTicket(updated);
+      failed++;
+    }
   }
 
-  if (orphaned.length > 0) {
-    console.log(`[dispatcher] Recovered ${orphaned.length} orphaned ticket(s)`);
+  if (retried > 0 || failed > 0) {
+    console.log(`[dispatcher] Orphan recovery: ${retried} auto-retried, ${failed} marked failed`);
   }
 }
 

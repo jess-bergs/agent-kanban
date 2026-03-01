@@ -46,6 +46,7 @@ const STATE_REASON_LABELS: Record<string, string> = {
   project_not_found: 'Project not found',
   worktree_setup_failed: 'Worktree setup failed',
   orphan_recovery: 'Orphan recovery',
+  auto_retry: 'Auto-retried (server restart)',
 };
 
 const STATUS_STYLE: Record<TicketStatus, { bg: string; text: string; icon: typeof Clock }> = {
