@@ -22,7 +22,7 @@ the kanban API (at `http://localhost:3003`) to read and write data.
 
 ## Tools
 
-The server exposes 9 tools:
+The server exposes 19 tools across four domains:
 
 ### Project Management
 
@@ -47,14 +47,42 @@ The `create_ticket` tool supports all dispatch options: `yolo` (skip permissions
 `autoMerge` (squash-merge when checks pass), `queued` (defer dispatch), and `useRalph`
 (iterative self-correction via Ralph Wiggum).
 
+### Audit Templates
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `list_audit_templates` | — | List all built-in audit templates |
+| `get_audit_template` | `templateId` | Get a single template by ID |
+
+### Audit Schedules
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `list_audit_schedules` | `projectId?` | List schedules, optionally filtered by project |
+| `create_audit_schedule` | `projectId`, `name`, `templateId?`, `prompt?`, `cadence`, `mode`, `yolo?`, `autoMerge?` | Create a new scheduled audit |
+| `get_audit_schedule` | `scheduleId` | Get a single schedule by ID |
+| `update_audit_schedule` | `scheduleId`, `name?`, `cadence?`, `mode?`, `status?`, `prompt?`, `yolo?`, `autoMerge?` | Update schedule fields (including pause/resume) |
+| `delete_audit_schedule` | `scheduleId` | Delete a schedule |
+| `trigger_audit` | `scheduleId` | Manually trigger an immediate run |
+
+### Audit Runs
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `list_audit_runs` | `scheduleId?` | List runs, optionally filtered by schedule |
+| `get_audit_run` | `runId` | Get a single run (includes report and structured results) |
+
 ## Resources
 
-Two read-only resources are exposed:
+Five read-only resources are exposed:
 
 | URI | Description |
 |-----|-------------|
 | `kanban://projects` | JSON array of all projects |
 | `kanban://tickets` | JSON array of all tickets |
+| `kanban://audit-templates` | JSON array of all built-in audit templates |
+| `kanban://audit-schedules` | JSON array of all audit schedules |
+| `kanban://audit-runs` | JSON array of all audit runs |
 
 ## Usage
 

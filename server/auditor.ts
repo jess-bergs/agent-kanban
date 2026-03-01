@@ -459,8 +459,9 @@ async function reviewPr(entry: WatchlistEntry): Promise<void> {
       const auditResult = code === 0
         ? (entry.lastResult?.summary || fullText.slice(-2000))
         : (stderr.slice(-1000) || `Auditor exited with code ${code}`);
+      const auditVerdict = code === 0 ? entry.lastResult?.overallVerdict : undefined;
 
-      const updated = await updateTicket(entry.ticketId, { auditStatus, auditResult });
+      const updated = await updateTicket(entry.ticketId, { auditStatus, auditResult, auditVerdict });
       if (updated) broadcastFn({ type: 'ticket_updated', data: updated });
 
       // If auditor requested changes and ticket has a session ID, trigger re-dispatch

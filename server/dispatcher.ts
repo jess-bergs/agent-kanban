@@ -8,6 +8,7 @@ import { getProject, getTicket, updateTicket, listTickets, getImagesDir } from '
 import { captureAndUploadScreenshots } from './screenshots.ts';
 import { runAudit } from './auditor.ts';
 import type { Ticket, AgentActivity, TicketEffort, WSEvent, FailureReason } from '../src/types.ts';
+import { isSignalExit, SIGNAL_NAMES } from '../src/types.ts';
 import { envWithNvmNode } from './nvm.ts';
 
 const MAX_CONCURRENT = 5;
@@ -22,6 +23,11 @@ const lastStreamActivity = new Map<string, number>();
 const pendingToolApproval = new Map<string, boolean>();
 /** Tracks ticket IDs that were explicitly aborted by the user (vs crashing) */
 const abortedTickets = new Set<string>();
+/** Tracks the last auto-merge check time per ticket to throttle gh CLI calls */
+const lastAutoMergeCheck = new Map<string, number>();
+/** Tracks the last auto-merge "not ready" reason per ticket to avoid duplicate logs */
+const autoMergeLastState = new Map<string, string>();
+const AUTO_MERGE_CHECK_INTERVAL_MS = 30_000; // 30 seconds between checks per ticket
 
 type BroadcastFn = (event: WSEvent) => void;
 let broadcastFn: BroadcastFn = () => {};
@@ -691,17 +697,36 @@ async function startAgent(ticket: Ticket) {
     }
 
     if (code !== 0) {
-      const failureReason: FailureReason = wasAborted
-        ? { type: 'user_abort' }
-        : { type: 'agent_exit', code: code ?? 1 };
+      const exitCode = code ?? 1;
+      const signalTerminated = isSignalExit(exitCode);
+      const signalName = SIGNAL_NAMES[exitCode] ?? `signal ${exitCode - 128}`;
+
+      let failureReason: FailureReason;
+      let errorMsg: string;
+      let stateReason: string;
+
+      if (wasAborted) {
+        failureReason = { type: 'user_abort' };
+        errorMsg = 'Aborted by user';
+        stateReason = 'user_abort';
+      } else if (signalTerminated) {
+        failureReason = { type: 'signal_exit', code: exitCode, signal: signalName };
+        errorMsg = `Agent was stopped (${signalName})`;
+        stateReason = 'signal_exit';
+      } else {
+        failureReason = { type: 'agent_exit', code: exitCode };
+        errorMsg = stderr.slice(-500) || `Agent exited with code ${exitCode}`;
+        stateReason = 'agent_failed';
+      }
+
       const failedTicket = await updateTicket(ticket.id, {
         status: 'failed',
-        error: wasAborted ? 'Aborted by user' : (stderr.slice(-500) || `Agent exited with code ${code}`),
+        error: errorMsg,
         failureReason,
         completedAt,
         agentPid: undefined,
         effort: { ...effort },
-      }, wasAborted ? 'user_abort' : 'agent_failed');
+      }, stateReason);
       if (failedTicket) await broadcastTicket(failedTicket);
       if (useWorktree) cleanupWorktree(project.repoPath, worktreePath);
       return;
@@ -969,14 +994,20 @@ async function checkAutoMerge(ticket: Ticket) {
 
     const pr: PrStatus = JSON.parse(prJson);
 
-    // Already merged or closed
+    // Already merged or closed — clean up tracking state
     if (pr.state === 'MERGED') {
       const merged = await updateTicket(ticket.id, { status: 'merged' }, 'pr_merged');
       if (merged) await broadcastTicket(merged);
+      lastAutoMergeCheck.delete(ticket.id);
+      autoMergeLastState.delete(ticket.id);
       console.log(`[auto-merge] Ticket #${ticket.id} PR already merged`);
       return;
     }
-    if (pr.state === 'CLOSED') return;
+    if (pr.state === 'CLOSED') {
+      lastAutoMergeCheck.delete(ticket.id);
+      autoMergeLastState.delete(ticket.id);
+      return;
+    }
 
     // Check conditions: reviews OK + checks pass + mergeable
     // reviewDecision is "" when no reviews are required, "APPROVED" when approved,
@@ -996,15 +1027,19 @@ async function checkAutoMerge(ticket: Ticket) {
       );
       const merged = await updateTicket(ticket.id, { status: 'merged' }, 'auto_merged');
       if (merged) await broadcastTicket(merged);
+      lastAutoMergeCheck.delete(ticket.id);
+      autoMergeLastState.delete(ticket.id);
       console.log(`[auto-merge] Ticket #${ticket.id} merged successfully`);
     } else if (!reviewBlocking && checksPassed && !isMergeable && pr.mergeable !== 'CONFLICTING') {
       // Branch is likely BEHIND — try to update it
       await updatePrBranch(ticket, project);
     } else {
-      console.log(
-        `[auto-merge] Ticket #${ticket.id} not ready — ` +
-        `reviewBlocking=${reviewBlocking}, checksPassed=${checksPassed}, isMergeable=${isMergeable}`,
-      );
+      // Only log when the reason changes to avoid flooding the console
+      const reason = `reviewBlocking=${reviewBlocking}, checksPassed=${checksPassed}, isMergeable=${isMergeable}`;
+      if (autoMergeLastState.get(ticket.id) !== reason) {
+        autoMergeLastState.set(ticket.id, reason);
+        console.log(`[auto-merge] Ticket #${ticket.id} not ready — ${reason}`);
+      }
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -1118,29 +1153,43 @@ export async function dispatcherTick() {
     // Check if PR has been merged externally
     await checkPrStatus(ticket);
 
-    // Re-read ticket from DB since checkPrStatus may have updated status to 'merged'
+    // Auto-merge: only check tickets with autoMerge enabled, throttled to avoid
+    // hammering the GitHub API every tick (every 3s → once per 30s per ticket)
     if (ticket.autoMerge) {
-      const fresh = await getTicket(ticket.id);
-      if (fresh && fresh.status === 'in_review') {
-        await checkAutoMerge(fresh);
+      const lastCheck = lastAutoMergeCheck.get(ticket.id) || 0;
+      if (now - lastCheck >= AUTO_MERGE_CHECK_INTERVAL_MS) {
+        const fresh = await getTicket(ticket.id);
+        if (fresh && fresh.status === 'in_review') {
+          lastAutoMergeCheck.set(ticket.id, now);
+          await checkAutoMerge(fresh);
+        }
       }
     }
   }
 }
 
-/** Kill a running agent by ticket ID */
+/**
+ * Kill a running agent — for non-user-initiated stops (e.g., ticket deletion).
+ * The ticket is typically deleted right after, so the close handler's status update is a no-op.
+ * See also: abortAgent() for user-initiated aborts.
+ */
 export function killAgent(ticketId: string): boolean {
   const proc = running.get(ticketId);
   if (proc) {
     console.log(`[dispatcher] Killing agent for ticket #${ticketId}`);
+    abortedTickets.add(ticketId);
     proc.kill('SIGTERM');
-    running.delete(ticketId);
+    // Don't delete from running — let the close handler do cleanup
     return true;
   }
   return false;
 }
 
-/** Abort a running agent — marks it as user-initiated so the close handler shows a friendly message */
+/**
+ * Abort a running agent — for explicit user-initiated aborts.
+ * The ticket persists as 'failed' with a user_abort failure reason.
+ * See also: killAgent() for non-user-initiated stops.
+ */
 export function abortAgent(ticketId: string): boolean {
   const proc = running.get(ticketId);
   if (proc) {
