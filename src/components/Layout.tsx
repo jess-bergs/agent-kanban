@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Radio, Bot } from 'lucide-react';
 import type { TeamWithData, Project, Ticket, SoloAgent } from '../types';
-import { formatTimestamp } from '../types';
+import { formatTimestamp, shortenUuids } from '../types';
 import type { ViewMode } from '../hooks/useWebSocket';
 import { Sidebar } from './Sidebar';
 import { KanbanBoard } from './KanbanBoard';
@@ -107,9 +107,9 @@ export function Layout({
                     isActive ? 'bg-accent-green animate-pulse' : 'bg-slate-500'
                   }`}
                 />
-                <span className="font-medium text-slate-200">{agent.projectName}</span>
+                <span className="font-medium text-slate-200">{shortenUuids(agent.projectName)}</span>
                 {agent.gitBranch && agent.gitBranch !== 'HEAD' && (
-                  <span className="text-accent-purple font-mono">{agent.gitBranch}</span>
+                  <span className="text-accent-purple font-mono">{shortenUuids(agent.gitBranch)}</span>
                 )}
                 <span className="text-slate-500">{sourceIcon}</span>
                 <span className="text-slate-500">{formatTimestamp(agent.lastActiveAt)}</span>

@@ -421,6 +421,14 @@ export function formatTokenCount(tokens: number): string {
   return `${(tokens / 1_000_000).toFixed(2)}M`;
 }
 
+/** Shorten UUIDs in a string to their first 8 characters. */
+export function shortenUuids(text: string): string {
+  return text.replace(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+    m => m.slice(0, 8),
+  );
+}
+
 export function isIdleNotification(text: string): boolean {
   try {
     const parsed = JSON.parse(text);
