@@ -1765,10 +1765,44 @@ export async function healthCheckTick(): Promise<void> {
     }
 
     // ── Check 3: In-Review with No PR ──
+    // Before failing, check GitHub for an existing PR on the branch (the stream
+    // handler may have missed capturing the prUrl).
     const noPrReviews = tickets.filter(t => t.status === 'in_review' && !t.prUrl);
     for (const ticket of noPrReviews) {
       const completedAt = ticket.completedAt ?? ticket.startedAt ?? 0;
       if (now - completedAt < NO_PR_GRACE_MS) continue;
+
+      // Try to find a PR by branch name before giving up
+      if (ticket.branchName) {
+        const project = await getProject(ticket.projectId);
+        if (project) {
+          try {
+            const prListJson = execSync(
+              `gh pr list --head "${ticket.branchName}" --state all --json url,number,state --limit 1`,
+              { cwd: project.repoPath, encoding: 'utf-8', timeout: 15000 },
+            ).trim();
+            const prs: Array<{ url: string; number: number; state: string }> = JSON.parse(prListJson);
+            if (prs.length > 0) {
+              const pr = prs[0];
+              console.log(`[health-check] Found PR #${pr.number} for ticket #${ticket.id} (was missing prUrl)`);
+              const updated = await updateTicket(ticket.id, {
+                prUrl: pr.url,
+                prNumber: pr.number,
+                ...(pr.state === 'MERGED' ? { status: 'merged' as const } : {}),
+              }, pr.state === 'MERGED' ? 'pr_merged' : 'health_check_pr_found');
+              if (updated) broadcastTicket(updated);
+              await appendHealthLog({
+                timestamp: now, check: 'no_pr', ticketId: ticket.id,
+                action: 'retry', detail: `Found existing PR #${pr.number} (${pr.state}) — linked to ticket`,
+              });
+              continue; // Don't fail — we found the PR
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.log(`[health-check] Could not search PRs for ticket #${ticket.id}: ${msg}`);
+          }
+        }
+      }
 
       console.log(`[health-check] No-PR in_review detected: ticket #${ticket.id} (${Math.round((now - completedAt) / 60_000)}min without PR)`);
       const updated = await updateTicket(ticket.id, {
