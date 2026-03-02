@@ -1,0 +1,117 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  EC2_HOST: ${{ secrets.EC2_HOST }}
+  EC2_USER: agentkanban
+  APP_DIR: /opt/agent-kanban
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type Check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Package artifact
+        run: |
+          tar czf deploy-artifact.tar.gz \
+            dist/ \
+            server/ \
+            src/types.ts \
+            src/lib/ticketCompat.ts \
+            package.json \
+            package-lock.json \
+            systemd/ \
+            caddy/ \
+            scripts/ \
+            tsconfig.json \
+            tsconfig.server.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deploy-artifact
+          path: deploy-artifact.tar.gz
+          retention-days: 7
+
+  deploy:
+    name: Deploy to EC2
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    environment: production
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: deploy-artifact
+
+      - name: Deploy to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ env.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: deploy-artifact.tar.gz
+          target: /tmp/
+
+      - name: Install and restart
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ env.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -euo pipefail
+
+            echo "Extracting artifact..."
+            cd ${{ env.APP_DIR }}
+            tar xzf /tmp/deploy-artifact.tar.gz --strip-components=0
+            rm -f /tmp/deploy-artifact.tar.gz
+
+            echo "Installing production dependencies..."
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+            npm ci --production
+
+            echo "Updating systemd and Caddy configs..."
+            sudo cp systemd/agent-kanban.service /etc/systemd/system/
+            sudo cp caddy/Caddyfile /etc/caddy/Caddyfile
+            sudo systemctl daemon-reload
+
+            echo "Restarting services..."
+            sudo systemctl restart agent-kanban
+            sudo systemctl reload caddy
+
+            echo "Verifying..."
+            sleep 3
+            curl -sf http://localhost:3003/api/version || echo "WARNING: Health check failed"
+            echo ""
+            echo "Deploy complete!"
