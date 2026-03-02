@@ -462,14 +462,14 @@ async function startAgent(ticket: Ticket) {
     try {
       // Fetch latest from remote
       try {
-        execSync(`git fetch origin`, { cwd: project.repoPath, stdio: 'ignore' });
+        execFileSync('git', ['fetch', 'origin'], { cwd: project.repoPath, stdio: 'ignore' });
       } catch {
         // may fail if no remote, continue anyway
       }
 
       // Clean up existing worktree if it exists
       try {
-        execSync(`git worktree remove "${worktreePath}" --force`, {
+        execFileSync('git', ['worktree', 'remove', worktreePath, '--force'], {
           cwd: project.repoPath,
           stdio: 'ignore',
         });
@@ -480,19 +480,19 @@ async function startAgent(ticket: Ticket) {
         console.log(`[dispatcher] Resume mode: creating worktree from origin/${branchName}`);
         try {
           // Delete stale local branch if it exists
-          execSync(`git branch -D "${branchName}"`, {
+          execFileSync('git', ['branch', '-D', branchName], {
             cwd: project.repoPath, stdio: 'ignore',
           });
         } catch { /* branch may not exist locally */ }
 
-        execSync(
-          `git worktree add "${worktreePath}" "origin/${branchName}"`,
+        execFileSync(
+          'git', ['worktree', 'add', worktreePath, `origin/${branchName}`],
           { cwd: project.repoPath, stdio: 'ignore' },
         );
       } else {
         // Fresh: create new branch from default branch
         try {
-          execSync(`git branch -D "${branchName}"`, {
+          execFileSync('git', ['branch', '-D', branchName], {
             cwd: project.repoPath,
             stdio: 'ignore',
           });
@@ -501,12 +501,12 @@ async function startAgent(ticket: Ticket) {
         // Determine the best base ref
         let baseRef = `origin/${project.defaultBranch}`;
         try {
-          execSync(`git rev-parse --verify "${baseRef}"`, {
+          execFileSync('git', ['rev-parse', '--verify', baseRef], {
             cwd: project.repoPath, stdio: 'ignore',
           });
         } catch {
           try {
-            execSync(`git rev-parse --verify "${project.defaultBranch}"`, {
+            execFileSync('git', ['rev-parse', '--verify', project.defaultBranch], {
               cwd: project.repoPath, stdio: 'ignore',
             });
             baseRef = project.defaultBranch;
@@ -515,8 +515,8 @@ async function startAgent(ticket: Ticket) {
           }
         }
 
-        execSync(
-          `git worktree add "${worktreePath}" -b "${branchName}" "${baseRef}"`,
+        execFileSync(
+          'git', ['worktree', 'add', worktreePath, '-b', branchName, baseRef],
           { cwd: project.repoPath, stdio: 'ignore' },
         );
       }
@@ -1121,7 +1121,7 @@ async function startAgent(ticket: Ticket) {
 
 function cleanupWorktree(repoPath: string, worktreePath: string) {
   try {
-    execSync(`git worktree remove "${worktreePath}" --force`, {
+    execFileSync('git', ['worktree', 'remove', worktreePath, '--force'], {
       cwd: repoPath,
       stdio: 'ignore',
     });
