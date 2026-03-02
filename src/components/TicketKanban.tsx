@@ -3,6 +3,7 @@ import { ChevronDown, Eye, HelpCircle, Plus, Search, X } from 'lucide-react';
 import type { Ticket, TicketStatus, Project } from '../types';
 import { TICKET_STATUS_LABELS } from '../types';
 import { safeStatus } from '../lib/ticketCompat';
+import { sortTicketsForStatus } from '../lib/ticketSorting';
 import { TicketCard } from './TicketCard';
 import { TicketDetailModal } from './TicketDetailModal';
 import { CreateTicketModal } from './CreateTicketModal';
@@ -139,9 +140,9 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
     }
   }
 
-  // Sort by creation time, newest first
+  // Sort tickets within each column using status-specific logic
   for (const status of COLUMNS) {
-    grouped[status].sort((a, b) => b.createdAt - a.createdAt);
+    grouped[status] = sortTicketsForStatus(grouped[status], status);
   }
 
   // Count tickets needing manual review in the in_review column
