@@ -229,12 +229,16 @@ export async function attemptMerge(ticket: Ticket): Promise<void> {
       c.conclusion === 'FAILURE' || c.conclusion === 'ERROR' || c.conclusion === 'TIMED_OUT'
     );
 
-    // Gate: don't merge while auditor is still running or has requested changes
+    // Gate: don't merge unless auditor has completed successfully
     const freshTicket = await getTicket(ticket.id);
     const auditStatus = freshTicket?.auditStatus;
     const auditVerdict = freshTicket?.auditVerdict;
     if (auditStatus === 'running' || auditStatus === 'pending') {
       console.log(`[merge] Ticket #${ticket.id} audit still ${auditStatus} — deferring merge`);
+      return;
+    }
+    if (auditStatus === 'error') {
+      console.log(`[merge] Ticket #${ticket.id} audit errored — blocking merge until audit succeeds`);
       return;
     }
     if (auditVerdict === 'request_changes') {
