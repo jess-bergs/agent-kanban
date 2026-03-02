@@ -832,6 +832,8 @@ interface AspectDataPoint {
 
 function RubricTrendsChart({ runs }: { runs: AuditRunEntry[] }) {
   // Build time series per aspect from oldest → newest
+  // We reverse the runs array (newest-first from API → oldest-first) so that
+  // each aspect's data points are indexed chronologically for sparkline rendering
   const chronological = [...runs].reverse();
   const aspectMap = new Map<string, AspectDataPoint[]>();
 
