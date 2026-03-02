@@ -71,7 +71,7 @@ function slugify(s: string): string {
  * - Generic:   "rate limit", "usage limit", "quota exceeded"
  * - Claude CLI: "error: Rate limit exceeded" or similar
  */
-function detectUsageLimit(text: string): number | null {
+export function detectUsageLimit(text: string): number | null {
   if (!text) return null;
 
   // Pattern 1: "resets <time> (<timezone>)" — e.g., "resets 3am (Europe/London)"
