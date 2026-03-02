@@ -5,7 +5,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 export default function App() {
   const ws = useWebSocket();
 
-  if (ws.loading) {
+  if (ws.initialLoading) {
     return <LoadingScreen connected={ws.connected} />;
   }
 
@@ -16,7 +16,6 @@ export default function App() {
       tickets={ws.tickets}
       soloAgents={ws.soloAgents}
       connected={ws.connected}
-      initialLoading={ws.initialLoading}
       viewMode={ws.viewMode}
       setViewMode={ws.setViewMode}
       selectedTeam={ws.selectedTeam}
