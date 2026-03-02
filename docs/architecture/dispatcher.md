@@ -13,7 +13,7 @@ autonomous subsystems in the server process.
 │                                                      │
 │  ┌──────────────┐  ┌───────────┐  ┌──────────────┐  │
 │  │  Dispatcher   │  │  Auditor  │  │  Scheduler   │  │
-│  │  (3s poll)    │  │  (30s)    │  │  (5min poll)  │  │
+│  │  (3s poll)    │  │  (30s)    │  │  (3h poll)    │  │
 │  └──────┬───────┘  └─────┬─────┘  └──────┬───────┘  │
 │         │                │               │           │
 │         └────────────────┴───────────────┘           │
@@ -178,6 +178,33 @@ message "Agent process died (server restart or crash)" and their worktrees are c
 - `MAX_CONCURRENT = 5` — enforced at the top of `dispatcherTick()` and mid-loop
 - Each running agent is tracked in a `Map<ticketId, ChildProcess>`
 - The dispatcher breaks out of the ticket loop once the limit is hit
+
+## Failure Reasons
+
+When a ticket enters `failed` or `error`, a structured `failureReason` is attached:
+
+| Type | Meaning |
+|------|---------|
+| `server_crash` | Server process died unexpectedly |
+| `agent_exit` | Agent exited with a non-zero code |
+| `signal_exit` | Agent killed by signal (SIGINT, SIGKILL, SIGTERM) |
+| `user_abort` | User explicitly aborted the agent |
+| `project_not_found` | Referenced project doesn't exist |
+| `worktree_setup_failed` | Git worktree creation failed |
+| `retry_budget_exhausted` | Exceeded MAX_AUTO_RETRIES (2) orphan recoveries |
+| `automation_budget_exhausted` | Exceeded max automation iterations (5) for review fixes |
+| `usage_limit` | API rate/usage limit hit (see [Usage Limits](usage-limits-and-holds.md)) |
+| `other` | Unclassified failure |
+
+## Session Resumption
+
+When retrying a ticket (conflict resolution, review feedback), the dispatcher uses
+`--resume` mode with the stored `agentSessionId`:
+
+1. `agentSessionId` captured from the agent's first stream event
+2. `resumePrompt` set to describe what needs fixing (conflict, review changes)
+3. Worktree recreated from the existing remote branch (`origin/{branchName}`)
+4. `automationIteration` incremented (capped at 5)
 
 ## File Layout
 
