@@ -150,7 +150,10 @@ export function useWebSocket(): UseWebSocketReturn {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    // Pass API key as query param if configured (for cloud auth)
+    const token = localStorage.getItem('agent-kanban-api-key') ?? '';
+    const params = token ? `?token=${encodeURIComponent(token)}` : '';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws${params}`);
     wsRef.current = ws;
 
     ws.onopen = () => {

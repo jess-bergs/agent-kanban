@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { apiFetch } from '../lib/api';
 import { MessageCircle, X, Send, Loader2, FolderOpen, File, ChevronRight, ChevronLeft, Paperclip } from 'lucide-react';
 import type { ChatMessage, Project } from '../types';
 
@@ -50,7 +51,7 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
     setBrowseLoading(true);
     const params = new URLSearchParams({ projectId: selectedProjectId });
     if (browseDir) params.set('path', browseDir);
-    fetch(`/api/chat/files?${params}`)
+    apiFetch(`/api/chat/files?${params}`)
       .then(r => r.json())
       .then((data: { items: FileItem[] }) => setBrowseItems(data.items))
       .catch(() => setBrowseItems([]))
@@ -95,7 +96,7 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
       if (selectedProjectId) body.projectId = selectedProjectId;
       if (attachedFiles.length > 0) body.filePaths = attachedFiles;
 
-      const res = await fetch('/api/chat', {
+      const res = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

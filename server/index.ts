@@ -7,6 +7,7 @@ import path from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { execSync } from 'node:child_process';
 import { config, logConfig } from './config.ts';
+import { requireApiKey, validateWsAuth } from './auth.ts';
 import {
   getAllTeamsWithData,
   readTeamConfig,
@@ -76,6 +77,12 @@ app.use(cors({
     : config.allowedOrigins.split(',').map(o => o.trim()),
 }));
 app.use(express.json({ limit: '15mb' }));
+
+// Auth middleware — applied to all /api/* routes except /api/version (health check)
+app.use('/api', (req, res, next) => {
+  if (req.path === '/version') return next();
+  requireApiKey(req, res, next);
+});
 
 // Serve uploaded ticket images as static files
 app.use('/api/ticket-images', express.static(getImagesDir()));
@@ -1074,7 +1081,13 @@ setSchedulerBroadcast(broadcast);
 // Wire auditor → dispatcher merge callback (breaks circular import)
 setAttemptMergeFn(attemptMerge);
 
-wss.on('connection', async (ws) => {
+wss.on('connection', async (ws, req) => {
+  // Validate auth on WebSocket connections
+  if (!validateWsAuth(req)) {
+    ws.close(4401, 'Unauthorized');
+    return;
+  }
+
   console.log(`[ws] Client connected (total: ${wss.clients.size})`);
 
   try {

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiFetch } from '../lib/api';
 import { X, FolderPlus, FolderOpen } from 'lucide-react';
 import { FolderPicker } from './FolderPicker';
 
@@ -21,7 +22,7 @@ export function AddProjectModal({ onClose, onCreated }: AddProjectModalProps) {
     setError('');
 
     try {
-      const res = await fetch('/api/projects', {
+      const res = await apiFetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
