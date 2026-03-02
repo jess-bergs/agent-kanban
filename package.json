@@ -20,6 +20,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run lint && npm run typecheck",
+    "migrate": "tsx scripts/migrate.ts",
+    "export-data": "tsx scripts/export-data.ts",
+    "import-data": "tsx scripts/import-data.ts",
     "prepare": "husky"
   },
   "lint-staged": {
