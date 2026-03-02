@@ -68,7 +68,8 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
     e.stopPropagation();
     setAborting(true);
     try {
-      await fetch(`/api/tickets/${ticket.id}/abort`, { method: 'POST' });
+      const res = await fetch(`/api/tickets/${ticket.id}/abort`, { method: 'POST' });
+      if (!res.ok) console.warn(`[abort] ${res.status} ${res.statusText}`);
     } finally {
       setAborting(false);
     }
