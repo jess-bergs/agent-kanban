@@ -20,7 +20,7 @@ interface UseWebSocketReturn {
   tickets: Ticket[];
   soloAgents: SoloAgent[];
   connected: boolean;
-  loading: boolean;
+  initialLoading: boolean;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   selectedTeam: TeamWithData | null;
@@ -36,14 +36,13 @@ export function useWebSocket(): UseWebSocketReturn {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [soloAgents, setSoloAgents] = useState<SoloAgent[]>([]);
   const [connected, setConnected] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('projects');
   const [selectedTeamName, setSelectedTeamName] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffRef = useRef(1000);
-  const receivedInitialRef = useRef(false);
 
   const handleMessage = useCallback((event: MessageEvent) => {
     let parsed: WSEvent;
@@ -57,6 +56,7 @@ export function useWebSocket(): UseWebSocketReturn {
       case 'initial': {
         const { data } = parsed as WSInitialEvent;
         setTeams(data);
+        setInitialLoading(false);
         break;
       }
       case 'projects_updated': {
@@ -67,10 +67,7 @@ export function useWebSocket(): UseWebSocketReturn {
           for (const ticket of t) map.set(ticket.id, ticket);
           return Array.from(map.values());
         });
-        if (!receivedInitialRef.current) {
-          receivedInitialRef.current = true;
-          setLoading(false);
-        }
+        setInitialLoading(false);
         break;
       }
       case 'ticket_updated': {
@@ -198,7 +195,7 @@ export function useWebSocket(): UseWebSocketReturn {
     tickets,
     soloAgents,
     connected,
-    loading,
+    initialLoading,
     viewMode,
     setViewMode,
     selectedTeam,
