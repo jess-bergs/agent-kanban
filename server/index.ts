@@ -29,6 +29,7 @@ import {
   saveTicketImage,
   deleteTicketImage,
   getImagesDir,
+  checkDataSchema,
 } from './store.ts';
 import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick, attemptMerge, checkAndReconcilePrState, prepareRetryFields } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
@@ -1157,10 +1158,23 @@ const watcher = startWatcher(handleFileChange);
 
 // ─── Startup ────────────────────────────────────────────────────
 
-server.listen(PORT, () => {
+// ─── Startup ────────────────────────────────────────────────────
+
+async function boot() {
   logConfig();
-  console.log(`[server] Agent Kanban backend running on http://localhost:${PORT}`);
-  console.log(`[server] WebSocket available at ws://localhost:${PORT}/ws`);
+
+  // Check data schema version before starting
+  await checkDataSchema();
+
+  server.listen(PORT, () => {
+    console.log(`[server] Agent Kanban backend running on http://localhost:${PORT}`);
+    console.log(`[server] WebSocket available at ws://localhost:${PORT}/ws`);
+  });
+}
+
+boot().catch(err => {
+  console.error('[server] Failed to start:', err.message ?? err);
+  process.exit(1);
 });
 
 // Start the dispatcher, auditor, and audit scheduler
