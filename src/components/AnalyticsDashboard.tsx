@@ -324,8 +324,8 @@ export function AnalyticsDashboard() {
         collapsible
         summary={`${data.dispatcher.totalDispatched} dispatched, ${data.dispatcher.currentlyRunning} running`}
       >
-        <div className="grid grid-cols-8 gap-2 mb-4">
-          {(['todo', 'in_progress', 'needs_approval', 'in_review', 'done', 'merged', 'failed', 'error'] as const).map(s => (
+        <div className="grid grid-cols-9 gap-2 mb-4">
+          {(['todo', 'in_progress', 'needs_approval', 'on_hold', 'in_review', 'done', 'merged', 'failed', 'error'] as const).map(s => (
             <MiniStat
               key={s}
               label={s.replace('_', ' ')}
@@ -1367,6 +1367,7 @@ function statusColor(status: string): string {
     todo: 'amber',
     in_progress: 'blue',
     needs_approval: 'amber',
+    on_hold: 'orange',
     in_review: 'cyan',
     done: 'green',
     merged: 'purple',
