@@ -289,11 +289,16 @@ export function AnalyticsDashboard() {
       </div>
 
       {/* Issues — pulled above the fold so errors are immediately visible */}
-      {data.issues.length > 0 && (
-        <Section title="Issues & Errors" icon={<AlertCircle className="w-4 h-4 text-accent-red" />}>
+      <Section title="Issues & Errors" icon={<AlertCircle className="w-4 h-4 text-accent-red" />}>
+        {data.issues.length > 0 ? (
           <IssuesTable issues={data.issues} />
-        </Section>
-      )}
+        ) : (
+          <div className="text-center py-6 text-sm text-accent-green flex items-center justify-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            No issues detected
+          </div>
+        )}
+      </Section>
 
       {/* Coverage Gaps */}
       {data.coverageGaps.length > 0 && (
