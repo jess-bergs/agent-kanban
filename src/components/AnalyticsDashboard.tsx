@@ -9,6 +9,7 @@ import {
   DollarSign,
   FileText,
   GitPullRequest,
+  Layers,
   PlayCircle,
   RefreshCw,
   Shield,
@@ -416,6 +417,47 @@ export function AnalyticsDashboard() {
 
 // ─── Reports View ───────────────────────────────────────────────
 
+interface RunBatch {
+  startedAt: number;
+  runs: AuditRunEntry[];
+}
+
+/** Group runs into batches by time proximity (runs started within 5 minutes of each other). */
+function groupRunsByBatch(runs: AuditRunEntry[]): RunBatch[] {
+  if (runs.length === 0) return [];
+  // runs are already sorted newest-first by the API
+  const batches: RunBatch[] = [];
+  let currentBatch: RunBatch = { startedAt: runs[0].startedAt, runs: [runs[0]] };
+
+  for (let i = 1; i < runs.length; i++) {
+    const gap = currentBatch.runs[currentBatch.runs.length - 1].startedAt - runs[i].startedAt;
+    if (gap <= 5 * 60 * 1000) {
+      currentBatch.runs.push(runs[i]);
+    } else {
+      batches.push(currentBatch);
+      currentBatch = { startedAt: runs[i].startedAt, runs: [runs[i]] };
+    }
+  }
+  batches.push(currentBatch);
+  return batches;
+}
+
+function formatBatchTime(ts: number): string {
+  const now = Date.now();
+  const diff = now - ts;
+  const date = new Date(ts);
+
+  if (diff < 86_400_000) {
+    // Today — show time only
+    return `Today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  if (diff < 2 * 86_400_000) {
+    return `Yesterday at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) +
+    ` at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 function ReportsView() {
   const [runs, setRuns] = useState<AuditRunEntry[]>([]);
   const [schedules, setSchedules] = useState<AuditScheduleEntry[]>([]);
@@ -546,201 +588,229 @@ function ReportsView() {
         </div>
       )}
 
-      {/* Report cards */}
-      <div className="space-y-3">
-      {runs.map(run => {
-        const report = run.structuredReport!;
-        const schedule = scheduleMap.get(run.scheduleId);
-        const isExpanded = expandedRunId === run.id;
-        const isAttention = stats.attentionRunIds.has(run.id);
+      {/* Report cards grouped by batch */}
+      <div className="space-y-6">
+      {groupRunsByBatch(runs).map((batch, batchIdx) => {
+        const batchScores = batch.runs.map(r => r.structuredReport!.overallScore);
+        const batchAvg = batchScores.reduce((a, b) => a + b, 0) / batchScores.length;
+        const batchAvgColor = batchAvg >= 8 ? 'text-accent-green' : batchAvg >= 5 ? 'text-accent-amber' : 'text-accent-red';
 
         return (
-          <div
-            key={run.id}
-            className={`bg-surface-800 rounded-xl border overflow-hidden ${
-              isAttention ? 'border-accent-red/40' : 'border-surface-600'
-            }`}
-          >
-            {/* Report header row — clickable */}
-            <button
-              onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
-              className="w-full flex items-center gap-3 p-4 text-left hover:bg-surface-700/30 transition-colors"
-            >
-              <div className="shrink-0">
-                <ScoreRing score={report.overallScore} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-200 truncate">
-                    {schedule?.name || run.scheduleId.slice(0, 8)}
-                  </span>
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                    run.mode === 'fix'
-                      ? 'bg-accent-purple/20 text-accent-purple'
-                      : 'bg-accent-cyan/20 text-accent-cyan'
-                  }`}>
-                    {run.mode}
-                  </span>
-                  {run.trend && (
-                    <span className="flex items-center gap-0.5">
-                      <TrendIcon direction={run.trend.direction} />
-                      <span className={`text-[10px] ${
-                        run.trend.direction === 'improving' ? 'text-accent-green' :
-                        run.trend.direction === 'declining' ? 'text-accent-red' :
-                        'text-slate-500'
-                      }`}>
-                        {run.trend.delta > 0 ? '+' : ''}{run.trend.delta.toFixed(1)}
-                      </span>
-                    </span>
+          <div key={batchIdx}>
+            {/* Batch header */}
+            <div className="flex items-center gap-3 mb-2">
+              <Layers className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-xs font-medium text-slate-400">
+                {formatBatchTime(batch.startedAt)}
+              </span>
+              <span className="text-[10px] text-slate-600">
+                {batch.runs.length} report{batch.runs.length !== 1 ? 's' : ''}
+              </span>
+              <span className={`text-[10px] font-medium ${batchAvgColor}`}>
+                avg {batchAvg.toFixed(1)}
+              </span>
+              <div className="flex-1 border-t border-surface-700" />
+              <span className="text-[10px] text-slate-600">
+                {formatRelativeTime(batch.startedAt)}
+              </span>
+            </div>
+
+            {/* Runs in this batch */}
+            <div className="space-y-3">
+            {batch.runs.map(run => {
+              const report = run.structuredReport!;
+              const schedule = scheduleMap.get(run.scheduleId);
+              const isExpanded = expandedRunId === run.id;
+              const isAttention = stats.attentionRunIds.has(run.id);
+
+              return (
+                <div
+                  key={run.id}
+                  className={`bg-surface-800 rounded-xl border overflow-hidden ${
+                    isAttention ? 'border-accent-red/40' : 'border-surface-600'
+                  }`}
+                >
+                  {/* Report header row — clickable */}
+                  <button
+                    onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
+                    className="w-full flex items-center gap-3 p-4 text-left hover:bg-surface-700/30 transition-colors"
+                  >
+                    <div className="shrink-0">
+                      <ScoreRing score={report.overallScore} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-slate-200 truncate">
+                          {schedule?.name || run.scheduleId.slice(0, 8)}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          run.mode === 'fix'
+                            ? 'bg-accent-purple/20 text-accent-purple'
+                            : 'bg-accent-cyan/20 text-accent-cyan'
+                        }`}>
+                          {run.mode}
+                        </span>
+                        {run.trend && (
+                          <span className="flex items-center gap-0.5">
+                            <TrendIcon direction={run.trend.direction} />
+                            <span className={`text-[10px] ${
+                              run.trend.direction === 'improving' ? 'text-accent-green' :
+                              run.trend.direction === 'declining' ? 'text-accent-red' :
+                              'text-slate-500'
+                            }`}>
+                              {run.trend.delta > 0 ? '+' : ''}{run.trend.delta.toFixed(1)}
+                            </span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5 truncate">
+                        {report.overallVerdict}
+                      </p>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-3">
+                      {run.severityCounts && <SeverityBadges counts={run.severityCounts} />}
+                      {isExpanded
+                        ? <ChevronUp className="w-4 h-4 text-slate-500" />
+                        : <ChevronDown className="w-4 h-4 text-slate-500" />}
+                    </div>
+                  </button>
+
+                  {/* Expanded report detail */}
+                  {isExpanded && (
+                    <div className="border-t border-surface-600 p-5 space-y-5">
+                      {/* Summary */}
+                      <div>
+                        <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Summary</h3>
+                        <p className="text-sm text-slate-400 leading-relaxed">{report.summary}</p>
+                      </div>
+
+                      {/* Rubric scores */}
+                      {report.rubric.length > 0 && (
+                        <div>
+                          <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Rubric Scores</h3>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="text-left text-slate-500 border-b border-surface-600">
+                                  <th className="pb-2 pr-3 font-medium">Aspect</th>
+                                  <th className="pb-2 pr-3 font-medium">Score</th>
+                                  <th className="pb-2 pr-3 font-medium">Rating</th>
+                                  <th className="pb-2 pr-3 font-medium">Findings</th>
+                                  <th className="pb-2 font-medium">Notes</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {report.rubric.map((item, i) => (
+                                  <tr key={i} className="border-b border-surface-700/50">
+                                    <td className="py-2 pr-3 text-slate-300">{item.aspect}</td>
+                                    <td className="py-2 pr-3">
+                                      <span className={
+                                        item.score >= 8 ? 'text-accent-green' :
+                                        item.score >= 4 ? 'text-accent-amber' :
+                                        'text-accent-red'
+                                      }>
+                                        {item.score.toFixed(1)}
+                                      </span>
+                                    </td>
+                                    <td className="py-2 pr-3">
+                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                        item.rating === 'pass' ? 'bg-accent-green/20 text-accent-green' :
+                                        item.rating === 'concern' ? 'bg-accent-amber/20 text-accent-amber' :
+                                        'bg-accent-red/20 text-accent-red'
+                                      }`}>
+                                        {item.rating}
+                                      </span>
+                                    </td>
+                                    <td className="py-2 pr-3 text-slate-400">{item.findingCount}</td>
+                                    <td className="py-2 text-slate-500 max-w-[300px] truncate" title={item.summary}>
+                                      {item.summary}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Findings */}
+                      {report.findings.length > 0 && (
+                        <div>
+                          <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                            Findings ({report.findings.length})
+                          </h3>
+                          <div className="space-y-2">
+                            {(['critical', 'high', 'medium', 'low', 'info'] as const).map(sev => {
+                              const items = report.findings.filter(f => f.severity === sev);
+                              if (items.length === 0) return null;
+                              return (
+                                <div key={sev}>
+                                  <div className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{
+                                    color: sev === 'critical' ? 'var(--color-accent-red)' :
+                                           sev === 'high' ? 'var(--color-accent-orange)' :
+                                           sev === 'medium' ? 'var(--color-accent-amber)' :
+                                           'var(--color-slate-500)',
+                                  }}>
+                                    {sev} ({items.length})
+                                  </div>
+                                  {items.map(finding => (
+                                    <div
+                                      key={finding.id}
+                                      className={`p-3 rounded-lg border mb-1.5 ${
+                                        sev === 'critical' ? 'border-accent-red/30 bg-accent-red/5' :
+                                        sev === 'high' ? 'border-accent-orange/30 bg-accent-orange/5' :
+                                        sev === 'medium' ? 'border-accent-amber/30 bg-accent-amber/5' :
+                                        'border-surface-600 bg-surface-700/30'
+                                      }`}
+                                    >
+                                      <div className="flex items-start gap-2">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-xs font-medium text-slate-200">
+                                            {finding.title}
+                                          </div>
+                                          {finding.location && (
+                                            <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                              {finding.location}
+                                            </div>
+                                          )}
+                                          <p className="text-[11px] text-slate-400 mt-1">
+                                            {finding.description}
+                                          </p>
+                                          {finding.recommendation && (
+                                            <p className="text-[11px] text-accent-cyan mt-1">
+                                              {finding.recommendation}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Trend details */}
+                      {run.trend && (
+                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                          <span>Previous score: {run.trend.previousScore.toFixed(1)}</span>
+                          <span>Current: {run.trend.currentScore.toFixed(1)}</span>
+                          {run.trend.newFindings.length > 0 && (
+                            <span className="text-accent-red">+{run.trend.newFindings.length} new</span>
+                          )}
+                          {run.trend.resolvedFindings.length > 0 && (
+                            <span className="text-accent-green">{run.trend.resolvedFindings.length} resolved</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5 truncate">
-                  {report.overallVerdict}
-                </p>
-              </div>
-              <div className="shrink-0 flex items-center gap-3">
-                {run.severityCounts && <SeverityBadges counts={run.severityCounts} />}
-                <span className="text-[10px] text-slate-500">
-                  {run.completedAt ? formatRelativeTime(run.completedAt) : ''}
-                </span>
-                {isExpanded
-                  ? <ChevronUp className="w-4 h-4 text-slate-500" />
-                  : <ChevronDown className="w-4 h-4 text-slate-500" />}
-              </div>
-            </button>
-
-            {/* Expanded report detail */}
-            {isExpanded && (
-              <div className="border-t border-surface-600 p-5 space-y-5">
-                {/* Summary */}
-                <div>
-                  <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Summary</h3>
-                  <p className="text-sm text-slate-400 leading-relaxed">{report.summary}</p>
-                </div>
-
-                {/* Rubric scores */}
-                {report.rubric.length > 0 && (
-                  <div>
-                    <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Rubric Scores</h3>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="text-left text-slate-500 border-b border-surface-600">
-                            <th className="pb-2 pr-3 font-medium">Aspect</th>
-                            <th className="pb-2 pr-3 font-medium">Score</th>
-                            <th className="pb-2 pr-3 font-medium">Rating</th>
-                            <th className="pb-2 pr-3 font-medium">Findings</th>
-                            <th className="pb-2 font-medium">Notes</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {report.rubric.map((item, i) => (
-                            <tr key={i} className="border-b border-surface-700/50">
-                              <td className="py-2 pr-3 text-slate-300">{item.aspect}</td>
-                              <td className="py-2 pr-3">
-                                <span className={
-                                  item.score >= 8 ? 'text-accent-green' :
-                                  item.score >= 4 ? 'text-accent-amber' :
-                                  'text-accent-red'
-                                }>
-                                  {item.score.toFixed(1)}
-                                </span>
-                              </td>
-                              <td className="py-2 pr-3">
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                  item.rating === 'pass' ? 'bg-accent-green/20 text-accent-green' :
-                                  item.rating === 'concern' ? 'bg-accent-amber/20 text-accent-amber' :
-                                  'bg-accent-red/20 text-accent-red'
-                                }`}>
-                                  {item.rating}
-                                </span>
-                              </td>
-                              <td className="py-2 pr-3 text-slate-400">{item.findingCount}</td>
-                              <td className="py-2 text-slate-500 max-w-[300px] truncate" title={item.summary}>
-                                {item.summary}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* Findings */}
-                {report.findings.length > 0 && (
-                  <div>
-                    <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                      Findings ({report.findings.length})
-                    </h3>
-                    <div className="space-y-2">
-                      {(['critical', 'high', 'medium', 'low', 'info'] as const).map(sev => {
-                        const items = report.findings.filter(f => f.severity === sev);
-                        if (items.length === 0) return null;
-                        return (
-                          <div key={sev}>
-                            <div className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{
-                              color: sev === 'critical' ? 'var(--color-accent-red)' :
-                                     sev === 'high' ? 'var(--color-accent-orange)' :
-                                     sev === 'medium' ? 'var(--color-accent-amber)' :
-                                     'var(--color-slate-500)',
-                            }}>
-                              {sev} ({items.length})
-                            </div>
-                            {items.map(finding => (
-                              <div
-                                key={finding.id}
-                                className={`p-3 rounded-lg border mb-1.5 ${
-                                  sev === 'critical' ? 'border-accent-red/30 bg-accent-red/5' :
-                                  sev === 'high' ? 'border-accent-orange/30 bg-accent-orange/5' :
-                                  sev === 'medium' ? 'border-accent-amber/30 bg-accent-amber/5' :
-                                  'border-surface-600 bg-surface-700/30'
-                                }`}
-                              >
-                                <div className="flex items-start gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="text-xs font-medium text-slate-200">
-                                      {finding.title}
-                                    </div>
-                                    {finding.location && (
-                                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                                        {finding.location}
-                                      </div>
-                                    )}
-                                    <p className="text-[11px] text-slate-400 mt-1">
-                                      {finding.description}
-                                    </p>
-                                    {finding.recommendation && (
-                                      <p className="text-[11px] text-accent-cyan mt-1">
-                                        {finding.recommendation}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Trend details */}
-                {run.trend && (
-                  <div className="flex items-center gap-4 text-xs text-slate-500">
-                    <span>Previous score: {run.trend.previousScore.toFixed(1)}</span>
-                    <span>Current: {run.trend.currentScore.toFixed(1)}</span>
-                    {run.trend.newFindings.length > 0 && (
-                      <span className="text-accent-red">+{run.trend.newFindings.length} new</span>
-                    )}
-                    {run.trend.resolvedFindings.length > 0 && (
-                      <span className="text-accent-green">{run.trend.resolvedFindings.length} resolved</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+              );
+            })}
+            </div>
           </div>
         );
       })}
