@@ -20,6 +20,7 @@ interface UseWebSocketReturn {
   tickets: Ticket[];
   soloAgents: SoloAgent[];
   connected: boolean;
+  initialLoading: boolean;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   selectedTeam: TeamWithData | null;
@@ -35,6 +36,7 @@ export function useWebSocket(): UseWebSocketReturn {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [soloAgents, setSoloAgents] = useState<SoloAgent[]>([]);
   const [connected, setConnected] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('projects');
   const [selectedTeamName, setSelectedTeamName] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -54,6 +56,7 @@ export function useWebSocket(): UseWebSocketReturn {
       case 'initial': {
         const { data } = parsed as WSInitialEvent;
         setTeams(data);
+        setInitialLoading(false);
         break;
       }
       case 'projects_updated': {
@@ -64,6 +67,7 @@ export function useWebSocket(): UseWebSocketReturn {
           for (const ticket of t) map.set(ticket.id, ticket);
           return Array.from(map.values());
         });
+        setInitialLoading(false);
         break;
       }
       case 'ticket_updated': {
@@ -191,6 +195,7 @@ export function useWebSocket(): UseWebSocketReturn {
     tickets,
     soloAgents,
     connected,
+    initialLoading,
     viewMode,
     setViewMode,
     selectedTeam,

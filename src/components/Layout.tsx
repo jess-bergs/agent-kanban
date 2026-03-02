@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Radio, Bot } from 'lucide-react';
+import { Radio, Bot, Loader2 } from 'lucide-react';
 import type { TeamWithData, Project, Ticket, SoloAgent } from '../types';
 import { shortenPillLabel } from '../types';
 import type { ViewMode } from '../hooks/useWebSocket';
@@ -20,6 +20,7 @@ interface LayoutProps {
   tickets: Ticket[];
   soloAgents: SoloAgent[];
   connected: boolean;
+  initialLoading: boolean;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   selectedTeam: TeamWithData | null;
@@ -35,6 +36,7 @@ export function Layout({
   tickets,
   soloAgents,
   connected,
+  initialLoading,
   viewMode,
   setViewMode,
   selectedTeam,
@@ -55,6 +57,25 @@ export function Layout({
   const showAgentsView = viewMode === 'agents';
   const showTeamView = viewMode === 'teams' && selectedTeam;
   const showProjectView = viewMode === 'projects' && selectedProject;
+
+  if (initialLoading) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-surface-900">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <Radio className="w-10 h-10 text-accent-blue" />
+            <Loader2 className="w-5 h-5 text-accent-blue/60 animate-spin absolute -bottom-1 -right-1" />
+          </div>
+          <div className="text-center">
+            <h1 className="text-base font-semibold text-slate-200">Agent Kanban</h1>
+            <p className="text-xs text-slate-500 mt-1">
+              {connected ? 'Loading projects and teams…' : 'Connecting to server…'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col">
