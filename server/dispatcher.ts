@@ -15,6 +15,7 @@ const MAX_CONCURRENT = 5;
 const MAX_AUTO_RETRIES = 2;
 const MAX_AUTOMATION_ITERATIONS = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
+const MAX_AGENT_TURNS = 50;
 const APPROVAL_WAIT_THRESHOLD_MS = 15_000; // 15s without tool_result = likely waiting for approval
 const running = new Map<string, ChildProcess>();
 /** Tracks the last stream activity time per ticket, for detecting approval waits */
@@ -27,6 +28,8 @@ const pendingUserInput = new Map<string, boolean>();
 const INTERACTIVE_TOOLS = new Set(['AskUserQuestion', 'EnterPlanMode']);
 /** Tracks ticket IDs that were explicitly aborted by the user (vs crashing) */
 const abortedTickets = new Set<string>();
+/** Tracks ticket IDs that were terminated for exceeding max turns */
+const maxTurnsExceeded = new Set<string>();
 /** Tracks the last auto-merge check time per ticket to throttle gh CLI calls */
 const lastAutoMergeCheck = new Map<string, number>();
 /** Tracks the last auto-merge "not ready" reason per ticket to avoid duplicate logs */
@@ -586,19 +589,29 @@ async function startAgent(ticket: Ticket) {
       '---',
     );
   } else {
-    // Standard investigation-first instructions for all dispatched agents
+    // Plan-first instructions: investigate, plan, then execute efficiently
     taskLines.push(
-      '## Investigation-First Approach',
+      '## Plan First, Then Execute',
       '',
-      'Before writing ANY code, you MUST thoroughly investigate the relevant parts of the codebase:',
+      'You have a **strict budget of ' + MAX_AGENT_TURNS + ' turns**. Use them wisely by planning before coding.',
       '',
-      '1. **Understand the context** — Read CLAUDE.md, AGENTS.md, and any referenced docs to learn project conventions, architecture, and patterns.',
-      '2. **Trace the existing code** — Find and read ALL files related to the feature or bug. Follow imports, check call sites, and understand how data flows through the system.',
-      '3. **Identify the scope** — Map out every file that will need changes. Look for related tests, types, documentation, and downstream consumers.',
-      '4. **Check for prior art** — Search for similar patterns already in the codebase. Match existing conventions rather than inventing new ones.',
-      '5. **Form a plan** — Only after understanding the full picture, decide on your approach. If the change is non-trivial, outline what you will do before doing it.',
+      '### Phase 1: Investigate (3-5 turns)',
+      '1. Read CLAUDE.md/AGENTS.md for conventions and architecture.',
+      '2. Find and read the key files related to this task. Use parallel tool calls to read multiple files at once.',
+      '3. Check for prior art and existing patterns.',
       '',
-      'Do NOT skip investigation. Jumping straight to code leads to incomplete fixes, missed edge cases, and inconsistent patterns.',
+      '### Phase 2: Plan (1 turn)',
+      '4. Write a brief plan as a numbered list: what files to change, what changes in each, what order.',
+      '',
+      '### Phase 3: Execute (remaining turns)',
+      '5. Implement the changes following your plan. Batch related edits together.',
+      '6. Build/test to verify.',
+      '',
+      '**Cost control rules:**',
+      '- Do NOT re-read files you have already read.',
+      '- Do NOT make exploratory edits — know what you want to write before writing it.',
+      '- Combine multiple independent tool calls into a single response.',
+      '- If a build fails, fix the issue in one pass rather than iterating.',
       '',
       '---',
     );
@@ -758,6 +771,12 @@ async function startAgent(ticket: Ticket) {
       if (msgId && !seenMessageIds.has(msgId)) {
         seenMessageIds.add(msgId);
         effort.turns++;
+        // Kill agent if it exceeds max turns to prevent runaway cost
+        if (effort.turns >= MAX_AGENT_TURNS && !maxTurnsExceeded.has(ticket.id)) {
+          maxTurnsExceeded.add(ticket.id);
+          console.log(`[dispatcher] Ticket #${ticket.id} hit max turns (${MAX_AGENT_TURNS}) — terminating agent`);
+          proc.kill('SIGTERM');
+        }
         // Capture usage only once per message to avoid stream-json duplication
         const usage = msg?.usage;
         if (usage) {
@@ -879,7 +898,8 @@ async function startAgent(ticket: Ticket) {
     pendingToolApproval.delete(ticket.id);
     pendingUserInput.delete(ticket.id);
     const wasAborted = abortedTickets.delete(ticket.id);
-    console.log(`[dispatcher] Agent for ticket #${ticket.id} exited with code ${code}${wasAborted ? ' (aborted by user)' : ''}`);
+    const hitMaxTurns = maxTurnsExceeded.delete(ticket.id);
+    console.log(`[dispatcher] Agent for ticket #${ticket.id} exited with code ${code}${wasAborted ? ' (aborted by user)' : ''}${hitMaxTurns ? ` (max turns ${MAX_AGENT_TURNS})` : ''}`);
 
     // Compute duration for effort
     const completedAt = Date.now();
@@ -929,7 +949,11 @@ async function startAgent(ticket: Ticket) {
       let errorMsg: string;
       let stateReason: string;
 
-      if (wasAborted) {
+      if (hitMaxTurns) {
+        failureReason = { type: 'other', detail: `Exceeded max turns (${MAX_AGENT_TURNS})` };
+        errorMsg = `Agent terminated: exceeded ${MAX_AGENT_TURNS}-turn limit (${effort.toolCalls} tool calls)`;
+        stateReason = 'max_turns_exceeded';
+      } else if (wasAborted) {
         failureReason = { type: 'user_abort' };
         errorMsg = 'Aborted by user';
         stateReason = 'user_abort';
