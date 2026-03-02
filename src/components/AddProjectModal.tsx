@@ -52,7 +52,7 @@ export function AddProjectModal({ onClose, onCreated }: AddProjectModalProps) {
       >
         <div className="flex items-center justify-between p-5 border-b border-surface-700">
           <h2 className="text-lg font-bold text-slate-100">Add Project</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors" aria-label="Close">
             <X className="w-5 h-5" />
           </button>
         </div>

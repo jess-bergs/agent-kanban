@@ -142,6 +142,7 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
             ? 'bg-surface-700 text-slate-400 hover:text-slate-200'
             : 'bg-accent-blue text-white hover:bg-accent-blue/90'
         }`}
+        aria-label={open ? 'Close chat' : 'Open chat'}
       >
         {open ? <X className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
       </button>
@@ -196,6 +197,7 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
                   <button
                     onClick={() => removeFile(f)}
                     className="hover:text-white transition-colors"
+                    aria-label={`Remove ${f.split('/').pop()}`}
                   >
                     <X className="w-2.5 h-2.5" />
                   </button>
@@ -354,6 +356,7 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
                 onClick={handleSend}
                 disabled={!input.trim() || loading}
                 className="p-2 rounded-lg bg-accent-blue text-white hover:bg-accent-blue/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                aria-label="Send message"
               >
                 <Send className="w-3.5 h-3.5" />
               </button>

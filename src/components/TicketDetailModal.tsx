@@ -257,7 +257,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
             </div>
             <h2 className="text-lg font-bold text-slate-100">{ticket.subject}</h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors shrink-0">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors shrink-0" aria-label="Close">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -270,6 +270,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
               href={ticket.prUrl}
               target="_blank"
               rel="noopener noreferrer"
+              aria-label={`Open Pull Request #${ticket.prNumber || ''} in new tab`}
               className={`flex items-center gap-2 px-4 py-3 rounded-lg transition-colors ${
                 ticket.hasConflict
                   ? 'bg-accent-red/5 border border-accent-red/20 hover:bg-accent-red/10'
@@ -492,6 +493,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                           type="button"
                           onClick={() => setExpandedImage(`/api/ticket-images/${img.filename}`)}
                           className="block"
+                          aria-label={`View full size image: ${img.originalName}`}
                         >
                           <img
                             src={`/api/ticket-images/${img.filename}`}
@@ -503,6 +505,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                           <button
                             onClick={() => handleDeleteImage(img.filename)}
                             className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-accent-red text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            aria-label={`Remove image ${img.originalName}`}
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -541,6 +544,8 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 <button
                   onClick={() => setShowReasoning(!showReasoning)}
                   className="flex items-center gap-1.5 mb-2 text-xs text-accent-purple hover:text-accent-purple/80 transition-colors"
+                  aria-expanded={showReasoning}
+                  aria-label="Toggle agent reasoning"
                 >
                   {showReasoning
                     ? <ChevronDown className="w-3 h-3" />
@@ -578,6 +583,8 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 <button
                   onClick={() => setShowActivity(!showActivity)}
                   className="flex items-center gap-1.5 mb-2 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                  aria-expanded={showActivity}
+                  aria-label="Toggle agent activity"
                 >
                   {showActivity
                     ? <ChevronDown className="w-3 h-3" />
@@ -694,6 +701,8 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 <button
                   onClick={() => setShowStateLog(!showStateLog)}
                   className="flex items-center gap-1.5 mb-2 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                  aria-expanded={showStateLog}
+                  aria-label="Toggle state history"
                 >
                   {showStateLog
                     ? <ChevronDown className="w-3 h-3" />

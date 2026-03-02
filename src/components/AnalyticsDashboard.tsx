@@ -634,6 +634,8 @@ function ReportsView() {
                   <button
                     onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
                     className="w-full flex items-center gap-3 p-4 text-left hover:bg-surface-700/30 transition-colors"
+                    aria-expanded={isExpanded}
+                    aria-label={`${schedule?.name || run.scheduleId.slice(0, 8)} report, score ${report.overallScore.toFixed(1)}`}
                   >
                     <div className="shrink-0">
                       <ScoreRing score={report.overallScore} />
@@ -943,6 +945,10 @@ function Section({
           collapsible ? 'cursor-pointer select-none' : 'mb-4'
         } ${collapsible && !collapsed ? 'mb-4' : ''}`}
         onClick={collapsible ? () => setCollapsed(c => !c) : undefined}
+        role={collapsible ? 'button' : undefined}
+        aria-expanded={collapsible ? !collapsed : undefined}
+        tabIndex={collapsible ? 0 : undefined}
+        onKeyDown={collapsible ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(c => !c); } } : undefined}
       >
         {icon}
         {title}

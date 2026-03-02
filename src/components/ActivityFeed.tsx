@@ -59,6 +59,8 @@ export function ActivityFeed({ inboxes, members }: ActivityFeedProps) {
                     setExpandedIdx(isExpanded ? null : idx)
                   }
                   className="w-full text-left px-4 py-3 hover:bg-surface-700/50 transition-colors"
+                  aria-expanded={isExpanded}
+                  aria-label={`Message from ${item.from}: ${item.summary || item.text.slice(0, 60)}`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <AgentBadge

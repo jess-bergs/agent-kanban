@@ -72,6 +72,7 @@ export function TaskDetailModal({ task, members, onClose }: TaskDetailModalProps
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors shrink-0"
+            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
