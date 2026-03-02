@@ -121,6 +121,12 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             {ticket.images.length}
           </span>
         )}
+        {ticket.needsAttention && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded animate-pulse">
+            <AlertTriangle className="w-3 h-3" />
+            NEEDS ATTENTION
+          </span>
+        )}
         {ticket.hasConflict && (
           <span className={`flex items-center gap-1 text-[10px] font-medium text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded ${pulse}`}>
             <AlertTriangle className="w-3 h-3" />

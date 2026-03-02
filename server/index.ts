@@ -29,7 +29,7 @@ import {
   deleteTicketImage,
   getImagesDir,
 } from './store.ts';
-import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick, attemptMerge } from './dispatcher.ts';
+import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick, attemptMerge, checkAndReconcilePrState } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
 import {
   runAudit,
@@ -317,6 +317,22 @@ app.delete('/api/tickets/:id/images/:filename', async (req, res) => {
 });
 
 app.post('/api/tickets/:id/retry', async (req, res) => {
+  const existing = await getTicket(req.params.id);
+  if (!existing) {
+    res.status(404).json({ error: 'Ticket not found' });
+    return;
+  }
+
+  // Check if PR is already merged/closed before blindly resetting
+  if (existing.prUrl) {
+    const reconciled = await checkAndReconcilePrState(existing);
+    if (reconciled) {
+      const fresh = await getTicket(req.params.id);
+      res.json(fresh ?? existing);
+      return;
+    }
+  }
+
   const ticket = await updateTicket(req.params.id, {
     status: 'todo',
     error: undefined,

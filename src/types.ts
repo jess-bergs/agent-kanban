@@ -243,6 +243,8 @@ export interface Ticket {
   automationIteration?: number;
   /** What the dispatcher should do after the agent completes: 'audit' = run auditor, 'merge' = attempt merge directly */
   postAgentAction?: 'audit' | 'merge';
+  /** True when ticket is in a terminal failure state that won't auto-heal */
+  needsAttention?: boolean;
 }
 
 // ─── Scheduled Audits ─────────────────────────────────────────────

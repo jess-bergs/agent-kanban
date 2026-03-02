@@ -216,6 +216,13 @@ export async function updateTicket(
       updated.stateLog = log;
     }
 
+    // Auto-set needsAttention: true for terminal failures, clear on recovery
+    if (updates.status === 'failed' || updates.status === 'error') {
+      updated.needsAttention = true;
+    } else if (updates.status === 'todo' || updates.status === 'in_progress') {
+      updated.needsAttention = undefined;
+    }
+
     await atomicWriteJson(join(TICKETS_DIR, `${updated.id}.json`), updated);
     return updated;
   });
