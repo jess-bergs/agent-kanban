@@ -1,0 +1,30 @@
+[Unit]
+Description=Agent Kanban — Claude Code Agent Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=agentkanban
+Group=agentkanban
+WorkingDirectory=/opt/agent-kanban
+ExecStart=/usr/bin/node --import tsx/esm server/index.ts
+Restart=always
+RestartSec=5
+
+# Environment
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/agent-kanban/env
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/data/agent-kanban /tmp/agent-kanban-worktrees /home/agentkanban
+ProtectHome=read-only
+PrivateTmp=no
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=7G
+
+[Install]
+WantedBy=multi-user.target
