@@ -1,12 +1,12 @@
 import { readdir, readFile, writeFile, mkdir, rename, unlink as fsUnlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { config } from './config.ts';
 import type { Project, Ticket, TicketImage, TicketStatus, StateChangeEntry } from '../src/types.ts';
 
-const DATA_DIR = join(import.meta.dirname, '..', 'data');
-const PROJECTS_DIR = join(DATA_DIR, 'projects');
-const TICKETS_DIR = join(DATA_DIR, 'tickets');
-const IMAGES_DIR = join(DATA_DIR, 'ticket-images');
+const PROJECTS_DIR = join(config.dataDir, 'projects');
+const TICKETS_DIR = join(config.dataDir, 'tickets');
+const IMAGES_DIR = join(config.dataDir, 'ticket-images');
 
 async function ensureDirs() {
   await mkdir(PROJECTS_DIR, { recursive: true });

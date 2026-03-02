@@ -6,6 +6,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
 import { execSync } from 'node:child_process';
+import { config, logConfig } from './config.ts';
 import {
   getAllTeamsWithData,
   readTeamConfig,
@@ -64,11 +65,15 @@ import { listTemplates, getTemplate } from './audit-templates.ts';
 import { buildAnalytics } from './analytics.ts';
 import type { TeamWithData, WSEvent, AuditTemplateId, ChatMessage } from '../src/types.ts';
 
-const PORT = 3003;
+const PORT = config.port;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const app = express();
-app.use(cors({ origin: 'http://localhost:5174' }));
+app.use(cors({
+  origin: config.allowedOrigins === '*'
+    ? '*'
+    : config.allowedOrigins.split(',').map(o => o.trim()),
+}));
 app.use(express.json({ limit: '15mb' }));
 
 // Serve uploaded ticket images as static files
@@ -81,6 +86,16 @@ app.param('id', (req, res, next) => {
     return;
   }
   next();
+});
+
+// ─── Version API ─────────────────────────────────────────────────
+
+app.get('/api/version', (_req, res) => {
+  res.json({
+    version: config.version,
+    commitSha: config.commitSha,
+    builtAt: config.builtAt,
+  });
 });
 
 // ─── Team Monitoring API ──────────────────────────────────────────
@@ -888,7 +903,7 @@ app.get('/api/chat/file', async (req, res) => {
 // ─── Chat Bot API ────────────────────────────────────────────────
 
 app.post('/api/chat', async (req, res) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = config.anthropicApiKey;
   if (!apiKey) {
     res.status(500).json({ error: 'ANTHROPIC_API_KEY not set' });
     return;
@@ -1143,10 +1158,9 @@ const watcher = startWatcher(handleFileChange);
 // ─── Startup ────────────────────────────────────────────────────
 
 server.listen(PORT, () => {
+  logConfig();
   console.log(`[server] Agent Kanban backend running on http://localhost:${PORT}`);
   console.log(`[server] WebSocket available at ws://localhost:${PORT}/ws`);
-  console.log(`[server] REST API at http://localhost:${PORT}/api/teams`);
-  console.log(`[server] Projects API at http://localhost:${PORT}/api/projects`);
 });
 
 // Start the dispatcher, auditor, and audit scheduler

@@ -7,11 +7,12 @@ import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { getProject, getTicket, updateTicket, listTickets, getImagesDir } from './store.ts';
 import { captureAndUploadScreenshots } from './screenshots.ts';
 import { runAudit, resetStuckReviews } from './auditor.ts';
+import { config } from './config.ts';
 import type { Ticket, AgentActivity, TicketEffort, WSEvent, FailureReason } from '../src/types.ts';
 import { isSignalExit, SIGNAL_NAMES } from '../src/types.ts';
 import { envWithNvmNode } from './nvm.ts';
 
-const MAX_CONCURRENT = 5;
+const MAX_CONCURRENT = config.maxConcurrent;
 const MAX_AUTO_RETRIES = 2;
 const MAX_AUTOMATION_ITERATIONS = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
@@ -433,7 +434,7 @@ async function startAgent(ticket: Ticket) {
   // Resume mode: reuse existing branch if the auditor requested changes
   const isResume = !!(ticket.agentSessionId && ticket.branchName && ticket.resumePrompt);
   const branchName = isResume ? ticket.branchName! : `agent/ticket-${ticket.id}-${slugify(ticket.subject)}`;
-  const worktreePath = `/tmp/agent-kanban-worktrees/${branchName.replace(/\//g, '-')}`;
+  const worktreePath = join(config.worktreeDir, branchName.replace(/\//g, '-'));
   const teamName = ticket.useTeam ? `ticket-${ticket.id.slice(0, 8)}` : undefined;
 
   // Check if repo has any commits
