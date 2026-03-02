@@ -18,7 +18,7 @@ import { envWithNvmNode } from './nvm.ts';
 import type { AuditSchedule, AuditRun, WSEvent } from '../src/types.ts';
 import { isSignalExit, SIGNAL_NAMES } from '../src/types.ts';
 
-const POLL_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+const POLL_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 hours
 const MAX_CONCURRENT_AUDITS = 2;
 
 type BroadcastFn = (event: WSEvent) => void;
@@ -441,6 +441,9 @@ export function stopAuditScheduler(): void {
   for (const [runId, proc] of runningAudits) {
     console.log(`[audit-scheduler] Killing audit run ${runId}`);
     proc.kill('SIGTERM');
+    proc.unref();
+    proc.stdout?.destroy();
+    proc.stderr?.destroy();
   }
   runningAudits.clear();
 }

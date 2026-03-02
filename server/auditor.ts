@@ -784,10 +784,13 @@ export async function startAuditor(): Promise<void> {
 export function stopAuditor(): void {
   if (pollIntervalId) clearInterval(pollIntervalId);
 
-  // Kill all running review processes
+  // Kill all running review processes and detach so Node can exit
   for (const [url, proc] of runningReviews) {
     console.log(`[auditor] Killing review for ${url}`);
     proc.kill('SIGTERM');
+    proc.unref();
+    proc.stdout?.destroy();
+    proc.stderr?.destroy();
   }
   runningReviews.clear();
 }

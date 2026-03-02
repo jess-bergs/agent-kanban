@@ -1944,10 +1944,13 @@ export function stopDispatcher() {
   if (intervalId) clearInterval(intervalId);
   if (conflictIntervalId) clearInterval(conflictIntervalId);
   if (healthCheckIntervalId) clearInterval(healthCheckIntervalId);
-  // Kill running agents
+  // Kill running agents — SIGTERM first, then detach so Node can exit
   for (const [id, proc] of running) {
     console.log(`[dispatcher] Killing agent for ticket #${id}`);
     proc.kill('SIGTERM');
+    proc.unref();
+    proc.stdout?.destroy();
+    proc.stderr?.destroy();
   }
   running.clear();
 }
