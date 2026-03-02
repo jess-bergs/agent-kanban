@@ -110,5 +110,11 @@ export function startWatcher(callback: ChangeCallback): FSWatcher {
   watcher.on('change', (p) => handleChange(p));
   watcher.on('unlink', (p) => handleChange(p, true));
 
+  // Clean up pending debounce timers when the watcher closes
+  watcher.on('close', () => {
+    for (const timer of debounceTimers.values()) clearTimeout(timer);
+    debounceTimers.clear();
+  });
+
   return watcher;
 }
