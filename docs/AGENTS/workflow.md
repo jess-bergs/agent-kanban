@@ -26,6 +26,16 @@ Before writing any code, agents must investigate the codebase to understand cont
 - Skipping the search for existing utilities that already solve part of the problem
 - Not checking whether similar features exist and should be extended rather than duplicated
 
+## PR Template Compliance
+
+When creating a PR, agents **must** use the repo's PR template at `.github/pull_request_template.md`. The dispatcher injects explicit instructions for this into every agent's task prompt.
+
+**Key rules:**
+- Do NOT use `gh pr create --fill` — it ignores the template entirely.
+- Read the template file, fill in every section (Description, Changes, Type of Change, Testing, Checklist), and pass it as the PR body via `--body`.
+- Mark applicable checkboxes with `[x]`.
+- The PR auditor will flag non-compliant PRs and request changes.
+
 ## Ticket Lifecycle
 
 Tickets flow: `todo` → `in_progress` → `in_review` → `done` / `merged` / `failed` / `error`
