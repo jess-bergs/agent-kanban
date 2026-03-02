@@ -986,67 +986,124 @@ function EmptySection({ message }: { message: string }) {
 
 // ─── Dispatcher Run Table ────────────────────────────────────────
 
-function RunTable({ runs }: { runs: DispatcherRunSummary[] }) {
+// Usage thresholds for flagging extreme runs
+const USAGE_THRESHOLDS = {
+  turns: 40,
+  toolCalls: 60,
+  inputTokens: 3_000_000,
+  durationMs: 10 * 60_000, // 10 min
+};
+
+function isExtremeUsage(run: DispatcherRunSummary): boolean {
   return (
-    <div className="overflow-auto max-h-64">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-left text-slate-500 border-b border-surface-600">
-            <th className="pb-2 pr-3 font-medium">Subject</th>
-            <th className="pb-2 pr-3 font-medium">Status</th>
-            <th className="pb-2 pr-3 font-medium">Cost</th>
-            <th className="pb-2 pr-3 font-medium">Duration</th>
-            <th className="pb-2 pr-3 font-medium">Turns</th>
-            <th className="pb-2 pr-3 font-medium">Tools</th>
-            <th className="pb-2 pr-3 font-medium">Tokens</th>
-            <th className="pb-2 font-medium">PR</th>
-          </tr>
-        </thead>
-        <tbody>
-          {runs.map(run => (
-            <tr key={run.ticketId} className="border-b border-surface-700/50 hover:bg-surface-700/30">
-              <td className="py-2 pr-3 text-slate-300 max-w-[200px] truncate" title={run.subject}>
-                {run.subject}
-              </td>
-              <td className="py-2 pr-3">
-                <StatusBadge status={run.status} />
-              </td>
-              <td className="py-2 pr-3 text-slate-400">
-                {run.costUsd != null ? `$${run.costUsd.toFixed(2)}` : '-'}
-              </td>
-              <td className="py-2 pr-3 text-slate-400">
-                {run.durationMs ? formatDuration(run.durationMs) : '-'}
-              </td>
-              <td className="py-2 pr-3 text-slate-400">{run.turns ?? '-'}</td>
-              <td className="py-2 pr-3 text-slate-400">{run.toolCalls ?? '-'}</td>
-              <td className="py-2 pr-3 text-slate-400">
-                {run.inputTokens || run.outputTokens
-                  ? `${formatTokenCount(run.inputTokens || 0)}/${formatTokenCount(run.outputTokens || 0)}`
-                  : '-'}
-              </td>
-              <td className="py-2">
-                {run.prUrl ? (
-                  <a
-                    href={run.prUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent-blue hover:underline flex items-center gap-1"
-                  >
-                    <GitPullRequest className="w-3 h-3" />
-                    PR
-                  </a>
-                ) : run.error ? (
-                  <span className="text-accent-red truncate max-w-[120px] inline-block" title={run.error}>
-                    {run.error.slice(0, 30)}
-                  </span>
-                ) : (
-                  '-'
-                )}
-              </td>
+    (run.turns ?? 0) >= USAGE_THRESHOLDS.turns ||
+    (run.toolCalls ?? 0) >= USAGE_THRESHOLDS.toolCalls ||
+    (run.inputTokens ?? 0) >= USAGE_THRESHOLDS.inputTokens ||
+    (run.durationMs ?? 0) >= USAGE_THRESHOLDS.durationMs
+  );
+}
+
+function UsageCell({ value, threshold, format }: { value?: number; threshold: number; format?: (v: number) => string }) {
+  if (value == null) return <span className="text-slate-400">-</span>;
+  const over = value >= threshold;
+  const formatted = format ? format(value) : String(value);
+  return (
+    <span className={over ? 'text-accent-red font-medium' : 'text-slate-400'}>
+      {formatted}{over && ' !'}
+    </span>
+  );
+}
+
+function RunTable({ runs }: { runs: DispatcherRunSummary[] }) {
+  const extremeRuns = runs.filter(isExtremeUsage);
+
+  return (
+    <div>
+      {extremeRuns.length > 0 && (
+        <div className="mb-3 bg-accent-red/5 border border-accent-red/20 rounded px-3 py-2">
+          <div className="flex items-center gap-2 text-xs text-accent-red font-medium mb-1">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            {extremeRuns.length} run{extremeRuns.length > 1 ? 's' : ''} with extreme usage
+          </div>
+          <div className="text-[10px] text-slate-500">
+            Thresholds: {'>='}{USAGE_THRESHOLDS.turns} turns, {'>='}{USAGE_THRESHOLDS.toolCalls} tools, {'>='}{formatTokenCount(USAGE_THRESHOLDS.inputTokens)} input tokens, {'>='}{formatDuration(USAGE_THRESHOLDS.durationMs)}
+          </div>
+        </div>
+      )}
+      <div className="overflow-auto max-h-64">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-left text-slate-500 border-b border-surface-600">
+              <th className="pb-2 pr-3 font-medium">Subject</th>
+              <th className="pb-2 pr-3 font-medium">Status</th>
+              <th className="pb-2 pr-3 font-medium">Cost</th>
+              <th className="pb-2 pr-3 font-medium">Duration</th>
+              <th className="pb-2 pr-3 font-medium">Turns</th>
+              <th className="pb-2 pr-3 font-medium">Tools</th>
+              <th className="pb-2 pr-3 font-medium">Tokens</th>
+              <th className="pb-2 font-medium">PR</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {runs.map(run => {
+              const extreme = isExtremeUsage(run);
+              return (
+                <tr key={run.ticketId} className={`border-b border-surface-700/50 hover:bg-surface-700/30 ${extreme ? 'bg-accent-red/5' : ''}`}>
+                  <td className="py-2 pr-3 text-slate-300 max-w-[200px] truncate" title={run.subject}>
+                    {extreme && <AlertTriangle className="w-3 h-3 text-accent-red inline mr-1" />}
+                    {run.subject}
+                  </td>
+                  <td className="py-2 pr-3">
+                    <StatusBadge status={run.status} />
+                  </td>
+                  <td className="py-2 pr-3 text-slate-400">
+                    {run.costUsd != null ? `$${run.costUsd.toFixed(2)}` : '-'}
+                  </td>
+                  <td className="py-2 pr-3">
+                    <UsageCell value={run.durationMs} threshold={USAGE_THRESHOLDS.durationMs} format={formatDuration} />
+                  </td>
+                  <td className="py-2 pr-3">
+                    <UsageCell value={run.turns} threshold={USAGE_THRESHOLDS.turns} />
+                  </td>
+                  <td className="py-2 pr-3">
+                    <UsageCell value={run.toolCalls} threshold={USAGE_THRESHOLDS.toolCalls} />
+                  </td>
+                  <td className="py-2 pr-3">
+                    {run.inputTokens || run.outputTokens ? (
+                      <UsageCell
+                        value={run.inputTokens}
+                        threshold={USAGE_THRESHOLDS.inputTokens}
+                        format={v => `${formatTokenCount(v)}/${formatTokenCount(run.outputTokens || 0)}`}
+                      />
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
+                  <td className="py-2">
+                    {run.prUrl ? (
+                      <a
+                        href={run.prUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-accent-blue hover:underline flex items-center gap-1"
+                      >
+                        <GitPullRequest className="w-3 h-3" />
+                        PR
+                      </a>
+                    ) : run.error ? (
+                      <span className="text-accent-red truncate max-w-[120px] inline-block" title={run.error}>
+                        {run.error.slice(0, 30)}
+                      </span>
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
