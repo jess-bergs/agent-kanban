@@ -1170,19 +1170,29 @@ const agentPollInterval = setInterval(async () => {
 
 // ─── Graceful Shutdown ──────────────────────────────────────────
 
+let shuttingDown = false;
 function shutdown() {
+  if (shuttingDown) {
+    console.log('[server] Force exit.');
+    process.exit(1);
+  }
+  shuttingDown = true;
   console.log('\n[server] Shutting down...');
   stopDispatcher();
   stopAuditor();
   stopAuditScheduler();
   clearInterval(agentPollInterval);
   watcher.close();
+  // Terminate all WebSocket connections so server.close() doesn't hang
+  for (const client of wss.clients) {
+    client.terminate();
+  }
   wss.close();
   server.close(() => {
     console.log('[server] Stopped.');
     process.exit(0);
   });
-  setTimeout(() => process.exit(1), 3000);
+  setTimeout(() => process.exit(1), 2000);
 }
 
 process.on('SIGINT', shutdown);
