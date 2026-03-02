@@ -21,12 +21,6 @@ function envInt(key: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function envBool(key: string, fallback: boolean): boolean {
-  const val = process.env[key];
-  if (!val) return fallback;
-  return val === '1' || val.toLowerCase() === 'true';
-}
-
 // ─── Commit SHA (resolved once at startup) ──────────────────────
 
 let commitSha = 'unknown';
