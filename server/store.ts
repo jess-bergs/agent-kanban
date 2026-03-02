@@ -219,7 +219,7 @@ export async function updateTicket(
     // Auto-set needsAttention: true for terminal failures, clear on recovery
     if (updates.status === 'failed' || updates.status === 'error') {
       updated.needsAttention = true;
-    } else if (updates.status === 'todo' || updates.status === 'in_progress') {
+    } else if (updates.status === 'todo' || updates.status === 'in_progress' || updates.status === 'done' || updates.status === 'merged' || updates.status === 'in_review') {
       updated.needsAttention = undefined;
     }
 
