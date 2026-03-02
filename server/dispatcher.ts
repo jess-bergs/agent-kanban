@@ -36,6 +36,8 @@ const lastAutoMergeCheck = new Map<string, number>();
 const autoMergeLastState = new Map<string, string>();
 /** Tracks consecutive not-ready checks per ticket for exponential backoff */
 const autoMergeNotReadyCount = new Map<string, number>();
+/** Prevents concurrent dispatcherTick() calls from overlapping */
+let tickRunning = false;
 const AUTO_MERGE_CHECK_INTERVAL_MS = 30_000; // 30 seconds between checks per ticket
 const AUTO_MERGE_MAX_INTERVAL_MS = 5 * 60_000; // 5 minutes max backoff
 /** Extra delay added after usage limit reset before resuming (avoids racing the reset) */
@@ -1380,6 +1382,9 @@ export async function conflictCheckTick() {
 // ─── Dispatcher Tick ────────────────────────────────────────────
 
 export async function dispatcherTick() {
+  if (tickRunning) return;
+  tickRunning = true;
+  try {
   const tickets = await listTickets();
 
   // Resume held tickets whose hold period has expired
@@ -1472,6 +1477,9 @@ export async function dispatcherTick() {
         }
       }
     }
+  }
+  } finally {
+    tickRunning = false;
   }
 }
 
