@@ -1,12 +1,12 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { execSync, execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { readFile } from 'node:fs/promises';
+import { readFile, appendFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { getProject, getTicket, updateTicket, listTickets, getImagesDir } from './store.ts';
 import { captureAndUploadScreenshots } from './screenshots.ts';
-import { runAudit } from './auditor.ts';
+import { runAudit, resetStuckReviews } from './auditor.ts';
 import type { Ticket, AgentActivity, TicketEffort, WSEvent, FailureReason } from '../src/types.ts';
 import { isSignalExit, SIGNAL_NAMES } from '../src/types.ts';
 import { envWithNvmNode } from './nvm.ts';
@@ -1290,8 +1290,12 @@ export function abortAgent(ticketId: string): boolean {
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let conflictIntervalId: ReturnType<typeof setInterval> | null = null;
+let healthCheckIntervalId: ReturnType<typeof setInterval> | null = null;
 
 const CONFLICT_CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const HEALTH_CHECK_INTERVAL_MS = 30_000; // 30 seconds
+const STUCK_AUDIT_GRACE_MS = 10 * 60_000; // 10 minutes
+const NO_PR_GRACE_MS = 5 * 60_000; // 5 minutes
 
 function isProcessAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch { return false; }
@@ -1361,6 +1365,147 @@ async function recoverOrphanedTickets() {
   }
 }
 
+// ─── Health Check Loop ────────────────────────────────────────────
+
+const HEALTH_LOG_DIR = join(import.meta.dirname, '..', 'data');
+const HEALTH_LOG_FILE = join(HEALTH_LOG_DIR, 'health-check-log.jsonl');
+let healthCheckRunning = false;
+
+interface HealthLogEntry {
+  timestamp: number;
+  check: 'orphan_pid' | 'stuck_audit' | 'no_pr';
+  ticketId: string;
+  action: 'retry' | 'fail' | 'reset_audit';
+  detail: string;
+}
+
+async function appendHealthLog(entry: HealthLogEntry): Promise<void> {
+  try {
+    await mkdir(HEALTH_LOG_DIR, { recursive: true });
+    await appendFile(HEALTH_LOG_FILE, JSON.stringify(entry) + '\n');
+  } catch (err) {
+    console.error('[health-check] Failed to write log:', err);
+  }
+}
+
+export async function healthCheckTick(): Promise<void> {
+  if (healthCheckRunning) return;
+  healthCheckRunning = true;
+
+  try {
+    const tickets = await listTickets();
+    const now = Date.now();
+
+    // ── Check 1: Orphan PID Detection ──
+    const inProgress = tickets.filter(t => t.status === 'in_progress' && !running.has(t.id));
+    for (const ticket of inProgress) {
+      if (ticket.agentPid && isProcessAlive(ticket.agentPid)) continue;
+
+      // Clean up stale worktree
+      if (ticket.worktreePath) {
+        const project = await getProject(ticket.projectId);
+        if (project) cleanupWorktree(project.repoPath, ticket.worktreePath);
+      }
+
+      const priorAttempts = countOrphanRecoveries(ticket);
+
+      if (priorAttempts < MAX_AUTO_RETRIES) {
+        console.log(`[health-check] Orphan detected: ticket #${ticket.id} (attempt ${priorAttempts + 1}/${MAX_AUTO_RETRIES})`);
+        const updated = await updateTicket(ticket.id, {
+          status: 'todo',
+          error: undefined,
+          failureReason: undefined,
+          branchName: undefined,
+          worktreePath: undefined,
+          startedAt: undefined,
+          completedAt: undefined,
+          lastOutput: undefined,
+          agentPid: undefined,
+        }, 'health_check_orphan');
+        if (updated) broadcastTicket(updated);
+        await appendHealthLog({
+          timestamp: now, check: 'orphan_pid', ticketId: ticket.id,
+          action: 'retry', detail: `Auto-retry attempt ${priorAttempts + 1}/${MAX_AUTO_RETRIES}`,
+        });
+      } else {
+        console.log(`[health-check] Orphan ticket #${ticket.id} exceeded retry budget (${priorAttempts}/${MAX_AUTO_RETRIES})`);
+        const updated = await updateTicket(ticket.id, {
+          status: 'failed',
+          error: `Auto-retry budget exhausted (${priorAttempts} attempts, detected by health check)`,
+          failureReason: { type: 'retry_budget_exhausted', attempts: priorAttempts },
+          completedAt: now,
+          agentPid: undefined,
+        }, 'health_check_orphan');
+        if (updated) broadcastTicket(updated);
+        await appendHealthLog({
+          timestamp: now, check: 'orphan_pid', ticketId: ticket.id,
+          action: 'fail', detail: `Retry budget exhausted (${priorAttempts} attempts)`,
+        });
+      }
+    }
+
+    // ── Check 2: Stuck Audit Detection ──
+    const stuckAudits = tickets.filter(t => t.auditStatus === 'running');
+    for (const ticket of stuckAudits) {
+      // Grace period: use stateLog to find when auditStatus last changed, or fall back to completedAt/startedAt
+      const auditStarted = ticket.stateLog
+        ?.filter(e => e.reason === 'audit_started' || e.status === 'in_review')
+        .at(-1)?.timestamp
+        ?? ticket.completedAt ?? ticket.startedAt ?? 0;
+
+      if (now - auditStarted < STUCK_AUDIT_GRACE_MS) continue;
+
+      console.log(`[health-check] Stuck audit detected: ticket #${ticket.id} (running for ${Math.round((now - auditStarted) / 60_000)}min)`);
+      const updated = await updateTicket(ticket.id, {
+        auditStatus: undefined,
+        auditResult: undefined,
+        auditVerdict: undefined,
+      });
+      if (updated) {
+        broadcastTicket(updated);
+        // Re-trigger the audit
+        runAudit(updated).catch(err => {
+          console.error(`[health-check] Re-audit failed for ticket #${ticket.id}:`, err);
+        });
+      }
+      await appendHealthLog({
+        timestamp: now, check: 'stuck_audit', ticketId: ticket.id,
+        action: 'reset_audit', detail: `Audit stuck for ${Math.round((now - auditStarted) / 60_000)}min — reset and re-triggered`,
+      });
+    }
+
+    // Also reset stuck watchlist entries
+    const resetCount = await resetStuckReviews(STUCK_AUDIT_GRACE_MS);
+    if (resetCount > 0) {
+      console.log(`[health-check] Reset ${resetCount} stuck watchlist review(s)`);
+    }
+
+    // ── Check 3: In-Review with No PR ──
+    const noPrReviews = tickets.filter(t => t.status === 'in_review' && !t.prUrl);
+    for (const ticket of noPrReviews) {
+      const completedAt = ticket.completedAt ?? ticket.startedAt ?? 0;
+      if (now - completedAt < NO_PR_GRACE_MS) continue;
+
+      console.log(`[health-check] No-PR in_review detected: ticket #${ticket.id} (${Math.round((now - completedAt) / 60_000)}min without PR)`);
+      const updated = await updateTicket(ticket.id, {
+        status: 'failed',
+        error: 'No PR created — agent exited without opening a pull request',
+        failureReason: { type: 'other', detail: 'No PR created' },
+        completedAt: now,
+      }, 'health_check_no_pr');
+      if (updated) broadcastTicket(updated);
+      await appendHealthLog({
+        timestamp: now, check: 'no_pr', ticketId: ticket.id,
+        action: 'fail', detail: `In review for ${Math.round((now - completedAt) / 60_000)}min with no PR URL`,
+      });
+    }
+  } catch (err) {
+    console.error('[health-check] Error during health check:', err);
+  } finally {
+    healthCheckRunning = false;
+  }
+}
+
 export async function startDispatcher() {
   console.log('[dispatcher] Started (polling every 3s, max concurrent: ' + MAX_CONCURRENT + ')');
   // Recover tickets orphaned by previous server shutdown
@@ -1373,11 +1518,15 @@ export async function startDispatcher() {
   conflictCheckTick();
   conflictIntervalId = setInterval(conflictCheckTick, CONFLICT_CHECK_INTERVAL_MS);
   console.log('[dispatcher] Conflict check scheduled (every 1h)');
+  // Health check loop for orphan PIDs, stuck audits, and no-PR in-review
+  healthCheckIntervalId = setInterval(healthCheckTick, HEALTH_CHECK_INTERVAL_MS);
+  console.log('[dispatcher] Health check scheduled (every 30s)');
 }
 
 export function stopDispatcher() {
   if (intervalId) clearInterval(intervalId);
   if (conflictIntervalId) clearInterval(conflictIntervalId);
+  if (healthCheckIntervalId) clearInterval(healthCheckIntervalId);
   // Kill running agents
   for (const [id, proc] of running) {
     console.log(`[dispatcher] Killing agent for ticket #${id}`);
