@@ -1,8 +1,13 @@
 import { useWebSocket } from './hooks/useWebSocket';
 import { Layout } from './components/Layout';
+import { LoadingScreen } from './components/LoadingScreen';
 
 export default function App() {
   const ws = useWebSocket();
+
+  if (ws.initialLoading) {
+    return <LoadingScreen connected={ws.connected} />;
+  }
 
   return (
     <Layout
