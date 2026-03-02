@@ -2,6 +2,8 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   X,
   Hash,
+  Copy,
+  Check,
   Clock,
   Loader2,
   CheckCircle,
@@ -113,6 +115,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
   const [showActivity, setShowActivity] = useState(true);
   const [showStateLog, setShowStateLog] = useState(false);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   async function handleRetry() {
@@ -210,10 +213,19 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
         <div className="flex items-start justify-between p-5 border-b border-surface-700 shrink-0">
           <div className="min-w-0 flex-1 pr-4">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className="flex items-center gap-1 text-xs text-slate-500">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(ticket.id);
+                  setCopiedId(true);
+                  setTimeout(() => setCopiedId(false), 1500);
+                }}
+                title={`Copy full ID: ${ticket.id}`}
+                className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+              >
                 <Hash className="w-3 h-3" />
                 {ticket.id.slice(0, 8)}
-              </span>
+                {copiedId ? <Check className="w-3 h-3 text-accent-green" /> : <Copy className="w-3 h-3" />}
+              </button>
               <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>
                 <StatusIcon className={`w-3 h-3 ${ticket.status === 'in_progress' ? 'animate-spin' : ''} ${ticket.status === 'needs_approval' ? 'animate-pulse' : ''}`} />
                 {TICKET_STATUS_LABELS[ticket.status]}
