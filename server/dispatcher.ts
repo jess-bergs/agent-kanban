@@ -1519,6 +1519,7 @@ const CONFLICT_CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const HEALTH_CHECK_INTERVAL_MS = 30_000; // 30 seconds
 const STUCK_AUDIT_GRACE_MS = 10 * 60_000; // 10 minutes
 const NO_PR_GRACE_MS = 5 * 60_000; // 5 minutes
+const STUCK_TICKET_GRACE_MS = 30 * 60_000; // 30 minutes — flag tickets idle for this long
 
 function isProcessAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch { return false; }
@@ -1586,6 +1587,58 @@ export async function checkAndReconcilePrState(ticket: Ticket): Promise<boolean>
   return false;
 }
 
+// ─── Resume-Aware Retry Helper ────────────────────────────────────
+
+/**
+ * Build the update fields for retrying a ticket.
+ * If the ticket has a remote branch and a session ID, preserve them for
+ * `--resume` mode in startAgent(). Otherwise, clear everything for a fresh start.
+ */
+export async function prepareRetryFields(ticket: Ticket): Promise<Partial<Ticket>> {
+  const base: Partial<Ticket> = {
+    status: 'todo',
+    error: undefined,
+    failureReason: undefined,
+    worktreePath: undefined,
+    startedAt: undefined,
+    completedAt: undefined,
+    lastOutput: undefined,
+    agentPid: undefined,
+  };
+
+  // Check if there's resumable state: branch on remote + session ID
+  if (ticket.branchName && ticket.agentSessionId) {
+    const project = await getProject(ticket.projectId);
+    if (project) {
+      try {
+        const result = execFileSync(
+          'git', ['ls-remote', '--heads', 'origin', ticket.branchName],
+          { cwd: project.repoPath, encoding: 'utf-8', timeout: 15000 },
+        ).trim();
+        if (result.length > 0) {
+          // Branch exists on remote — resume mode
+          console.log(`[dispatcher] Retry will resume: branch "${ticket.branchName}" exists on remote`);
+          return {
+            ...base,
+            resumePrompt: ticket.resumePrompt || 'Continue working on this ticket. Review your previous progress and pick up where you left off.',
+          };
+          // branchName and agentSessionId are preserved (not in `base`)
+        }
+      } catch {
+        // git ls-remote failed — fall through to fresh start
+      }
+    }
+  }
+
+  // No resumable state — fresh start
+  return {
+    ...base,
+    branchName: undefined,
+    agentSessionId: undefined,
+    resumePrompt: undefined,
+  };
+}
+
 async function recoverOrphanedTickets() {
   const tickets = await listTickets();
   const orphaned = tickets.filter(
@@ -1614,17 +1667,8 @@ async function recoverOrphanedTickets() {
     if (priorAttempts < MAX_AUTO_RETRIES) {
       // Under budget — reset to todo for automatic re-dispatch
       console.log(`[dispatcher] Auto-retrying orphaned ticket #${ticket.id}: ${ticket.subject} (attempt ${priorAttempts + 1}/${MAX_AUTO_RETRIES})`);
-      const updated = await updateTicket(ticket.id, {
-        status: 'todo',
-        error: undefined,
-        failureReason: undefined,
-        branchName: undefined,
-        worktreePath: undefined,
-        startedAt: undefined,
-        completedAt: undefined,
-        lastOutput: undefined,
-        agentPid: undefined,
-      }, 'auto_retry');
+      const retryFields = await prepareRetryFields(ticket);
+      const updated = await updateTicket(ticket.id, retryFields, 'auto_retry');
       if (updated) broadcastTicket(updated);
       retried++;
     } else {
@@ -1655,9 +1699,9 @@ let healthCheckRunning = false;
 
 interface HealthLogEntry {
   timestamp: number;
-  check: 'orphan_pid' | 'stuck_audit' | 'no_pr';
+  check: 'orphan_pid' | 'stuck_audit' | 'no_pr' | 'stuck_ticket';
   ticketId: string;
-  action: 'retry' | 'fail' | 'reset_audit';
+  action: 'retry' | 'fail' | 'reset_audit' | 'flag';
   detail: string;
 }
 
@@ -1697,17 +1741,8 @@ export async function healthCheckTick(): Promise<void> {
 
       if (priorAttempts < MAX_AUTO_RETRIES) {
         console.log(`[health-check] Orphan detected: ticket #${ticket.id} (attempt ${priorAttempts + 1}/${MAX_AUTO_RETRIES})`);
-        const updated = await updateTicket(ticket.id, {
-          status: 'todo',
-          error: undefined,
-          failureReason: undefined,
-          branchName: undefined,
-          worktreePath: undefined,
-          startedAt: undefined,
-          completedAt: undefined,
-          lastOutput: undefined,
-          agentPid: undefined,
-        }, 'health_check_orphan');
+        const retryFields = await prepareRetryFields(ticket);
+        const updated = await updateTicket(ticket.id, retryFields, 'health_check_orphan');
         if (updated) broadcastTicket(updated);
         await appendHealthLog({
           timestamp: now, check: 'orphan_pid', ticketId: ticket.id,
@@ -1816,6 +1851,70 @@ export async function healthCheckTick(): Promise<void> {
         timestamp: now, check: 'no_pr', ticketId: ticket.id,
         action: 'fail', detail: `In review for ${Math.round((now - completedAt) / 60_000)}min with no PR URL`,
       });
+    }
+
+    // ── Check 4: Stuck / Corrupt Ticket Detection ──
+    // Catches tickets that slip through the cracks and "vanish" from attention.
+    for (const ticket of tickets) {
+      // Skip terminal states and tickets already flagged
+      if (['done', 'merged'].includes(ticket.status)) continue;
+      if (ticket.needsAttention) continue;
+
+      const reasons: string[] = [];
+
+      // 4a. needs_approval with no running agent process
+      if (ticket.status === 'needs_approval' && !running.has(ticket.id)) {
+        const alive = ticket.agentPid && isProcessAlive(ticket.agentPid);
+        if (!alive) {
+          reasons.push('needs_approval but agent process is gone');
+        }
+      }
+
+      // 4b. on_hold with expired holdUntil that wasn't picked back up
+      if (ticket.status === 'on_hold' && ticket.holdUntil && ticket.holdUntil < now - STUCK_TICKET_GRACE_MS) {
+        reasons.push(`on_hold past holdUntil (expired ${Math.round((now - ticket.holdUntil) / 60_000)}min ago)`);
+      }
+
+      // 4c. in_progress for too long with no PID and not already caught by Check 1
+      // (Check 1 auto-retries; this catches edge cases where retry itself failed)
+      if (ticket.status === 'in_progress' && !ticket.agentPid && !running.has(ticket.id)) {
+        const started = ticket.startedAt ?? ticket.createdAt;
+        if (now - started > STUCK_TICKET_GRACE_MS) {
+          reasons.push(`in_progress for ${Math.round((now - started) / 60_000)}min with no agent PID`);
+        }
+      }
+
+      // 4d. todo for an extended period without being dispatched (possible dispatch failure)
+      if (ticket.status === 'todo' && !ticket.queued) {
+        const todoSince = ticket.stateLog?.filter(e => e.status === 'todo').at(-1)?.timestamp ?? ticket.createdAt;
+        if (now - todoSince > STUCK_TICKET_GRACE_MS) {
+          reasons.push(`todo for ${Math.round((now - todoSince) / 60_000)}min without being dispatched`);
+        }
+      }
+
+      // 4e. Invalid/missing status
+      if (!['todo', 'in_progress', 'needs_approval', 'in_review', 'on_hold', 'done', 'merged', 'failed', 'error'].includes(ticket.status)) {
+        reasons.push(`unknown status: "${ticket.status}"`);
+      }
+
+      // 4f. Missing required fields
+      if (!ticket.projectId) reasons.push('missing projectId');
+      if (!ticket.subject) reasons.push('missing subject');
+      if (!ticket.instructions) reasons.push('missing instructions');
+
+      if (reasons.length > 0) {
+        const detail = reasons.join('; ');
+        console.log(`[health-check] Stuck/corrupt ticket #${ticket.id}: ${detail}`);
+        const updated = await updateTicket(ticket.id, {
+          needsAttention: true,
+          error: ticket.error || `Health check: ${detail}`,
+        });
+        if (updated) broadcastTicket(updated);
+        await appendHealthLog({
+          timestamp: now, check: 'stuck_ticket', ticketId: ticket.id,
+          action: 'flag', detail,
+        });
+      }
     }
   } catch (err) {
     console.error('[health-check] Error during health check:', err);

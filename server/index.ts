@@ -29,7 +29,7 @@ import {
   deleteTicketImage,
   getImagesDir,
 } from './store.ts';
-import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick, attemptMerge, checkAndReconcilePrState } from './dispatcher.ts';
+import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick, attemptMerge, checkAndReconcilePrState, prepareRetryFields } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
 import {
   runAudit,
@@ -333,19 +333,11 @@ app.post('/api/tickets/:id/retry', async (req, res) => {
     }
   }
 
+  const retryFields = await prepareRetryFields(existing);
   const ticket = await updateTicket(req.params.id, {
-    status: 'todo',
-    error: undefined,
-    failureReason: undefined,
-    branchName: undefined,
-    worktreePath: undefined,
+    ...retryFields,
+    // Manual retry also clears automation-specific fields
     teamName: undefined,
-    startedAt: undefined,
-    completedAt: undefined,
-    lastOutput: undefined,
-    agentPid: undefined,
-    agentSessionId: undefined,
-    resumePrompt: undefined,
     automationIteration: undefined,
     postAgentAction: undefined,
     holdUntil: undefined,
