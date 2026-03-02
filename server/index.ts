@@ -333,6 +333,7 @@ app.post('/api/tickets/:id/retry', async (req, res) => {
     resumePrompt: undefined,
     automationIteration: undefined,
     postAgentAction: undefined,
+    holdUntil: undefined,
   }, 'user_retry');
   if (ticket) {
     broadcast({ type: 'ticket_updated', data: ticket });

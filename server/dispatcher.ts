@@ -35,6 +35,10 @@ const autoMergeLastState = new Map<string, string>();
 const autoMergeNotReadyCount = new Map<string, number>();
 const AUTO_MERGE_CHECK_INTERVAL_MS = 30_000; // 30 seconds between checks per ticket
 const AUTO_MERGE_MAX_INTERVAL_MS = 5 * 60_000; // 5 minutes max backoff
+/** Extra delay added after usage limit reset before resuming (avoids racing the reset) */
+const USAGE_LIMIT_RESUME_BUFFER_MS = 5 * 60_000; // 5 minutes
+/** Minimum hold duration — if the reset is less than this far away, just wait; otherwise hold */
+const USAGE_LIMIT_MIN_HOLD_MS = 3 * 60_000; // 3 minutes
 
 type BroadcastFn = (event: WSEvent) => void;
 let broadcastFn: BroadcastFn = () => {};
@@ -49,6 +53,123 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40);
+}
+
+/**
+ * Detect a usage/rate limit error from agent output or stderr.
+ * Returns the parsed reset timestamp (Unix ms) if detected, or null.
+ *
+ * Known patterns:
+ * - Anthropic: "You've hit your limit · resets 3am (Europe/London)"
+ * - Generic:   "rate limit", "usage limit", "quota exceeded"
+ * - Claude CLI: "error: Rate limit exceeded" or similar
+ */
+function detectUsageLimit(text: string): number | null {
+  if (!text) return null;
+
+  // Pattern 1: "resets <time> (<timezone>)" — e.g., "resets 3am (Europe/London)"
+  const resetTimeMatch = text.match(
+    /resets?\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm))\s*\(([^)]+)\)/i,
+  );
+  if (resetTimeMatch) {
+    const timeStr = resetTimeMatch[1].trim();
+    const tz = resetTimeMatch[2].trim();
+    const resetTs = parseResetTime(timeStr, tz);
+    if (resetTs) return resetTs;
+  }
+
+  // Pattern 2: "resets at <ISO time>" or "resets at <time>"
+  const resetAtMatch = text.match(
+    /resets?\s+at\s+(\d{4}-\d{2}-\d{2}T[\d:.Z+-]+|\d{1,2}(?::\d{2})?\s*(?:am|pm))/i,
+  );
+  if (resetAtMatch) {
+    const isoAttempt = Date.parse(resetAtMatch[1]);
+    if (!isNaN(isoAttempt)) return isoAttempt;
+    // Fallback: assume local timezone
+    const resetTs = parseResetTime(resetAtMatch[1].trim(), undefined);
+    if (resetTs) return resetTs;
+  }
+
+  // Pattern 3: "resets in <N> minutes/hours"
+  const resetInMatch = text.match(
+    /resets?\s+in\s+(\d+)\s*(minutes?|mins?|hours?|hrs?)/i,
+  );
+  if (resetInMatch) {
+    const amount = parseInt(resetInMatch[1], 10);
+    const unit = resetInMatch[2].toLowerCase();
+    const ms = unit.startsWith('h') ? amount * 3600_000 : amount * 60_000;
+    return Date.now() + ms;
+  }
+
+  // Check for generic usage limit keywords (no parseable reset time → default 1 hour)
+  const limitPatterns = [
+    /you've hit your limit/i,
+    /usage limit/i,
+    /rate limit/i,
+    /quota exceeded/i,
+    /too many requests/i,
+    /resource_exhausted/i,
+    /overloaded/i,
+  ];
+  for (const pattern of limitPatterns) {
+    if (pattern.test(text)) {
+      // Default: assume 1 hour reset
+      return Date.now() + 3600_000;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Parse a reset time like "3am" or "3:00pm" into a Unix timestamp.
+ * If the resulting time is in the past, assumes it means tomorrow.
+ */
+function parseResetTime(timeStr: string, tz: string | undefined): number | null {
+  const match = timeStr.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i);
+  if (!match) return null;
+
+  let hours = parseInt(match[1], 10);
+  const minutes = match[2] ? parseInt(match[2], 10) : 0;
+  const period = match[3].toLowerCase();
+
+  if (period === 'pm' && hours !== 12) hours += 12;
+  if (period === 'am' && hours === 12) hours = 0;
+
+  // Build a date string for today at the given time in the given timezone
+  const now = new Date();
+
+  // Use Intl to figure out the current date in the target timezone
+  let targetDate: Date;
+  try {
+    // Format today's date in the target timezone
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz || undefined,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const dateStr = formatter.format(now); // YYYY-MM-DD
+    targetDate = new Date(`${dateStr}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`);
+
+    // Convert from target timezone to UTC using offset estimation
+    // Get the timezone offset by comparing formatted time
+    const inTz = new Date(targetDate.toLocaleString('en-US', { timeZone: tz || undefined }));
+    const inLocal = new Date(targetDate.toLocaleString('en-US'));
+    const offset = inLocal.getTime() - inTz.getTime();
+    targetDate = new Date(targetDate.getTime() + offset);
+  } catch {
+    // Fallback if timezone is invalid: use local timezone
+    targetDate = new Date();
+    targetDate.setHours(hours, minutes, 0, 0);
+  }
+
+  // If the time has already passed today, it means tomorrow
+  if (targetDate.getTime() <= now.getTime()) {
+    targetDate.setTime(targetDate.getTime() + 24 * 3600_000);
+  }
+
+  return targetDate.getTime();
 }
 
 async function broadcastTicket(ticket: Ticket) {
@@ -772,6 +893,38 @@ async function startAgent(ticket: Ticket) {
       const signalTerminated = isSignalExit(exitCode);
       const signalName = SIGNAL_NAMES[exitCode] ?? `signal ${exitCode - 128}`;
 
+      // Check for usage/rate limit errors before generic failure handling
+      if (!wasAborted && !signalTerminated) {
+        const combinedOutput = (stderr + '\n' + fullText).slice(-2000);
+        const resetsAt = detectUsageLimit(combinedOutput);
+        if (resetsAt) {
+          const holdUntil = resetsAt + USAGE_LIMIT_RESUME_BUFFER_MS;
+          const timeUntilReset = resetsAt - Date.now();
+
+          // Only hold if the reset is more than a few minutes away
+          if (timeUntilReset > USAGE_LIMIT_MIN_HOLD_MS) {
+            const resetTimeStr = new Date(resetsAt).toLocaleTimeString();
+            const resumeTimeStr = new Date(holdUntil).toLocaleTimeString();
+            console.log(`[dispatcher] Usage limit detected for ticket #${ticket.id} — resets at ${resetTimeStr}, will resume at ${resumeTimeStr}`);
+
+            const heldTicket = await updateTicket(ticket.id, {
+              status: 'on_hold',
+              error: `Usage limit reached — resets at ${resetTimeStr}`,
+              failureReason: { type: 'usage_limit', resetsAt },
+              holdUntil,
+              agentPid: undefined,
+              effort: { ...effort },
+            }, 'usage_limit_hold');
+            if (heldTicket) await broadcastTicket(heldTicket);
+            if (useWorktree) cleanupWorktree(project.repoPath, worktreePath);
+            return;
+          }
+          // If reset is imminent (< 3 min), fall through to normal failure handling
+          // and let the user retry manually
+          console.log(`[dispatcher] Usage limit detected for ticket #${ticket.id} but reset is imminent (${Math.round(timeUntilReset / 1000)}s away) — marking as failed`);
+        }
+      }
+
       let failureReason: FailureReason;
       let errorMsg: string;
       let stateReason: string;
@@ -1203,8 +1356,30 @@ export async function conflictCheckTick() {
 export async function dispatcherTick() {
   const tickets = await listTickets();
 
+  // Resume held tickets whose hold period has expired
+  const now = Date.now();
+  const heldTickets = tickets.filter(t => t.status === 'on_hold' && t.holdUntil);
+  for (const ticket of heldTickets) {
+    if (ticket.holdUntil! <= now) {
+      console.log(`[dispatcher] Resuming held ticket #${ticket.id} (hold period expired)`);
+      const resumed = await updateTicket(ticket.id, {
+        status: 'todo',
+        error: undefined,
+        failureReason: undefined,
+        holdUntil: undefined,
+        completedAt: undefined,
+        agentPid: undefined,
+      }, 'hold_resumed');
+      if (resumed) await broadcastTicket(resumed);
+    }
+  }
+
+  // Don't dispatch new agents while any ticket is on hold due to usage limits
+  // (they'll all hit the same limit)
+  const anyOnHold = tickets.some(t => t.status === 'on_hold' && t.holdUntil && t.holdUntil > now);
+
   // Start new agents
-  if (running.size < MAX_CONCURRENT) {
+  if (running.size < MAX_CONCURRENT && !anyOnHold) {
     const todoTickets = tickets.filter(t => t.status === 'todo');
 
     // Separate queued from non-queued tickets
@@ -1233,7 +1408,6 @@ export async function dispatcherTick() {
   const inProgressTickets = tickets.filter(
     t => t.status === 'in_progress' && running.has(t.id),
   );
-  const now = Date.now();
   for (const ticket of inProgressTickets) {
     const lastActivity = lastStreamActivity.get(ticket.id);
     const hasPendingTool = !ticket.yolo && pendingToolApproval.get(ticket.id);

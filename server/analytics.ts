@@ -159,7 +159,7 @@ export async function buildAnalytics(): Promise<AnalyticsPayload> {
 
 function buildDispatcherStats(tickets: Ticket[]): DispatcherStats {
   const byStatus = {} as Record<TicketStatus, number>;
-  const statuses: TicketStatus[] = ['todo', 'in_progress', 'needs_approval', 'in_review', 'done', 'merged', 'failed', 'error'];
+  const statuses: TicketStatus[] = ['todo', 'in_progress', 'needs_approval', 'in_review', 'on_hold', 'done', 'merged', 'failed', 'error'];
   for (const s of statuses) byStatus[s] = 0;
 
   let totalCostUsd = 0;
@@ -336,6 +336,16 @@ function buildIssues(
         summary: `Ticket "${t.subject}" ${t.status}`,
         detail: t.error || t.failureReason?.type,
         severity: 'error',
+        timestamp: t.completedAt || t.createdAt,
+      });
+    }
+    if (t.status === 'on_hold') {
+      issues.push({
+        source: 'dispatcher',
+        id: t.id,
+        summary: `Ticket "${t.subject}" on hold (usage limit)`,
+        detail: t.error || 'Usage limit reached',
+        severity: 'warning',
         timestamp: t.completedAt || t.createdAt,
       });
     }

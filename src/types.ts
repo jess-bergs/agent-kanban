@@ -123,7 +123,7 @@ export interface Project {
   createdAt: number;
 }
 
-export type TicketStatus = 'todo' | 'in_progress' | 'needs_approval' | 'in_review' | 'done' | 'merged' | 'failed' | 'error';
+export type TicketStatus = 'todo' | 'in_progress' | 'needs_approval' | 'in_review' | 'on_hold' | 'done' | 'merged' | 'failed' | 'error';
 
 /** A single entry recording a ticket status transition */
 export interface StateChangeEntry {
@@ -182,6 +182,7 @@ export type FailureReason =
   | { type: 'worktree_setup_failed'; detail: string }
   | { type: 'retry_budget_exhausted'; attempts: number }
   | { type: 'automation_budget_exhausted'; iterations: number }
+  | { type: 'usage_limit'; resetsAt: number }
   | { type: 'other'; detail: string };
 
 export interface Ticket {
@@ -217,6 +218,8 @@ export interface Ticket {
   error?: string;
   /** Structured, machine-readable failure classification */
   failureReason?: FailureReason;
+  /** Unix timestamp (ms) when a held ticket should be automatically resumed */
+  holdUntil?: number;
   lastOutput?: string;
   /** Recent agent activity stream for live oversight */
   agentActivity?: AgentActivity[];
@@ -375,6 +378,7 @@ export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
   in_progress: 'In Progress',
   needs_approval: 'Needs Approval',
   in_review: 'In Review',
+  on_hold: 'On Hold',
   done: 'Done',
   merged: 'Merged',
   failed: 'Failed',
@@ -386,6 +390,7 @@ export const TICKET_STATUS_COLORS: Record<TicketStatus, string> = {
   in_progress: 'blue',
   needs_approval: 'orange',
   in_review: 'cyan',
+  on_hold: 'orange',
   done: 'green',
   merged: 'purple',
   failed: 'red',

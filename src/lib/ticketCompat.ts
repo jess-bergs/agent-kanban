@@ -2,7 +2,7 @@ import type { Ticket, TicketStatus, TicketEffort } from '../types';
 
 const VALID_STATUSES = new Set<string>([
   'todo', 'in_progress', 'needs_approval', 'in_review',
-  'done', 'merged', 'failed', 'error',
+  'on_hold', 'done', 'merged', 'failed', 'error',
 ]);
 
 export type TicketGeneration = 1 | 2 | 3;

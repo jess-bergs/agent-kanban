@@ -14,6 +14,7 @@ import {
   Images,
   Loader2,
   MessageSquare,
+  PauseCircle,
   Users,
   ShieldAlert,
   StopCircle,
@@ -28,6 +29,7 @@ const BORDER_COLORS: Record<TicketStatus, string> = {
   todo: 'border-l-accent-amber',
   in_progress: 'border-l-accent-blue',
   needs_approval: 'border-l-accent-orange',
+  on_hold: 'border-l-accent-orange',
   in_review: 'border-l-accent-cyan',
   done: 'border-l-accent-green',
   merged: 'border-l-accent-purple',
@@ -188,6 +190,24 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             <pre className="text-[11px] text-slate-400 font-mono bg-surface-900/60 rounded px-2 py-1.5 line-clamp-3 whitespace-pre-wrap leading-relaxed">
               {ticket.lastOutput.slice(-200)}
             </pre>
+          )}
+        </div>
+      )}
+
+      {/* On hold — usage limit reached, waiting for reset */}
+      {ticket.status === 'on_hold' && (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <PauseCircle className="w-3 h-3 text-accent-orange animate-pulse" />
+            <span className="text-xs text-accent-orange font-medium">Usage limit — on hold</span>
+          </div>
+          {ticket.holdUntil && (
+            <p className="text-[11px] text-slate-400">
+              Resumes {new Date(ticket.holdUntil).toLocaleTimeString()}
+            </p>
+          )}
+          {ticket.error && (
+            <p className="text-[11px] text-slate-500 truncate">{ticket.error}</p>
           )}
         </div>
       )}

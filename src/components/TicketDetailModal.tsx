@@ -55,12 +55,15 @@ const STATE_REASON_LABELS: Record<string, string> = {
   conflict_resolution_dispatched: 'Conflict resolution dispatched',
   automation_budget_exhausted: 'Automation budget exhausted',
   ci_checks_failed: 'CI checks failed',
+  usage_limit_hold: 'Usage limit — on hold',
+  hold_resumed: 'Resumed after hold',
 };
 
 const STATUS_STYLE: Record<TicketStatus, { bg: string; text: string; icon: typeof Clock }> = {
   todo: { bg: 'bg-accent-amber/10', text: 'text-accent-amber', icon: Clock },
   in_progress: { bg: 'bg-accent-blue/10', text: 'text-accent-blue', icon: Loader2 },
   needs_approval: { bg: 'bg-accent-orange/10', text: 'text-accent-orange', icon: ShieldAlert },
+  on_hold: { bg: 'bg-accent-orange/10', text: 'text-accent-orange', icon: Clock },
   in_review: { bg: 'bg-accent-cyan/10', text: 'text-accent-cyan', icon: GitPullRequest },
   done: { bg: 'bg-accent-green/10', text: 'text-accent-green', icon: CheckCircle },
   merged: { bg: 'bg-accent-purple/10', text: 'text-accent-purple', icon: GitMerge },
@@ -298,6 +301,23 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 </p>
                 <p className="text-xs text-slate-400">
                   This agent is not running in YOLO mode and needs you to approve a tool call in the terminal.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* On hold banner — usage limit */}
+          {ticket.status === 'on_hold' && (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent-orange/5 border border-accent-orange/20">
+              <Clock className="w-5 h-5 text-accent-orange animate-pulse shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-accent-orange">
+                  On Hold — Usage Limit Reached
+                </p>
+                <p className="text-xs text-slate-400">
+                  {ticket.holdUntil
+                    ? `Will automatically resume at ${new Date(ticket.holdUntil).toLocaleTimeString()}.`
+                    : 'Waiting for usage limit to reset.'}
                 </p>
               </div>
             </div>
@@ -749,7 +769,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 Abort
               </button>
             )}
-            {(ticket.status === 'error' || ticket.status === 'failed') && (
+            {(ticket.status === 'error' || ticket.status === 'failed' || ticket.status === 'on_hold') && (
               <button
                 onClick={handleRetry}
                 disabled={acting}
