@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Radio, Bot } from 'lucide-react';
 import type { TeamWithData, Project, Ticket, SoloAgent } from '../types';
-import { formatTimestamp, shortenPillLabel } from '../types';
+import { shortenPillLabel } from '../types';
 import type { ViewMode } from '../hooks/useWebSocket';
 import { Sidebar } from './Sidebar';
 import { KanbanBoard } from './KanbanBoard';
@@ -59,33 +59,29 @@ export function Layout({
   return (
     <div className="h-screen flex flex-col">
       {/* Top bar */}
-      <header className="h-12 flex items-center justify-between px-4 border-b border-surface-700 bg-surface-800 shrink-0">
+      <header className="h-10 flex items-center justify-between px-4 border-b border-surface-700 bg-surface-800 shrink-0">
         <div className="flex items-center gap-2">
-          <Radio className="w-5 h-5 text-accent-blue" />
-          <span className="font-semibold text-sm tracking-wide">
+          <Radio className="w-4 h-4 text-accent-blue" />
+          <span className="font-semibold text-xs tracking-wide">
             Agent Kanban
           </span>
         </div>
-        <div className="flex items-center gap-4 text-xs">
+        <div className="flex items-center gap-3 text-xs">
           {soloAgents.length > 0 && (
             <button
               onClick={() => setViewMode('agents')}
               className="flex items-center gap-1.5 text-accent-cyan hover:text-accent-cyan/80 transition-colors"
             >
-              <Bot className="w-4 h-4" />
+              <Bot className="w-3.5 h-3.5" />
               <span className="font-medium">{soloAgents.length} agent{soloAgents.length !== 1 ? 's' : ''}</span>
             </button>
           )}
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                connected ? 'bg-accent-green' : 'bg-accent-red'
-              }`}
-            />
-            <span className="text-slate-400">
-              {connected ? 'Connected' : 'Disconnected'}
-            </span>
-          </div>
+          <span
+            className={`w-2 h-2 rounded-full ${
+              connected ? 'bg-accent-green' : 'bg-accent-red'
+            }`}
+            title={connected ? 'Connected' : 'Disconnected'}
+          />
         </div>
       </header>
 
@@ -93,19 +89,18 @@ export function Layout({
       {soloAgents.length > 0 && viewMode !== 'agents' && (
         <button
           onClick={() => setViewMode('agents')}
-          className="flex items-center gap-3 px-4 py-2 border-b border-surface-700 bg-surface-800/50 overflow-x-auto shrink-0 w-full hover:bg-surface-700/50 transition-colors cursor-pointer text-left"
+          className="flex items-center gap-2 px-3 py-1.5 border-b border-surface-700 bg-surface-800/50 overflow-x-auto shrink-0 w-full hover:bg-surface-700/50 transition-colors cursor-pointer text-left"
         >
-          <Bot className="w-4 h-4 text-accent-cyan shrink-0" />
+          <Bot className="w-3.5 h-3.5 text-accent-cyan shrink-0" />
           {soloAgents.map(agent => {
-            const sourceIcon = agent.source === 'vscode' ? 'VS Code' : agent.source === 'terminal' ? 'Terminal' : agent.source;
             const isActive = agent.status === 'active';
             return (
               <div
                 key={agent.sessionId}
-                className="flex items-center gap-2 bg-surface-700 rounded-lg px-3 py-1.5 text-xs shrink-0"
+                className="flex items-center gap-1.5 bg-surface-700 rounded px-2 py-0.5 text-[11px] shrink-0"
               >
                 <span
-                  className={`w-2 h-2 rounded-full ${
+                  className={`w-1.5 h-1.5 rounded-full ${
                     isActive ? 'bg-accent-green animate-pulse' : 'bg-slate-500'
                   }`}
                 />
@@ -113,12 +108,10 @@ export function Layout({
                 {agent.gitBranch && agent.gitBranch !== 'HEAD' && (
                   <span className="text-accent-purple font-mono">{shortenPillLabel(agent.gitBranch)}</span>
                 )}
-                <span className="text-slate-500">{sourceIcon}</span>
-                <span className="text-slate-500">{formatTimestamp(agent.lastActiveAt)}</span>
               </div>
             );
           })}
-          <span className="text-[10px] text-slate-500 ml-auto shrink-0">Click for full view →</span>
+          <span className="text-[10px] text-slate-500 ml-auto shrink-0">Full view →</span>
         </button>
       )}
 

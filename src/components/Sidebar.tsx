@@ -73,7 +73,7 @@ export function Sidebar({
       <div className="flex border-b border-surface-700">
         <button
           onClick={() => setViewMode('projects')}
-          className={`flex-1 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+          className={`flex-1 px-2 py-1.5 text-[11px] font-medium transition-colors ${
             viewMode === 'projects'
               ? 'text-accent-blue border-b-2 border-accent-blue'
               : 'text-slate-500 hover:text-slate-300'
@@ -83,7 +83,7 @@ export function Sidebar({
         </button>
         <button
           onClick={() => setViewMode('teams')}
-          className={`flex-1 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+          className={`flex-1 px-2 py-1.5 text-[11px] font-medium transition-colors ${
             viewMode === 'teams'
               ? 'text-accent-blue border-b-2 border-accent-blue'
               : 'text-slate-500 hover:text-slate-300'
@@ -93,7 +93,7 @@ export function Sidebar({
         </button>
         <button
           onClick={() => setViewMode('agents')}
-          className={`flex-1 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors relative ${
+          className={`flex-1 px-2 py-1.5 text-[11px] font-medium transition-colors relative ${
             viewMode === 'agents'
               ? 'text-accent-cyan border-b-2 border-accent-cyan'
               : 'text-slate-500 hover:text-slate-300'
@@ -101,18 +101,18 @@ export function Sidebar({
         >
           Agents
           {soloAgents.length > 0 && viewMode !== 'agents' && (
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-accent-green animate-pulse" />
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" />
           )}
         </button>
         <button
           onClick={() => setViewMode('analytics')}
-          className={`flex-1 px-2 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+          className={`flex-1 px-2 py-1.5 text-[11px] font-medium transition-colors ${
             viewMode === 'analytics'
               ? 'text-accent-purple border-b-2 border-accent-purple'
               : 'text-slate-500 hover:text-slate-300'
           }`}
         >
-          <BarChart3 className="w-3.5 h-3.5 mx-auto" />
+          Stats
         </button>
       </div>
 
