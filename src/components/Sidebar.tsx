@@ -172,11 +172,12 @@ export function Sidebar({
                         className={`w-4 h-4 text-slate-500 mt-0.5 shrink-0 transition-transform ${
                           isSelected ? 'rotate-90' : ''
                         }`}
+                        aria-hidden="true"
                       />
                     </div>
                     <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <GitBranch className="w-3 h-3" />
+                      <span className="flex items-center gap-1" title={`Default branch: ${project.defaultBranch}`}>
+                        <GitBranch className="w-3 h-3" aria-hidden="true" />
                         {project.defaultBranch}
                       </span>
                       {projectTickets.length > 0 && (
@@ -201,8 +202,9 @@ export function Sidebar({
                     disabled={isDeleting}
                     className="absolute top-2 right-2 p-1.5 rounded-lg bg-surface-800 border border-surface-600 text-slate-400 hover:text-accent-red hover:border-accent-red transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Remove project from list"
+                    aria-label={`Remove ${project.name} from project list`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 </div>
               );
@@ -346,11 +348,12 @@ export function Sidebar({
                         className={`w-4 h-4 text-slate-500 mt-0.5 shrink-0 transition-transform ${
                           isSelected ? 'rotate-90' : ''
                         }`}
+                        aria-hidden="true"
                       />
                     </div>
                     <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3.5 h-3.5" />
+                      <span className="flex items-center gap-1" title={`${team.members.length} team member${team.members.length !== 1 ? 's' : ''}`}>
+                        <Users className="w-3.5 h-3.5" aria-hidden="true" />
                         {team.members.length}
                       </span>
                       <span>{formatTimestamp(team.createdAt)}</span>

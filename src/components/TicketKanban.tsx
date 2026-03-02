@@ -165,7 +165,7 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
       <div className="flex flex-col gap-4 h-full">
         {/* Search bar */}
         <div className="relative shrink-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" aria-hidden="true" />
           <input
             ref={searchRef}
             type="text"
@@ -178,8 +178,10 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
             <button
               onClick={() => setSearchQuery('')}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+              title="Clear search"
+              aria-label="Clear search"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           )}
         </div>
@@ -208,14 +210,14 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
                     {columnTickets.length}
                   </span>
                   {status === 'in_review' && needsReviewCount > 0 && (
-                    <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-orange/20 text-accent-orange animate-pulse">
-                      <Eye className="w-3 h-3" />
+                    <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-orange/20 text-accent-orange animate-pulse" title={`${needsReviewCount} ticket${needsReviewCount !== 1 ? 's' : ''} need${needsReviewCount === 1 ? 's' : ''} your review`}>
+                      <Eye className="w-3 h-3" aria-hidden="true" />
                       {needsReviewCount}
                     </span>
                   )}
                   {status === 'needs_approval' && needsInputCount > 0 && (
-                    <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-amber/20 text-accent-amber animate-pulse">
-                      <HelpCircle className="w-3 h-3" />
+                    <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-amber/20 text-accent-amber animate-pulse" title={`${needsInputCount} ticket${needsInputCount !== 1 ? 's' : ''} with agent questions`}>
+                      <HelpCircle className="w-3 h-3" aria-hidden="true" />
                       {needsInputCount}
                     </span>
                   )}
@@ -224,8 +226,9 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
                       onClick={() => setShowCreate(true)}
                       className="p-0.5 rounded hover:bg-white/10 transition-colors"
                       title="New ticket (⌘N)"
+                      aria-label="Create new ticket"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className="w-4 h-4" aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -259,8 +262,10 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
                       <button
                         onClick={() => showMore(status)}
                         className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-surface-600/40 rounded-lg transition-colors"
+                        title={`Load ${hiddenCount} more older ticket${hiddenCount !== 1 ? 's' : ''}`}
+                        aria-label={`Show ${hiddenCount} more tickets`}
                       >
-                        <ChevronDown className="w-3.5 h-3.5" />
+                        <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
                         Show more ({hiddenCount} older)
                       </button>
                     )}
