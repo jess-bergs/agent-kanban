@@ -867,14 +867,16 @@ async function startAgent(ticket: Ticket) {
       }
     }
 
-    pendingStreamWrite = updateTicket(ticket.id, {
-      lastOutput: fullText.slice(-500),
-      agentActivity: [...activity],
-      lastThinking: lastThinking || undefined,
-      effort: { ...effort },
-    }).then(t => {
-      if (t) broadcastTicket(t);
-    });
+    pendingStreamWrite = pendingStreamWrite.then(() =>
+      updateTicket(ticket.id, {
+        lastOutput: fullText.slice(-500),
+        agentActivity: [...activity],
+        lastThinking: lastThinking || undefined,
+        effort: { ...effort },
+      }).then(t => {
+        if (t) broadcastTicket(t);
+      })
+    );
   }
 
   proc.stdout.on('data', (chunk: Buffer) => {
