@@ -766,7 +766,8 @@ async function startAgent(ticket: Ticket) {
       return;
     }
 
-    const type = event.type as string;
+    const type = typeof event.type === 'string' ? event.type : undefined;
+    if (!type) return;
     const now = Date.now();
     lastStreamActivity.set(ticket.id, now);
 
