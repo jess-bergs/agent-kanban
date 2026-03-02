@@ -1,17 +1,71 @@
 import { readdir, readFile, writeFile, mkdir, rename, unlink as fsUnlink } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { config } from './config.ts';
 import type { Project, Ticket, TicketImage, TicketStatus, StateChangeEntry } from '../src/types.ts';
 
-const DATA_DIR = join(import.meta.dirname, '..', 'data');
-const PROJECTS_DIR = join(DATA_DIR, 'projects');
-const TICKETS_DIR = join(DATA_DIR, 'tickets');
-const IMAGES_DIR = join(DATA_DIR, 'ticket-images');
+/** Current data schema version — bump this when the data format changes */
+export const CURRENT_SCHEMA_VERSION = 1;
+
+const PROJECTS_DIR = join(config.dataDir, 'projects');
+const TICKETS_DIR = join(config.dataDir, 'tickets');
+const IMAGES_DIR = join(config.dataDir, 'ticket-images');
+const VERSION_FILE = join(config.dataDir, 'version.json');
+
+interface DataVersion {
+  schemaVersion: number;
+  appVersion: string;
+  migratedAt: number;
+}
 
 async function ensureDirs() {
   await mkdir(PROJECTS_DIR, { recursive: true });
   await mkdir(TICKETS_DIR, { recursive: true });
   await mkdir(IMAGES_DIR, { recursive: true });
+}
+
+/**
+ * Check data schema version on startup.
+ * Creates version.json if it doesn't exist.
+ * Throws if the schema version is newer than expected (needs migration).
+ */
+export async function checkDataSchema(): Promise<void> {
+  await ensureDirs();
+
+  if (!existsSync(VERSION_FILE)) {
+    // First run — initialize schema version
+    const version: DataVersion = {
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      appVersion: config.version,
+      migratedAt: Date.now(),
+    };
+    await atomicWriteJson(VERSION_FILE, version);
+    console.log(`[store] Initialized data schema version ${CURRENT_SCHEMA_VERSION}`);
+    return;
+  }
+
+  const data = await safeReadJson<DataVersion>(VERSION_FILE);
+  if (!data) {
+    console.warn('[store] Could not read version.json — assuming current schema');
+    return;
+  }
+
+  if (data.schemaVersion > CURRENT_SCHEMA_VERSION) {
+    throw new Error(
+      `Data schema version ${data.schemaVersion} is newer than app version ${CURRENT_SCHEMA_VERSION}. ` +
+      `Run the migration script or upgrade the app.`
+    );
+  }
+
+  if (data.schemaVersion < CURRENT_SCHEMA_VERSION) {
+    throw new Error(
+      `Data schema version ${data.schemaVersion} needs migration to ${CURRENT_SCHEMA_VERSION}. ` +
+      `Run: npx tsx scripts/migrate.ts`
+    );
+  }
+
+  console.log(`[store] Data schema version ${data.schemaVersion} OK`);
 }
 
 /** Atomic write: write to temp file then rename (rename is atomic on POSIX) */

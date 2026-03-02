@@ -1,0 +1,20 @@
+agent-kanban.jbergs.eu {
+    reverse_proxy localhost:3003
+
+    # WebSocket support (Caddy handles this natively)
+    # No extra config needed — Caddy auto-detects Upgrade headers
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        -Server
+    }
+
+    # Logging
+    log {
+        output file /var/log/caddy/agent-kanban.log
+        format json
+    }
+}

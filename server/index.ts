@@ -5,7 +5,9 @@ import { existsSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+import { config, logConfig } from './config.ts';
+import { requireApiKey, validateWsAuth } from './auth.ts';
 import {
   getAllTeamsWithData,
   readTeamConfig,
@@ -28,6 +30,7 @@ import {
   saveTicketImage,
   deleteTicketImage,
   getImagesDir,
+  checkDataSchema,
 } from './store.ts';
 import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick, attemptMerge, checkAndReconcilePrState, prepareRetryFields } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
@@ -64,12 +67,22 @@ import { listTemplates, getTemplate } from './audit-templates.ts';
 import { buildAnalytics } from './analytics.ts';
 import type { TeamWithData, WSEvent, AuditTemplateId, ChatMessage } from '../src/types.ts';
 
-const PORT = 3003;
+const PORT = config.port;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const app = express();
-app.use(cors({ origin: 'http://localhost:5174' }));
+app.use(cors({
+  origin: config.allowedOrigins === '*'
+    ? '*'
+    : config.allowedOrigins.split(',').map(o => o.trim()),
+}));
 app.use(express.json({ limit: '15mb' }));
+
+// Auth middleware — applied to all /api/* routes except /api/version (health check)
+app.use('/api', (req, res, next) => {
+  if (req.path === '/version') return next();
+  requireApiKey(req, res, next);
+});
 
 // Serve uploaded ticket images as static files
 app.use('/api/ticket-images', express.static(getImagesDir()));
@@ -81,6 +94,16 @@ app.param('id', (req, res, next) => {
     return;
   }
   next();
+});
+
+// ─── Version API ─────────────────────────────────────────────────
+
+app.get('/api/version', (_req, res) => {
+  res.json({
+    version: config.version,
+    commitSha: config.commitSha,
+    builtAt: config.builtAt,
+  });
 });
 
 // ─── Team Monitoring API ──────────────────────────────────────────
@@ -98,6 +121,11 @@ app.get('/api/teams', async (_req, res) => {
 // ─── Browse API ──────────────────────────────────────────────────
 
 app.get('/api/browse', async (req, res) => {
+  // Disable filesystem browsing in production (security risk)
+  if (config.isProduction) {
+    res.status(403).json({ error: 'File browsing is disabled in production' });
+    return;
+  }
   const { readdir, stat } = await import('node:fs/promises');
   const { homedir } = await import('node:os');
   const { join, dirname } = await import('node:path');
@@ -172,14 +200,14 @@ app.post('/api/projects', async (req, res) => {
     let remoteUrl: string | undefined;
 
     try {
-      defaultBranch = execSync('git rev-parse --abbrev-ref HEAD', {
+      defaultBranch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
         cwd: repoPath,
         encoding: 'utf-8',
       }).trim();
     } catch { /* use default */ }
 
     try {
-      remoteUrl = execSync('git remote get-url origin', {
+      remoteUrl = execFileSync('git', ['remote', 'get-url', 'origin'], {
         cwd: repoPath,
         encoding: 'utf-8',
       }).trim();
@@ -258,8 +286,25 @@ app.get('/api/tickets/:id', async (req, res) => {
   }
 });
 
+/** Fields users are allowed to PATCH on tickets */
+const ALLOWED_PATCH_FIELDS = new Set([
+  'status', 'subject', 'instructions', 'yolo', 'autoMerge', 'queued',
+  'useRalph', 'useTeam', 'planOnly', 'needsAttention', 'holdUntil',
+]);
+
 app.patch('/api/tickets/:id', async (req, res) => {
-  const ticket = await updateTicket(req.params.id, req.body, req.body.status ? 'user_action' : undefined);
+  // Filter to allowed fields only
+  const updates: Record<string, unknown> = {};
+  for (const key of Object.keys(req.body)) {
+    if (ALLOWED_PATCH_FIELDS.has(key)) {
+      updates[key] = req.body[key];
+    }
+  }
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: 'No valid fields to update' });
+    return;
+  }
+  const ticket = await updateTicket(req.params.id, updates, updates.status ? 'user_action' : undefined);
   if (ticket) {
     broadcast({ type: 'ticket_updated', data: ticket });
     res.json(ticket);
@@ -888,7 +933,7 @@ app.get('/api/chat/file', async (req, res) => {
 // ─── Chat Bot API ────────────────────────────────────────────────
 
 app.post('/api/chat', async (req, res) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = config.anthropicApiKey;
   if (!apiKey) {
     res.status(500).json({ error: 'ANTHROPIC_API_KEY not set' });
     return;
@@ -1058,7 +1103,13 @@ setSchedulerBroadcast(broadcast);
 // Wire auditor → dispatcher merge callback (breaks circular import)
 setAttemptMergeFn(attemptMerge);
 
-wss.on('connection', async (ws) => {
+wss.on('connection', async (ws, req) => {
+  // Validate auth on WebSocket connections
+  if (!validateWsAuth(req)) {
+    ws.close(4401, 'Unauthorized');
+    return;
+  }
+
   console.log(`[ws] Client connected (total: ${wss.clients.size})`);
 
   try {
@@ -1142,11 +1193,23 @@ const watcher = startWatcher(handleFileChange);
 
 // ─── Startup ────────────────────────────────────────────────────
 
-server.listen(PORT, () => {
-  console.log(`[server] Agent Kanban backend running on http://localhost:${PORT}`);
-  console.log(`[server] WebSocket available at ws://localhost:${PORT}/ws`);
-  console.log(`[server] REST API at http://localhost:${PORT}/api/teams`);
-  console.log(`[server] Projects API at http://localhost:${PORT}/api/projects`);
+// ─── Startup ────────────────────────────────────────────────────
+
+async function boot() {
+  logConfig();
+
+  // Check data schema version before starting
+  await checkDataSchema();
+
+  server.listen(PORT, () => {
+    console.log(`[server] Agent Kanban backend running on http://localhost:${PORT}`);
+    console.log(`[server] WebSocket available at ws://localhost:${PORT}/ws`);
+  });
+}
+
+boot().catch(err => {
+  console.error('[server] Failed to start:', err.message ?? err);
+  process.exit(1);
 });
 
 // Start the dispatcher, auditor, and audit scheduler

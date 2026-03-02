@@ -38,9 +38,27 @@ When creating a PR, agents **must** use the repo's PR template at `.github/pull_
 
 ## Ticket Lifecycle
 
-Tickets flow: `todo` → `in_progress` → `in_review` → `done` / `merged` / `failed` / `error`
+```
+todo → in_progress → in_review → done / merged
+                 ↓         ↓
+          needs_approval    failed / error
+                 ↓
+          on_hold (usage limit → auto-resume)
+```
 
-See [Dispatcher Architecture](../architecture/dispatcher.md) for details on worktree creation, agent spawning, and PR detection.
+**Key statuses:**
+- `needs_approval` — agent is waiting for user input (interactive tool like AskUserQuestion or EnterPlanMode)
+- `on_hold` — agent hit an API usage/rate limit; auto-resumes after the limit resets (see [Usage Limits](../architecture/usage-limits-and-holds.md))
+- `failed` / `error` — agent crashed or exhausted its retry budget
+
+**Dispatch modes:**
+- **Queued** — ticket waits for manual dispatch (only runs when no other agents are active)
+- **Plan-only** — agent generates a plan summary without full implementation; result stored in `planSummary`
+- **Team** — dispatches a multi-agent team instead of a solo agent
+- **YOLO** — agent runs without interactive tool confirmations
+- **Ralph** — uses an alternative model
+
+See [Dispatcher Architecture](../architecture/dispatcher.md) for worktree creation, agent spawning, PR detection, and [Usage Limits](../architecture/usage-limits-and-holds.md) for hold behavior.
 
 ## Self-Healing & Retry Safety
 

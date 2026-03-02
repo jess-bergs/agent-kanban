@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiFetch } from '../lib/api';
 import {
   Activity,
   AlertTriangle,
@@ -173,7 +174,7 @@ export function AnalyticsDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/analytics');
+      const res = await apiFetch('/api/analytics');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const payload = await res.json();
       setData(payload);
@@ -471,8 +472,8 @@ function ReportsView() {
       setError(null);
       try {
         const [runsRes, schedulesRes] = await Promise.all([
-          fetch('/api/audit-runs'),
-          fetch('/api/audit-schedules'),
+          apiFetch('/api/audit-runs'),
+          apiFetch('/api/audit-schedules'),
         ]);
         if (!runsRes.ok) throw new Error(`Runs: HTTP ${runsRes.status}`);
         if (!schedulesRes.ok) throw new Error(`Schedules: HTTP ${schedulesRes.status}`);

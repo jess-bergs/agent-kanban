@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiFetch } from '../lib/api';
 import {
   Users,
   ChevronRight,
@@ -53,7 +54,7 @@ export function Sidebar({
 
     setDeletingProjectId(projectId);
     try {
-      const res = await fetch(`/api/projects/${projectId}`, {
+      const res = await apiFetch(`/api/projects/${projectId}`, {
         method: 'DELETE',
       });
       if (!res.ok) {

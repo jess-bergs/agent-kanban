@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { apiFetch } from '../lib/api';
 import { X, Send, Zap, GitMerge, Clock, RefreshCw, Users, ImagePlus, FileSearch } from 'lucide-react';
 import type { Project } from '../types';
 
@@ -82,7 +83,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
     setSubmitting(true);
 
     try {
-      const res = await fetch('/api/tickets', {
+      const res = await apiFetch('/api/tickets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -103,7 +104,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
 
       // Upload images to the newly created ticket
       for (const img of images) {
-        await fetch(`/api/tickets/${ticket.id}/images`, {
+        await apiFetch(`/api/tickets/${ticket.id}/images`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ dataUrl: img.dataUrl, originalName: img.name }),

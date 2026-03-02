@@ -2,11 +2,11 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { atomicWriteJson, withLock, safeReadJson, listJsonFiles } from './store.ts';
+import { config } from './config.ts';
 import type { AuditSchedule, AuditRun, AuditCadence } from '../src/types.ts';
 
-const DATA_DIR = join(import.meta.dirname, '..', 'data');
-const SCHEDULES_DIR = join(DATA_DIR, 'audit-schedules');
-const RUNS_DIR = join(DATA_DIR, 'audit-runs');
+const SCHEDULES_DIR = join(config.dataDir, 'audit-schedules');
+const RUNS_DIR = join(config.dataDir, 'audit-runs');
 
 async function ensureAuditDirs() {
   await mkdir(SCHEDULES_DIR, { recursive: true });

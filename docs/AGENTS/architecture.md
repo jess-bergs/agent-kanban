@@ -20,3 +20,4 @@ Include a link to the new doc in your PR description and in the index below.
 - [PR Lifecycle](../architecture/pr-lifecycle.md) — PR creation through merge
 - [MCP Server](../architecture/mcp-server.md) — MCP protocol integration
 - [Agent Observability](../architecture/agent-observability.md) — agent monitoring and effort tracking
+- [Usage Limits & Holds](../architecture/usage-limits-and-holds.md) — rate limit detection, on_hold status, auto-resume

@@ -1,6 +1,6 @@
 {
   "name": "agent-kanban",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -17,7 +17,12 @@
     "lint": "eslint src/ server/",
     "lint:fix": "eslint --fix src/ server/",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.server.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "check": "npm run lint && npm run typecheck",
+    "migrate": "tsx scripts/migrate.ts",
+    "export-data": "tsx scripts/export-data.ts",
+    "import-data": "tsx scripts/import-data.ts",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -54,6 +59,7 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "vitest": "^4.0.18"
   }
 }

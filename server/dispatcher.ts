@@ -7,11 +7,12 @@ import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { getProject, getTicket, updateTicket, listTickets, getImagesDir } from './store.ts';
 import { captureAndUploadScreenshots } from './screenshots.ts';
 import { runAudit, resetStuckReviews } from './auditor.ts';
+import { config } from './config.ts';
 import type { Ticket, AgentActivity, TicketEffort, WSEvent, FailureReason } from '../src/types.ts';
 import { isSignalExit, SIGNAL_NAMES } from '../src/types.ts';
 import { envWithNvmNode } from './nvm.ts';
 
-const MAX_CONCURRENT = 5;
+const MAX_CONCURRENT = config.maxConcurrent;
 const MAX_AUTO_RETRIES = 2;
 const MAX_AUTOMATION_ITERATIONS = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
@@ -36,6 +37,10 @@ const lastAutoMergeCheck = new Map<string, number>();
 const autoMergeLastState = new Map<string, string>();
 /** Tracks consecutive not-ready checks per ticket for exponential backoff */
 const autoMergeNotReadyCount = new Map<string, number>();
+/** Prevents concurrent dispatcherTick() calls from overlapping */
+let tickRunning = false;
+/** Signals that the dispatcher is shutting down — close handlers should skip updates */
+let shuttingDown = false;
 const AUTO_MERGE_CHECK_INTERVAL_MS = 30_000; // 30 seconds between checks per ticket
 const AUTO_MERGE_MAX_INTERVAL_MS = 5 * 60_000; // 5 minutes max backoff
 /** Extra delay added after usage limit reset before resuming (avoids racing the reset) */
@@ -67,7 +72,7 @@ function slugify(s: string): string {
  * - Generic:   "rate limit", "usage limit", "quota exceeded"
  * - Claude CLI: "error: Rate limit exceeded" or similar
  */
-function detectUsageLimit(text: string): number | null {
+export function detectUsageLimit(text: string): number | null {
   if (!text) return null;
 
   // Pattern 1: "resets <time> (<timezone>)" — e.g., "resets 3am (Europe/London)"
@@ -390,8 +395,6 @@ function discoverSessionId(worktreePath: string): string | null {
     }
     if (files.length === 0) return null;
 
-    if (files.length === 0) return null;
-
     // Find most recently modified JSONL file
     let newest: { file: string; mtime: number } | null = null;
     for (const file of files) {
@@ -431,7 +434,7 @@ async function startAgent(ticket: Ticket) {
   // Resume mode: reuse existing branch if the auditor requested changes
   const isResume = !!(ticket.agentSessionId && ticket.branchName && ticket.resumePrompt);
   const branchName = isResume ? ticket.branchName! : `agent/ticket-${ticket.id}-${slugify(ticket.subject)}`;
-  const worktreePath = `/tmp/agent-kanban-worktrees/${branchName.replace(/\//g, '-')}`;
+  const worktreePath = join(config.worktreeDir, branchName.replace(/\//g, '-'));
   const teamName = ticket.useTeam ? `ticket-${ticket.id.slice(0, 8)}` : undefined;
 
   // Check if repo has any commits
@@ -460,14 +463,14 @@ async function startAgent(ticket: Ticket) {
     try {
       // Fetch latest from remote
       try {
-        execSync(`git fetch origin`, { cwd: project.repoPath, stdio: 'ignore' });
+        execFileSync('git', ['fetch', 'origin'], { cwd: project.repoPath, stdio: 'ignore' });
       } catch {
         // may fail if no remote, continue anyway
       }
 
       // Clean up existing worktree if it exists
       try {
-        execSync(`git worktree remove "${worktreePath}" --force`, {
+        execFileSync('git', ['worktree', 'remove', worktreePath, '--force'], {
           cwd: project.repoPath,
           stdio: 'ignore',
         });
@@ -478,19 +481,19 @@ async function startAgent(ticket: Ticket) {
         console.log(`[dispatcher] Resume mode: creating worktree from origin/${branchName}`);
         try {
           // Delete stale local branch if it exists
-          execSync(`git branch -D "${branchName}"`, {
+          execFileSync('git', ['branch', '-D', branchName], {
             cwd: project.repoPath, stdio: 'ignore',
           });
         } catch { /* branch may not exist locally */ }
 
-        execSync(
-          `git worktree add "${worktreePath}" "origin/${branchName}"`,
+        execFileSync(
+          'git', ['worktree', 'add', worktreePath, `origin/${branchName}`],
           { cwd: project.repoPath, stdio: 'ignore' },
         );
       } else {
         // Fresh: create new branch from default branch
         try {
-          execSync(`git branch -D "${branchName}"`, {
+          execFileSync('git', ['branch', '-D', branchName], {
             cwd: project.repoPath,
             stdio: 'ignore',
           });
@@ -499,12 +502,12 @@ async function startAgent(ticket: Ticket) {
         // Determine the best base ref
         let baseRef = `origin/${project.defaultBranch}`;
         try {
-          execSync(`git rev-parse --verify "${baseRef}"`, {
+          execFileSync('git', ['rev-parse', '--verify', baseRef], {
             cwd: project.repoPath, stdio: 'ignore',
           });
         } catch {
           try {
-            execSync(`git rev-parse --verify "${project.defaultBranch}"`, {
+            execFileSync('git', ['rev-parse', '--verify', project.defaultBranch], {
               cwd: project.repoPath, stdio: 'ignore',
             });
             baseRef = project.defaultBranch;
@@ -513,8 +516,8 @@ async function startAgent(ticket: Ticket) {
           }
         }
 
-        execSync(
-          `git worktree add "${worktreePath}" -b "${branchName}" "${baseRef}"`,
+        execFileSync(
+          'git', ['worktree', 'add', worktreePath, '-b', branchName, baseRef],
           { cwd: project.repoPath, stdio: 'ignore' },
         );
       }
@@ -764,7 +767,8 @@ async function startAgent(ticket: Ticket) {
       return;
     }
 
-    const type = event.type as string;
+    const type = typeof event.type === 'string' ? event.type : undefined;
+    if (!type) return;
     const now = Date.now();
     lastStreamActivity.set(ticket.id, now);
 
@@ -838,13 +842,13 @@ async function startAgent(ticket: Ticket) {
               pendingToolApproval.set(ticket.id, false);
               pendingUserInput.set(ticket.id, false);
               // Transition back to in_progress if we were in needs_approval
-              getTicket(ticket.id).then(t => {
+              pendingStreamWrite = pendingStreamWrite.then(async () => {
+                const t = await getTicket(ticket.id);
                 if (t && t.status === 'needs_approval') {
-                  updateTicket(ticket.id, { status: 'in_progress' }, 'tool_approved').then(u => {
-                    if (u) broadcastTicket(u);
-                  });
+                  const u = await updateTicket(ticket.id, { status: 'in_progress' }, 'tool_approved');
+                  if (u) broadcastTicket(u);
                 }
-              });
+              }).catch(err => console.error('[dispatcher] Error transitioning from needs_approval:', err));
             }
           }
         }
@@ -867,18 +871,25 @@ async function startAgent(ticket: Ticket) {
       }
     }
 
-    pendingStreamWrite = updateTicket(ticket.id, {
-      lastOutput: fullText.slice(-500),
-      agentActivity: [...activity],
-      lastThinking: lastThinking || undefined,
-      effort: { ...effort },
-    }).then(t => {
-      if (t) broadcastTicket(t);
-    });
+    pendingStreamWrite = pendingStreamWrite.then(() =>
+      updateTicket(ticket.id, {
+        lastOutput: fullText.slice(-500),
+        agentActivity: [...activity],
+        lastThinking: lastThinking || undefined,
+        effort: { ...effort },
+      }).then(t => {
+        if (t) broadcastTicket(t);
+      })
+    );
   }
 
   proc.stdout.on('data', (chunk: Buffer) => {
     lineBuffer += chunk.toString();
+    // Cap buffer to prevent unbounded growth from agents outputting without newlines
+    const MAX_LINE_BUFFER = 1024 * 1024; // 1 MB
+    if (lineBuffer.length > MAX_LINE_BUFFER) {
+      lineBuffer = lineBuffer.slice(-MAX_LINE_BUFFER);
+    }
     const lines = lineBuffer.split('\n');
     lineBuffer = lines.pop() || '';
     for (const line of lines) {
@@ -891,6 +902,10 @@ async function startAgent(ticket: Ticket) {
   });
 
   proc.on('close', async (code) => {
+    if (shuttingDown) {
+      running.delete(ticket.id);
+      return;
+    }
     if (lineBuffer.trim()) {
       processStreamLine(lineBuffer);
     }
@@ -1113,7 +1128,7 @@ async function startAgent(ticket: Ticket) {
 
 function cleanupWorktree(repoPath: string, worktreePath: string) {
   try {
-    execSync(`git worktree remove "${worktreePath}" --force`, {
+    execFileSync('git', ['worktree', 'remove', worktreePath, '--force'], {
       cwd: repoPath,
       stdio: 'ignore',
     });
@@ -1382,6 +1397,9 @@ export async function conflictCheckTick() {
 // ─── Dispatcher Tick ────────────────────────────────────────────
 
 export async function dispatcherTick() {
+  if (tickRunning) return;
+  tickRunning = true;
+  try {
   const tickets = await listTickets();
 
   // Resume held tickets whose hold period has expired
@@ -1474,6 +1492,9 @@ export async function dispatcherTick() {
         }
       }
     }
+  }
+  } finally {
+    tickRunning = false;
   }
 }
 
@@ -1941,6 +1962,7 @@ export async function startDispatcher() {
 }
 
 export function stopDispatcher() {
+  shuttingDown = true;
   if (intervalId) clearInterval(intervalId);
   if (conflictIntervalId) clearInterval(conflictIntervalId);
   if (healthCheckIntervalId) clearInterval(healthCheckIntervalId);

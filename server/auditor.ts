@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { listProjects, getTicket, updateTicket } from './store.ts';
 import type { Ticket, Project, WSEvent } from '../src/types.ts';
 import { envWithNvmNode } from './nvm.ts';
@@ -685,20 +685,17 @@ const RE_REVIEW_KEYWORDS = ['@auditor', 're-review', 'rereview', 'please review'
 
 /**
  * Check a single PR for status changes and re-review requests.
- *
- * Note: execSync is used here with controlled inputs (numeric prNumber, validated repo slug
- * from our own project data) — not user-supplied strings. This matches the pattern used
- * throughout dispatcher.ts.
  */
 async function pollPr(entry: WatchlistEntry): Promise<void> {
   if (entry.resolved || entry.reviewing) return;
 
   try {
     // Check PR state (open/merged/closed)
-    const prJson = execSync(
-      `gh pr view ${entry.prNumber} --repo ${entry.repo} --json state,comments`,
-      { encoding: 'utf-8', timeout: 15000 },
-    ).trim();
+    const prJson = execFileSync('gh', [
+      'pr', 'view', String(entry.prNumber),
+      '--repo', entry.repo,
+      '--json', 'state,comments',
+    ], { encoding: 'utf-8', timeout: 15000 }).trim();
 
     const pr = JSON.parse(prJson) as {
       state: string;

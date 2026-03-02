@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { apiFetch } from '../lib/api';
 import {
   X,
   Hash,
@@ -121,7 +122,8 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
   async function handleRetry() {
     setActing(true);
     try {
-      await fetch(`/api/tickets/${ticket.id}/retry`, { method: 'POST' });
+      const res = await apiFetch(`/api/tickets/${ticket.id}/retry`, { method: 'POST' });
+      if (!res.ok) console.warn(`[retry] ${res.status} ${res.statusText}`);
     } finally {
       setActing(false);
     }
@@ -130,7 +132,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
   async function handleDelete() {
     setActing(true);
     try {
-      const res = await fetch(`/api/tickets/${ticket.id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/tickets/${ticket.id}`, { method: 'DELETE' });
       if (res.ok) onClose();
     } finally {
       setActing(false);
@@ -140,7 +142,8 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
   async function handleRefreshStatus() {
     setActing(true);
     try {
-      await fetch(`/api/tickets/${ticket.id}/refresh-status`, { method: 'POST' });
+      const res = await apiFetch(`/api/tickets/${ticket.id}/refresh-status`, { method: 'POST' });
+      if (!res.ok) console.warn(`[refresh-status] ${res.status} ${res.statusText}`);
     } finally {
       setActing(false);
     }
@@ -149,7 +152,8 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
   async function handleAbort() {
     setActing(true);
     try {
-      await fetch(`/api/tickets/${ticket.id}/abort`, { method: 'POST' });
+      const res = await apiFetch(`/api/tickets/${ticket.id}/abort`, { method: 'POST' });
+      if (!res.ok) console.warn(`[abort] ${res.status} ${res.statusText}`);
     } finally {
       setActing(false);
     }
@@ -158,11 +162,12 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
   async function handleMarkDone() {
     setActing(true);
     try {
-      await fetch(`/api/tickets/${ticket.id}`, {
+      const res = await apiFetch(`/api/tickets/${ticket.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'done' }),
       });
+      if (!res.ok) console.warn(`[mark-done] ${res.status} ${res.statusText}`);
     } finally {
       setActing(false);
     }
@@ -176,7 +181,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
         reader.onload = () => resolve(reader.result as string);
         reader.readAsDataURL(file);
       });
-      await fetch(`/api/tickets/${ticket.id}/images`, {
+      await apiFetch(`/api/tickets/${ticket.id}/images`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dataUrl, originalName: file.name }),
@@ -185,7 +190,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
   }, [ticket.id]);
 
   async function handleDeleteImage(filename: string) {
-    await fetch(`/api/tickets/${ticket.id}/images/${filename}`, { method: 'DELETE' });
+    await apiFetch(`/api/tickets/${ticket.id}/images/${filename}`, { method: 'DELETE' });
   }
 
   useEffect(() => {
