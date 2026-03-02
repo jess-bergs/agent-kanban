@@ -38,6 +38,8 @@ const autoMergeLastState = new Map<string, string>();
 const autoMergeNotReadyCount = new Map<string, number>();
 /** Prevents concurrent dispatcherTick() calls from overlapping */
 let tickRunning = false;
+/** Signals that the dispatcher is shutting down — close handlers should skip updates */
+let shuttingDown = false;
 const AUTO_MERGE_CHECK_INTERVAL_MS = 30_000; // 30 seconds between checks per ticket
 const AUTO_MERGE_MAX_INTERVAL_MS = 5 * 60_000; // 5 minutes max backoff
 /** Extra delay added after usage limit reset before resuming (avoids racing the reset) */
@@ -893,6 +895,10 @@ async function startAgent(ticket: Ticket) {
   });
 
   proc.on('close', async (code) => {
+    if (shuttingDown) {
+      running.delete(ticket.id);
+      return;
+    }
     if (lineBuffer.trim()) {
       processStreamLine(lineBuffer);
     }
@@ -1949,6 +1955,7 @@ export async function startDispatcher() {
 }
 
 export function stopDispatcher() {
+  shuttingDown = true;
   if (intervalId) clearInterval(intervalId);
   if (conflictIntervalId) clearInterval(conflictIntervalId);
   if (healthCheckIntervalId) clearInterval(healthCheckIntervalId);
