@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { ChevronDown, Eye, Plus, Search, X } from 'lucide-react';
+import { ChevronDown, Eye, HelpCircle, Plus, Search, X } from 'lucide-react';
 import type { Ticket, TicketStatus, Project } from '../types';
 import { TICKET_STATUS_LABELS } from '../types';
 import { safeStatus } from '../lib/ticketCompat';
@@ -149,6 +149,11 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
     t => t.auditVerdict === 'request_changes',
   ).length;
 
+  // Count tickets where the agent has a question in the needs_approval column
+  const needsInputCount = grouped.needs_approval.filter(
+    t => t.needsInput,
+  ).length;
+
   // Hide needs_approval/on_hold/done/failed/error columns if empty
   const visibleColumns = COLUMNS.filter(
     s => !['needs_approval', 'on_hold', 'done', 'failed', 'error'].includes(s) || grouped[s].length > 0,
@@ -205,6 +210,12 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
                     <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-orange/20 text-accent-orange animate-pulse">
                       <Eye className="w-3 h-3" />
                       {needsReviewCount}
+                    </span>
+                  )}
+                  {status === 'needs_approval' && needsInputCount > 0 && (
+                    <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-amber/20 text-accent-amber animate-pulse">
+                      <HelpCircle className="w-3 h-3" />
+                      {needsInputCount}
                     </span>
                   )}
                   {status === 'todo' && (

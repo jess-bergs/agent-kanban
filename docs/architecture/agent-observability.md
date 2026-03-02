@@ -121,8 +121,13 @@ Certain tools require user input regardless of yolo mode (e.g., `AskUserQuestion
 3. A subsequent `tool_result` clears `pendingUserInput`
 4. If the ticket was `needs_approval`, it transitions back to `in_progress`
 
-Both mechanisms surface in the UI as an "Awaiting Approval" state, letting operators know
-the agent is blocked.
+Both mechanisms transition the ticket to `needs_approval`, but the UI distinguishes them:
+
+- **Tool approval** (non-YOLO): orange "Waiting for approval" badge and banner
+- **User input** (interactive tools): amber "HAS QUESTION" badge and "Agent has a question" banner, with `needsInput: true` set on the ticket
+
+The `needsInput` flag is auto-set by the store when the state reason is `waiting_user_input`,
+and cleared when the ticket transitions to any other status.
 
 ## WebSocket Broadcasting
 

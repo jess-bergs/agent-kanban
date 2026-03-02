@@ -245,6 +245,8 @@ export interface Ticket {
   postAgentAction?: 'audit' | 'merge';
   /** True when ticket is in a terminal failure state that won't auto-heal */
   needsAttention?: boolean;
+  /** True when the agent is waiting for user input (AskUserQuestion / EnterPlanMode) */
+  needsInput?: boolean;
 }
 
 // ─── Scheduled Audits ─────────────────────────────────────────────
