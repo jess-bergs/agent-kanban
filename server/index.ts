@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { config, logConfig } from './config.ts';
 import { requireApiKey, validateWsAuth } from './auth.ts';
 import {
@@ -121,6 +121,11 @@ app.get('/api/teams', async (_req, res) => {
 // ─── Browse API ──────────────────────────────────────────────────
 
 app.get('/api/browse', async (req, res) => {
+  // Disable filesystem browsing in production (security risk)
+  if (config.isProduction) {
+    res.status(403).json({ error: 'File browsing is disabled in production' });
+    return;
+  }
   const { readdir, stat } = await import('node:fs/promises');
   const { homedir } = await import('node:os');
   const { join, dirname } = await import('node:path');
@@ -195,14 +200,14 @@ app.post('/api/projects', async (req, res) => {
     let remoteUrl: string | undefined;
 
     try {
-      defaultBranch = execSync('git rev-parse --abbrev-ref HEAD', {
+      defaultBranch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
         cwd: repoPath,
         encoding: 'utf-8',
       }).trim();
     } catch { /* use default */ }
 
     try {
-      remoteUrl = execSync('git remote get-url origin', {
+      remoteUrl = execFileSync('git', ['remote', 'get-url', 'origin'], {
         cwd: repoPath,
         encoding: 'utf-8',
       }).trim();
@@ -281,8 +286,25 @@ app.get('/api/tickets/:id', async (req, res) => {
   }
 });
 
+/** Fields users are allowed to PATCH on tickets */
+const ALLOWED_PATCH_FIELDS = new Set([
+  'status', 'subject', 'instructions', 'yolo', 'autoMerge', 'queued',
+  'useRalph', 'useTeam', 'planOnly', 'needsAttention', 'holdUntil',
+]);
+
 app.patch('/api/tickets/:id', async (req, res) => {
-  const ticket = await updateTicket(req.params.id, req.body, req.body.status ? 'user_action' : undefined);
+  // Filter to allowed fields only
+  const updates: Record<string, unknown> = {};
+  for (const key of Object.keys(req.body)) {
+    if (ALLOWED_PATCH_FIELDS.has(key)) {
+      updates[key] = req.body[key];
+    }
+  }
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: 'No valid fields to update' });
+    return;
+  }
+  const ticket = await updateTicket(req.params.id, updates, updates.status ? 'user_action' : undefined);
   if (ticket) {
     broadcast({ type: 'ticket_updated', data: ticket });
     res.json(ticket);
