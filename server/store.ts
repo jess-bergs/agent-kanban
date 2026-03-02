@@ -7,6 +7,32 @@ const DATA_DIR = join(import.meta.dirname, '..', 'data');
 const PROJECTS_DIR = join(DATA_DIR, 'projects');
 const TICKETS_DIR = join(DATA_DIR, 'tickets');
 const IMAGES_DIR = join(DATA_DIR, 'ticket-images');
+const SETTINGS_PATH = join(DATA_DIR, 'settings.json');
+
+// ─── Settings ─────────────────────────────────────────────────────
+
+export interface Settings {
+  maxConcurrent: number;
+}
+
+const DEFAULT_SETTINGS: Settings = { maxConcurrent: 5 };
+
+export async function getSettings(): Promise<Settings> {
+  await ensureDirs();
+  const data = await safeReadJson<Settings>(SETTINGS_PATH);
+  return { ...DEFAULT_SETTINGS, ...data };
+}
+
+export async function updateSettings(updates: Partial<Settings>): Promise<Settings> {
+  return withLock('settings', async () => {
+    const current = await getSettings();
+    const updated = { ...current, ...updates };
+    // Enforce minimum of 1
+    if (updated.maxConcurrent < 1) updated.maxConcurrent = 1;
+    await atomicWriteJson(SETTINGS_PATH, updated);
+    return updated;
+  });
+}
 
 async function ensureDirs() {
   await mkdir(PROJECTS_DIR, { recursive: true });

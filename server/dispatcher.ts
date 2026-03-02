@@ -4,14 +4,14 @@ import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
-import { getProject, getTicket, updateTicket, listTickets, getImagesDir } from './store.ts';
+import { getProject, getTicket, updateTicket, listTickets, getImagesDir, getSettings, updateSettings } from './store.ts';
 import { captureAndUploadScreenshots } from './screenshots.ts';
 import { runAudit } from './auditor.ts';
 import type { Ticket, AgentActivity, TicketEffort, WSEvent, FailureReason } from '../src/types.ts';
 import { isSignalExit, SIGNAL_NAMES } from '../src/types.ts';
 import { envWithNvmNode } from './nvm.ts';
 
-const MAX_CONCURRENT = 5;
+let maxConcurrent = 5; // default, overridden by settings on startup
 const MAX_AUTO_RETRIES = 2;
 const MAX_AUTOMATION_ITERATIONS = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
@@ -42,6 +42,22 @@ const AUTO_MERGE_MAX_INTERVAL_MS = 5 * 60_000; // 5 minutes max backoff
 const USAGE_LIMIT_RESUME_BUFFER_MS = 5 * 60_000; // 5 minutes
 /** Minimum hold duration — if the reset is less than this far away, just wait; otherwise hold */
 const USAGE_LIMIT_MIN_HOLD_MS = 3 * 60_000; // 3 minutes
+
+export function getMaxConcurrent(): number {
+  return maxConcurrent;
+}
+
+export async function setMaxConcurrent(value: number): Promise<number> {
+  const clamped = Math.max(1, value);
+  maxConcurrent = clamped;
+  await updateSettings({ maxConcurrent: clamped });
+  return clamped;
+}
+
+/** Returns the count of currently running agents */
+export function getRunningCount(): number {
+  return running.size;
+}
 
 type BroadcastFn = (event: WSEvent) => void;
 let broadcastFn: BroadcastFn = () => {};
@@ -1407,7 +1423,7 @@ export async function dispatcherTick() {
   const anyOnHold = tickets.some(t => t.status === 'on_hold' && t.holdUntil && t.holdUntil > now);
 
   // Start new agents
-  if (running.size < MAX_CONCURRENT && !anyOnHold) {
+  if (running.size < maxConcurrent && !anyOnHold) {
     const todoTickets = tickets.filter(t => t.status === 'todo');
 
     // Separate queued from non-queued tickets
@@ -1416,7 +1432,7 @@ export async function dispatcherTick() {
 
     // Always dispatch non-queued tickets first (oldest first)
     for (const ticket of nonQueued.sort((a, b) => a.createdAt - b.createdAt)) {
-      if (running.size >= MAX_CONCURRENT) break;
+      if (running.size >= maxConcurrent) break;
       if (running.has(ticket.id)) continue;
       await startAgent(ticket);
     }
@@ -1425,7 +1441,7 @@ export async function dispatcherTick() {
     // This includes both dispatched agents and non-queued tickets just started above.
     if (running.size === 0 && nonQueued.length === 0) {
       for (const ticket of queued.sort((a, b) => a.createdAt - b.createdAt)) {
-        if (running.size >= MAX_CONCURRENT) break;
+        if (running.size >= maxConcurrent) break;
         if (running.has(ticket.id)) continue;
         await startAgent(ticket);
       }
@@ -1585,7 +1601,10 @@ async function recoverOrphanedTickets() {
 }
 
 export async function startDispatcher() {
-  console.log('[dispatcher] Started (polling every 3s, max concurrent: ' + MAX_CONCURRENT + ')');
+  // Load persisted settings
+  const settings = await getSettings();
+  maxConcurrent = settings.maxConcurrent;
+  console.log('[dispatcher] Started (polling every 3s, max concurrent: ' + maxConcurrent + ')');
   // Recover tickets orphaned by previous server shutdown
   await recoverOrphanedTickets();
   // Initial tick
