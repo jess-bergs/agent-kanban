@@ -7,7 +7,7 @@ import { TicketCard } from './TicketCard';
 import { TicketDetailModal } from './TicketDetailModal';
 import { CreateTicketModal } from './CreateTicketModal';
 
-const COLUMNS: TicketStatus[] = ['todo', 'in_progress', 'needs_approval', 'in_review', 'done', 'failed', 'error'];
+const COLUMNS: TicketStatus[] = ['todo', 'in_progress', 'needs_approval', 'on_hold', 'in_review', 'done', 'failed', 'error'];
 const PAGE_SIZE = 10;
 
 const COLUMN_STYLES: Record<TicketStatus, { header: string; badge: string }> = {
@@ -20,6 +20,10 @@ const COLUMN_STYLES: Record<TicketStatus, { header: string; badge: string }> = {
     badge: 'bg-accent-blue/20 text-accent-blue',
   },
   needs_approval: {
+    header: 'bg-accent-orange/10 text-accent-orange',
+    badge: 'bg-accent-orange/20 text-accent-orange',
+  },
+  on_hold: {
     header: 'bg-accent-orange/10 text-accent-orange',
     badge: 'bg-accent-orange/20 text-accent-orange',
   },
@@ -118,6 +122,7 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
     todo: [],
     in_progress: [],
     needs_approval: [],
+    on_hold: [],
     in_review: [],
     done: [],
     merged: [],
@@ -144,9 +149,9 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
     t => t.auditVerdict === 'request_changes',
   ).length;
 
-  // Hide needs_approval/done/failed/error columns if empty
+  // Hide needs_approval/on_hold/done/failed/error columns if empty
   const visibleColumns = COLUMNS.filter(
-    s => !['needs_approval', 'done', 'failed', 'error'].includes(s) || grouped[s].length > 0,
+    s => !['needs_approval', 'on_hold', 'done', 'failed', 'error'].includes(s) || grouped[s].length > 0,
   );
 
   return (
