@@ -12,7 +12,7 @@ subsystem in the agent-kanban server.
 │                                                      │
 │  ┌──────────────┐  ┌───────────┐  ┌──────────────┐  │
 │  │  Dispatcher   │  │  Auditor  │  │  Scheduler   │  │
-│  │  (3s poll)    │  │  (30s)    │  │  (5min poll)  │  │
+│  │  (3s poll)    │  │  (30s)    │  │  (3h poll)    │  │
 │  └──────┬───────┘  └─────┬─────┘  └──────┬───────┘  │
 │         │                │               │           │
 │         └────────────────┴───────────────┘           │
@@ -99,6 +99,7 @@ screenshot capture, PR auditing, auto-merge, and conflict detection.
 
 | Cadence  | Interval |
 |----------|----------|
+| hourly   | 1 hour   |
 | daily    | 24 hours |
 | weekly   | 7 days   |
 | monthly  | 30 days  |
