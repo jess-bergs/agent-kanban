@@ -560,6 +560,9 @@ function ReportsView() {
         />
       </div>
 
+      {/* Rubric aspect trends */}
+      {runs.length > 1 && <RubricTrendsChart runs={runs} />}
+
       {/* Score distribution bar */}
       {runs.length > 1 && (
         <div className="bg-surface-800 rounded-xl border border-surface-600 p-4">
@@ -814,6 +817,129 @@ function ReportsView() {
           </div>
         );
       })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Rubric Trends Chart ─────────────────────────────────────────
+
+interface AspectDataPoint {
+  runIndex: number;
+  score: number;
+  timestamp: number;
+}
+
+function RubricTrendsChart({ runs }: { runs: AuditRunEntry[] }) {
+  // Build time series per aspect from oldest → newest
+  const chronological = [...runs].reverse();
+  const aspectMap = new Map<string, AspectDataPoint[]>();
+
+  chronological.forEach((run, idx) => {
+    const report = run.structuredReport!;
+    for (const item of report.rubric) {
+      if (!aspectMap.has(item.aspect)) {
+        aspectMap.set(item.aspect, []);
+      }
+      aspectMap.get(item.aspect)!.push({
+        runIndex: idx,
+        score: item.score,
+        timestamp: run.startedAt,
+      });
+    }
+  });
+
+  const aspects = [...aspectMap.entries()].sort((a, b) => {
+    // Sort by latest score descending so worst aspects surface at bottom
+    const aLast = a[1][a[1].length - 1].score;
+    const bLast = b[1][b[1].length - 1].score;
+    return bLast - aLast;
+  });
+
+  if (aspects.length === 0) return null;
+
+  const totalRuns = chronological.length;
+
+  return (
+    <div className="bg-surface-800 rounded-xl border border-surface-600 p-4">
+      <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-3">
+        Rubric Trends
+      </h3>
+      <div className="space-y-2">
+        {aspects.map(([aspect, points]) => {
+          const latest = points[points.length - 1];
+          const first = points[0];
+          const delta = points.length > 1 ? latest.score - first.score : 0;
+
+          return (
+            <div key={aspect} className="flex items-center gap-3">
+              {/* Aspect label */}
+              <div className="w-36 shrink-0 text-xs text-slate-400 truncate" title={aspect}>
+                {aspect}
+              </div>
+
+              {/* Sparkline */}
+              <div className="flex-1 flex items-end gap-px h-6">
+                {Array.from({ length: totalRuns }, (_, i) => {
+                  const point = points.find(p => p.runIndex === i);
+                  if (!point) {
+                    // No data for this run — show empty placeholder
+                    return (
+                      <div
+                        key={i}
+                        className="flex-1 bg-surface-700 rounded-sm"
+                        style={{ height: '2px' }}
+                      />
+                    );
+                  }
+                  const height = Math.max((point.score / 10) * 100, 8);
+                  const barColor =
+                    point.score >= 8 ? 'bg-accent-green' :
+                    point.score >= 5 ? 'bg-accent-amber' :
+                    'bg-accent-red';
+                  return (
+                    <div
+                      key={i}
+                      className={`flex-1 ${barColor} rounded-sm opacity-80 hover:opacity-100 transition-opacity`}
+                      style={{ height: `${height}%` }}
+                      title={`${aspect}: ${point.score.toFixed(1)} (${formatRelativeTime(point.timestamp)})`}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* Current score */}
+              <div className={`w-8 text-right text-xs font-medium ${
+                latest.score >= 8 ? 'text-accent-green' :
+                latest.score >= 5 ? 'text-accent-amber' :
+                'text-accent-red'
+              }`}>
+                {latest.score.toFixed(1)}
+              </div>
+
+              {/* Delta indicator */}
+              <div className="w-10 text-right">
+                {points.length > 1 ? (
+                  <span className={`text-[10px] ${
+                    delta > 0.5 ? 'text-accent-green' :
+                    delta < -0.5 ? 'text-accent-red' :
+                    'text-slate-600'
+                  }`}>
+                    {delta > 0 ? '+' : ''}{delta.toFixed(1)}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-600">—</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {/* Legend */}
+      <div className="flex items-center gap-4 mt-3 text-[10px] text-slate-600">
+        <span>← oldest</span>
+        <div className="flex-1 border-t border-surface-700" />
+        <span>newest →</span>
       </div>
     </div>
   );
