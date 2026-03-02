@@ -16,6 +16,7 @@ export default function App() {
       tickets={ws.tickets}
       soloAgents={ws.soloAgents}
       connected={ws.connected}
+      initialLoading={ws.initialLoading}
       viewMode={ws.viewMode}
       setViewMode={ws.setViewMode}
       selectedTeam={ws.selectedTeam}
