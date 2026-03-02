@@ -28,11 +28,12 @@ Before writing any code, agents must investigate the codebase to understand cont
 
 ## PR Template Compliance
 
-When creating a PR, agents **must** use the repo's PR template at `.github/pull_request_template.md`. The dispatcher injects explicit instructions for this into every agent's task prompt.
+When creating a PR, agents **must** use the repo's PR template at `.github/pull_request_template.md`. The dispatcher injects the full template content into every agent's task prompt.
 
 **Key rules:**
 - Do NOT use `gh pr create --fill` — it ignores the template entirely.
-- Read the template file, fill in every section (Description, Changes, Type of Change, Testing, Checklist), and pass it as the PR body via `--body`.
+- Do NOT use the default `## Summary` / `## Test plan` format — it does not match the template.
+- Fill in every section (Description, Changes, Type of Change, Testing, Checklist) and pass it as the PR body via `--body` with a HEREDOC.
 - Mark applicable checkboxes with `[x]`.
 - The PR auditor will flag non-compliant PRs and request changes.
 
