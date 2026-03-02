@@ -139,9 +139,27 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
     }
   }
 
-  // Sort by creation time, newest first
+  // Sort tickets within each column
   for (const status of COLUMNS) {
-    grouped[status].sort((a, b) => b.createdAt - a.createdAt);
+    if (status === 'done') {
+      // Done: sort by completion time, newest first
+      grouped[status].sort((a, b) => (b.completedAt ?? b.createdAt) - (a.completedAt ?? a.createdAt));
+    } else if (status === 'failed' || status === 'error') {
+      // Failed/Error: sort by latest error/fail timestamp from stateLog
+      grouped[status].sort((a, b) => {
+        const getFailTimestamp = (ticket: Ticket) => {
+          if (!ticket.stateLog || ticket.stateLog.length === 0) return ticket.createdAt;
+          // Find the most recent failed or error entry
+          const failEntries = ticket.stateLog.filter(e => e.status === 'failed' || e.status === 'error');
+          if (failEntries.length === 0) return ticket.createdAt;
+          return Math.max(...failEntries.map(e => e.timestamp));
+        };
+        return getFailTimestamp(b) - getFailTimestamp(a);
+      });
+    } else {
+      // All other statuses: sort by creation time, newest first
+      grouped[status].sort((a, b) => b.createdAt - a.createdAt);
+    }
   }
 
   // Count tickets needing manual review in the in_review column
