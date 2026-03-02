@@ -42,6 +42,27 @@ Tickets flow: `todo` → `in_progress` → `in_review` → `done` / `merged` / `
 
 See [Dispatcher Architecture](../architecture/dispatcher.md) for details on worktree creation, agent spawning, and PR detection.
 
+## Self-Healing & Retry Safety
+
+The dispatcher runs a continuous health check (every 30s) that detects and recovers from three failure modes:
+
+1. **Orphan PID detection** — If an agent process dies (server restart, crash) while a ticket is `in_progress`, the health check detects the dead PID and auto-retries up to `MAX_AUTO_RETRIES` (2). Tickets exceeding the retry budget are marked `failed` with `needsAttention: true`.
+
+2. **Stuck audit detection** — If `auditStatus` stays `running` for >10 minutes, the health check resets it and re-triggers the audit. Also resets stuck watchlist entries.
+
+3. **No-PR in-review** — If a ticket is `in_review` without a `prUrl` for >5 minutes, it's marked `failed` (agent exited before creating a PR).
+
+All interventions are logged to `data/health-check-log.jsonl`.
+
+### PR State Reconciliation
+
+Before retrying any ticket (health check, startup recovery, or manual retry button), the system checks if the ticket's PR has already been merged or closed on GitHub via `checkAndReconcilePrState()`. This prevents:
+
+- Blindly resetting a ticket whose PR is already merged (wasting an agent run)
+- Re-dispatching work that's already complete after a server restart
+
+If the PR is `MERGED`, the ticket is moved to `merged` status. If `CLOSED`, it's marked `failed`. Only if the PR is still `OPEN` (or no PR exists) does the retry proceed normally.
+
 ## Post-PR Pipeline
 
 After a PR is created:

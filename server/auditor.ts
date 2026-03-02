@@ -310,6 +310,28 @@ export function isAuditRunning(prUrl: string): boolean {
   return runningReviews.has(prUrl);
 }
 
+/**
+ * Reset watchlist entries stuck in `reviewing: true` for longer than maxAgeMs.
+ * Returns the count of entries reset so the next auditorTick() re-picks them up.
+ */
+export async function resetStuckReviews(maxAgeMs: number): Promise<number> {
+  const now = Date.now();
+  let count = 0;
+  for (const entry of watchlist) {
+    if (!entry.reviewing || entry.resolved) continue;
+    const reviewStarted = entry.lastReviewedAt || entry.addedAt;
+    if (now - reviewStarted > maxAgeMs && !runningReviews.has(entry.prUrl)) {
+      entry.reviewing = false;
+      count++;
+    }
+  }
+  if (count > 0) {
+    await saveWatchlist();
+    broadcastFn({ type: 'auditor_updated', data: getWatchlistStatus() });
+  }
+  return count;
+}
+
 /** Manually trigger a re-review for a PR on the watchlist */
 export async function triggerReReview(prUrl: string): Promise<boolean> {
   const entry = watchlist.find(e => e.prUrl === prUrl && !e.resolved);
