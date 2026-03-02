@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
-import { MessageCircle, X, Send, Loader2, FolderOpen, File, ChevronRight, ChevronLeft, Paperclip } from 'lucide-react';
+import { MessageCircle, X, Send, Loader2, FolderOpen, File, ChevronRight, ChevronLeft, Paperclip, Eye, Link } from 'lucide-react';
 import type { ChatMessage, Project } from '../types';
 
 interface FileItem {
@@ -28,6 +28,12 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
   const [browseItems, setBrowseItems] = useState<FileItem[]>([]);
   const [browseLoading, setBrowseLoading] = useState(false);
 
+  // File viewer
+  const [viewingFile, setViewingFile] = useState<string | null>(null);
+  const [viewContent, setViewContent] = useState('');
+  const [viewLoading, setViewLoading] = useState(false);
+  const [viewError, setViewError] = useState<string | null>(null);
+
   const selectedProject = projects.find(p => p.id === selectedProjectId) ?? null;
 
   const scrollToBottom = useCallback(() => {
@@ -39,10 +45,10 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
   }, [messages, scrollToBottom]);
 
   useEffect(() => {
-    if (open && !showFilePicker) {
+    if (open && !showFilePicker && !viewingFile) {
       setTimeout(() => inputRef.current?.focus(), 150);
     }
-  }, [open, showFilePicker]);
+  }, [open, showFilePicker, viewingFile]);
 
   // Load file listing when browsing
   useEffect(() => {
@@ -61,6 +67,7 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
     setSelectedProjectId(id || null);
     setAttachedFiles([]);
     setBrowseDir('');
+    setViewingFile(null);
   }
 
   function toggleFile(filePath: string) {
@@ -73,6 +80,29 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
 
   function removeFile(filePath: string) {
     setAttachedFiles(prev => prev.filter(f => f !== filePath));
+  }
+
+  function viewFile(filePath: string) {
+    if (!selectedProjectId) return;
+    setViewingFile(filePath);
+    setViewContent('');
+    setViewError(null);
+    setViewLoading(true);
+    const params = new URLSearchParams({ projectId: selectedProjectId, path: filePath });
+    fetch(`/api/chat/file?${params}`)
+      .then(r => {
+        if (!r.ok) return r.json().then(err => { throw new Error(err.error || 'Failed to load file'); });
+        return r.json();
+      })
+      .then((data: { content: string }) => setViewContent(data.content))
+      .catch(err => setViewError(err instanceof Error ? err.message : 'Failed to load file'))
+      .finally(() => setViewLoading(false));
+  }
+
+  function closeViewer() {
+    setViewingFile(null);
+    setViewContent('');
+    setViewError(null);
   }
 
   async function handleSend() {
@@ -132,6 +162,11 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
     }
   }
 
+  // Determine which panel to show in the main content area
+  const showViewer = viewingFile !== null;
+  const showBrowser = showFilePicker && selectedProjectId && !showViewer;
+  const showMessages = !showViewer && !showBrowser;
+
   return (
     <>
       {/* Floating trigger button */}
@@ -170,13 +205,13 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
             </select>
             {selectedProjectId && (
               <button
-                onClick={() => { setShowFilePicker(!showFilePicker); setBrowseDir(''); }}
+                onClick={() => { setShowFilePicker(!showFilePicker); setBrowseDir(''); setViewingFile(null); }}
                 className={`p-1 rounded transition-colors ${
                   showFilePicker
                     ? 'bg-accent-blue/20 text-accent-blue'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-surface-700'
                 }`}
-                title="Attach files"
+                title="Browse files"
               >
                 <Paperclip className="w-3.5 h-3.5" />
               </button>
@@ -191,8 +226,14 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
                   key={f}
                   className="inline-flex items-center gap-1 bg-accent-blue/15 text-accent-blue text-[10px] px-2 py-0.5 rounded-full"
                 >
-                  <File className="w-2.5 h-2.5" />
-                  {f.split('/').pop()}
+                  <button
+                    onClick={() => viewFile(f)}
+                    className="inline-flex items-center gap-1 hover:text-white transition-colors"
+                    title={`View ${f}`}
+                  >
+                    <File className="w-2.5 h-2.5" />
+                    {f.split('/').pop()}
+                  </button>
                   <button
                     onClick={() => removeFile(f)}
                     className="hover:text-white transition-colors"
@@ -204,8 +245,49 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
             </div>
           )}
 
+          {/* File viewer panel */}
+          {showViewer && (
+            <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+              <div className="px-3 py-2 border-b border-surface-700 flex items-center gap-2 text-xs shrink-0">
+                <button
+                  onClick={closeViewer}
+                  className="flex items-center gap-0.5 text-slate-400 hover:text-slate-200 transition-colors"
+                >
+                  <ChevronLeft className="w-3 h-3" />
+                  Back
+                </button>
+                <File className="w-3 h-3 text-slate-400" />
+                <span className="font-mono text-slate-200 truncate">{viewingFile}</span>
+                {viewingFile && !attachedFiles.includes(viewingFile) && (
+                  <button
+                    onClick={() => { toggleFile(viewingFile); }}
+                    className="ml-auto flex items-center gap-1 text-[10px] text-slate-400 hover:text-accent-blue transition-colors"
+                    title="Attach to chat context"
+                  >
+                    <Link className="w-3 h-3" />
+                    Attach
+                  </button>
+                )}
+                {viewingFile && attachedFiles.includes(viewingFile) && (
+                  <span className="ml-auto text-[10px] text-accent-blue">attached</span>
+                )}
+              </div>
+              {viewLoading ? (
+                <div className="flex items-center justify-center py-8 flex-1">
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
+                </div>
+              ) : viewError ? (
+                <div className="text-center text-xs text-red-400 py-8 px-4 flex-1">{viewError}</div>
+              ) : (
+                <pre className="flex-1 overflow-auto p-3 font-mono text-[11px] text-slate-300 leading-relaxed whitespace-pre-wrap break-words">
+                  {viewContent}
+                </pre>
+              )}
+            </div>
+          )}
+
           {/* File picker overlay */}
-          {showFilePicker && selectedProjectId ? (
+          {showBrowser && (
             <div className="flex-1 overflow-y-auto min-h-0">
               <div className="px-3 py-2 border-b border-surface-700 flex items-center gap-2 text-xs text-slate-400">
                 {browseDir && (
@@ -241,38 +323,53 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
               ) : (
                 <div className="divide-y divide-surface-700/50">
                   {browseItems.map(item => (
-                    <button
+                    <div
                       key={item.path}
-                      onClick={() => {
-                        if (item.type === 'dir') {
-                          setBrowseDir(item.path);
-                        } else {
-                          toggleFile(item.path);
-                        }
-                      }}
-                      className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-surface-700/50 transition-colors ${
+                      className={`flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-surface-700/50 transition-colors ${
                         attachedFiles.includes(item.path) ? 'bg-accent-blue/10' : ''
                       }`}
                     >
-                      {item.type === 'dir' ? (
-                        <FolderOpen className="w-3.5 h-3.5 text-accent-amber shrink-0" />
-                      ) : (
-                        <File className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <button
+                        onClick={() => {
+                          if (item.type === 'dir') {
+                            setBrowseDir(item.path);
+                          } else {
+                            toggleFile(item.path);
+                          }
+                        }}
+                        className="flex items-center gap-2 flex-1 text-left min-w-0"
+                      >
+                        {item.type === 'dir' ? (
+                          <FolderOpen className="w-3.5 h-3.5 text-accent-amber shrink-0" />
+                        ) : (
+                          <File className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        )}
+                        <span className="truncate text-slate-200">{item.name}</span>
+                        {item.type === 'dir' && (
+                          <ChevronRight className="w-3 h-3 text-slate-500 ml-auto shrink-0" />
+                        )}
+                        {item.type === 'file' && attachedFiles.includes(item.path) && (
+                          <span className="ml-auto text-[10px] text-accent-blue shrink-0">attached</span>
+                        )}
+                      </button>
+                      {item.type === 'file' && (
+                        <button
+                          onClick={() => viewFile(item.path)}
+                          className="p-0.5 text-slate-500 hover:text-slate-200 transition-colors shrink-0"
+                          title={`View ${item.name}`}
+                        >
+                          <Eye className="w-3 h-3" />
+                        </button>
                       )}
-                      <span className="truncate text-slate-200">{item.name}</span>
-                      {item.type === 'dir' && (
-                        <ChevronRight className="w-3 h-3 text-slate-500 ml-auto shrink-0" />
-                      )}
-                      {item.type === 'file' && attachedFiles.includes(item.path) && (
-                        <span className="ml-auto text-[10px] text-accent-blue">attached</span>
-                      )}
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}
             </div>
-          ) : (
-            /* Messages */
+          )}
+
+          {/* Messages */}
+          {showMessages && (
             <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
               {messages.length === 0 && (
                 <div className="text-center text-xs text-slate-500 mt-8 space-y-2">
