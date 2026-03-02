@@ -841,13 +841,13 @@ async function startAgent(ticket: Ticket) {
               pendingToolApproval.set(ticket.id, false);
               pendingUserInput.set(ticket.id, false);
               // Transition back to in_progress if we were in needs_approval
-              getTicket(ticket.id).then(t => {
+              pendingStreamWrite = pendingStreamWrite.then(async () => {
+                const t = await getTicket(ticket.id);
                 if (t && t.status === 'needs_approval') {
-                  updateTicket(ticket.id, { status: 'in_progress' }, 'tool_approved').then(u => {
-                    if (u) broadcastTicket(u);
-                  });
+                  const u = await updateTicket(ticket.id, { status: 'in_progress' }, 'tool_approved');
+                  if (u) broadcastTicket(u);
                 }
-              });
+              }).catch(err => console.error('[dispatcher] Error transitioning from needs_approval:', err));
             }
           }
         }
