@@ -23,7 +23,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { formatDuration, formatTokenCount } from '../types';
-import type { AuditReport, AuditRubricScore, AuditFinding, SeverityCounts as SeverityCountsType } from '../types';
+import type { AuditReport, SeverityCounts as SeverityCountsType } from '../types';
 
 // ─── Types (mirroring server/analytics.ts) ─────────────────────
 
@@ -679,12 +679,12 @@ function ReportsView() {
                         if (items.length === 0) return null;
                         return (
                           <div key={sev}>
-                            <div className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{
-                              color: sev === 'critical' ? 'var(--color-accent-red)' :
-                                     sev === 'high' ? 'var(--color-accent-orange)' :
-                                     sev === 'medium' ? 'var(--color-accent-amber)' :
-                                     'var(--color-slate-500)',
-                            }}>
+                            <div className={`text-[10px] font-medium uppercase tracking-wider mb-1 ${
+                              sev === 'critical' ? 'text-accent-red' :
+                              sev === 'high' ? 'text-accent-orange' :
+                              sev === 'medium' ? 'text-accent-amber' :
+                              'text-slate-500'
+                            }`}>
                               {sev} ({items.length})
                             </div>
                             {items.map(finding => (
