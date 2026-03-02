@@ -390,8 +390,6 @@ function discoverSessionId(worktreePath: string): string | null {
     }
     if (files.length === 0) return null;
 
-    if (files.length === 0) return null;
-
     // Find most recently modified JSONL file
     let newest: { file: string; mtime: number } | null = null;
     for (const file of files) {
