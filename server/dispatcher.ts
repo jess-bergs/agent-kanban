@@ -483,6 +483,14 @@ async function startAgent(ticket: Ticket) {
     );
   }
 
+  // Read PR template at dispatch time so we can inject it into the agent prompt
+  let prTemplate = '';
+  try {
+    prTemplate = await readFile(join(project.repoPath, '.github', 'pull_request_template.md'), 'utf-8');
+  } catch {
+    // No template — agents will use a basic format
+  }
+
   if (useWorktree) {
     taskLines.push(
       `You are working in a git worktree on branch "${branchName}" based on "${project.defaultBranch}".`,
@@ -491,11 +499,46 @@ async function startAgent(ticket: Ticket) {
       'When you have completed all the work:',
       '1. Stage and commit all changes with clear commit messages',
       `2. Push the branch: git push -u origin ${branchName}`,
-      `3. Create a pull request: gh pr create --base ${project.defaultBranch} --fill`,
+      '3. Create a pull request using the repo\'s PR template (see below)',
       '4. Output the PR URL on its own line at the end',
       '',
       `Ticket-ID: ${ticket.id}`,
     );
+
+    if (prTemplate) {
+      taskLines.push(
+        '',
+        '---',
+        '## PR Creation (MANDATORY)',
+        '',
+        'You MUST create the PR body using the template below. Do NOT use `gh pr create --fill` — it ignores the template.',
+        'Do NOT invent your own format (e.g. "## Summary" / "## Test plan"). Use ONLY the template structure shown here.',
+        '',
+        '**Steps:**',
+        '1. Fill in every section of the template below:',
+        '   - **Description**: Write a brief description of what this PR does',
+        '   - **Changes**: List the main changes as bullet points',
+        '   - **Type of Change**: Mark applicable checkboxes with `[x]`',
+        '   - **Screenshots**: Add before/after if UI changes were made',
+        '   - **Testing**: Check the boxes for how you tested',
+        '   - **Checklist**: Check all boxes that apply',
+        `   - **Ticket**: Set to \`${ticket.id}\``,
+        '2. Create the PR using a HEREDOC so the body is passed correctly:',
+        '',
+        '```',
+        `gh pr create --base ${project.defaultBranch} --title "Your concise title" --body "$(cat <<'PREOF'`,
+        '<your filled-in template here>',
+        'PREOF',
+        ')"',
+        '```',
+        '',
+        'The PR will be **rejected by the auditor** if the template is not followed. Here is the template:',
+        '',
+        '````markdown',
+        prTemplate.trim(),
+        '````',
+      );
+    }
   } else {
     taskLines.push(
       `You are working directly in: ${project.repoPath}`,

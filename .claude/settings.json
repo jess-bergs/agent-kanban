@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(kill 10629)",
+      "mcp__agent-kanban__retry_ticket"
+    ]
+  }
+}
