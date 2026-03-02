@@ -10,6 +10,7 @@ import {
   FileSearch,
   GitMerge,
   GitPullRequest,
+  HelpCircle,
   Archive,
   Images,
   Loader2,
@@ -74,14 +75,17 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
   }
 
   const needsReview = !isFinished && ticket.auditVerdict === 'request_changes';
+  const hasQuestion = !!ticket.needsInput;
 
   return (
     <div
       onClick={() => onClick?.(ticket)}
       className={`bg-surface-700 rounded-lg p-3 border-l-2 ${borderColor} hover:border-surface-500 transition-colors cursor-pointer overflow-hidden ${
-        needsReview
-          ? 'border border-accent-orange/40 ring-1 ring-accent-orange/20'
-          : 'border border-surface-600'
+        hasQuestion
+          ? 'border border-accent-amber/50 ring-1 ring-accent-amber/25'
+          : needsReview
+            ? 'border border-accent-orange/40 ring-1 ring-accent-orange/20'
+            : 'border border-surface-600'
       }`}
     >
       <p className="text-sm font-medium text-slate-100 truncate">{ticket.subject}</p>
@@ -125,6 +129,12 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
           <span className="flex items-center gap-1 text-[10px] font-medium text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded animate-pulse">
             <AlertTriangle className="w-3 h-3" />
             NEEDS ATTENTION
+          </span>
+        )}
+        {hasQuestion && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-amber bg-accent-amber/10 px-1.5 py-0.5 rounded animate-pulse">
+            <HelpCircle className="w-3 h-3" />
+            HAS QUESTION
           </span>
         )}
         {ticket.hasConflict && (
@@ -189,8 +199,17 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
       {ticket.status === 'needs_approval' && (
         <div className="mt-2 space-y-1.5">
           <div className="flex items-center gap-1.5">
-            <ShieldAlert className="w-3 h-3 text-accent-orange animate-pulse" />
-            <span className="text-xs text-accent-orange font-medium">Waiting for approval in terminal</span>
+            {hasQuestion ? (
+              <>
+                <HelpCircle className="w-3 h-3 text-accent-amber animate-pulse" />
+                <span className="text-xs text-accent-amber font-medium">Agent has a question — respond in terminal</span>
+              </>
+            ) : (
+              <>
+                <ShieldAlert className="w-3 h-3 text-accent-orange animate-pulse" />
+                <span className="text-xs text-accent-orange font-medium">Waiting for approval in terminal</span>
+              </>
+            )}
           </div>
           {ticket.lastOutput && (
             <pre className="text-[11px] text-slate-400 font-mono bg-surface-900/60 rounded px-2 py-1.5 line-clamp-3 whitespace-pre-wrap leading-relaxed">

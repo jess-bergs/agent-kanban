@@ -33,7 +33,7 @@ import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount
 import { safeStatus, analyzeTicketCompat } from '../lib/ticketCompat';
 
 
-import { XCircle, GitMerge, AlertTriangle, StopCircle, History, Users, ClipboardCheck, Archive} from 'lucide-react';
+import { XCircle, GitMerge, AlertTriangle, StopCircle, History, Users, ClipboardCheck, Archive, HelpCircle} from 'lucide-react';
 
 
 const STATE_REASON_LABELS: Record<string, string> = {
@@ -303,19 +303,33 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
             </div>
           )}
 
-          {/* Needs approval banner */}
+          {/* Needs approval / has question banner */}
           {ticket.status === 'needs_approval' && (
-            <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent-orange/5 border border-accent-orange/20">
-              <ShieldAlert className="w-5 h-5 text-accent-orange animate-pulse shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-accent-orange">
-                  Waiting for tool approval
-                </p>
-                <p className="text-xs text-slate-400">
-                  This agent is not running in YOLO mode and needs you to approve a tool call in the terminal.
-                </p>
+            ticket.needsInput ? (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent-amber/5 border border-accent-amber/30">
+                <HelpCircle className="w-5 h-5 text-accent-amber animate-pulse shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-accent-amber">
+                    Agent has a question
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    The agent is waiting for your input in the terminal. It may need clarification or a decision before it can continue.
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent-orange/5 border border-accent-orange/20">
+                <ShieldAlert className="w-5 h-5 text-accent-orange animate-pulse shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-accent-orange">
+                    Waiting for tool approval
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    This agent is not running in YOLO mode and needs you to approve a tool call in the terminal.
+                  </p>
+                </div>
+              </div>
+            )
           )}
 
           {/* On hold banner — usage limit */}

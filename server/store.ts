@@ -223,6 +223,13 @@ export async function updateTicket(
       updated.needsAttention = undefined;
     }
 
+    // Auto-set needsInput when agent is waiting for user input (AskUserQuestion/EnterPlanMode)
+    if (updates.status === 'needs_approval' && stateReason === 'waiting_user_input') {
+      updated.needsInput = true;
+    } else if (updates.status && updates.status !== 'needs_approval') {
+      updated.needsInput = undefined;
+    }
+
     await atomicWriteJson(join(TICKETS_DIR, `${updated.id}.json`), updated);
     return updated;
   });
