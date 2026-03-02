@@ -884,6 +884,11 @@ async function startAgent(ticket: Ticket) {
 
   proc.stdout.on('data', (chunk: Buffer) => {
     lineBuffer += chunk.toString();
+    // Cap buffer to prevent unbounded growth from agents outputting without newlines
+    const MAX_LINE_BUFFER = 1024 * 1024; // 1 MB
+    if (lineBuffer.length > MAX_LINE_BUFFER) {
+      lineBuffer = lineBuffer.slice(-MAX_LINE_BUFFER);
+    }
     const lines = lineBuffer.split('\n');
     lineBuffer = lines.pop() || '';
     for (const line of lines) {
