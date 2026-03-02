@@ -28,8 +28,9 @@ import {
   saveTicketImage,
   deleteTicketImage,
   getImagesDir,
+  getSettings,
 } from './store.ts';
-import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick, attemptMerge } from './dispatcher.ts';
+import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick, attemptMerge, getMaxConcurrent, setMaxConcurrent, getRunningCount } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
 import {
   runAudit,
@@ -210,6 +211,40 @@ app.delete('/api/projects/:id', async (req, res) => {
   }
 });
 
+// ─── Settings API ─────────────────────────────────────────────────
+
+app.get('/api/settings', async (_req, res) => {
+  try {
+    const settings = await getSettings();
+    res.json(settings);
+  } catch (err) {
+    console.error('Error fetching settings:', err);
+    res.status(500).json({ error: 'Failed to read settings' });
+  }
+});
+
+app.patch('/api/settings', async (req, res) => {
+  try {
+    const { maxConcurrent } = req.body;
+    if (maxConcurrent !== undefined) {
+      if (typeof maxConcurrent !== 'number' || !Number.isInteger(maxConcurrent) || maxConcurrent < 1) {
+        res.status(400).json({ error: 'maxConcurrent must be a positive integer' });
+        return;
+      }
+      const value = await setMaxConcurrent(maxConcurrent);
+      const settings = await getSettings();
+      broadcast({ type: 'settings_updated', data: settings });
+      console.log(`[settings] maxConcurrent updated to ${value}`);
+      res.json(settings);
+    } else {
+      res.status(400).json({ error: 'No valid settings provided' });
+    }
+  } catch (err) {
+    console.error('Error updating settings:', err);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
 // ─── Tickets API ──────────────────────────────────────────────────
 
 app.get('/api/tickets', async (req, res) => {
@@ -259,6 +294,17 @@ app.get('/api/tickets/:id', async (req, res) => {
 });
 
 app.patch('/api/tickets/:id', async (req, res) => {
+  // Enforce max concurrent limit when manually moving to in_progress
+  if (req.body.status === 'in_progress') {
+    const runningCount = getRunningCount();
+    if (runningCount >= getMaxConcurrent()) {
+      res.status(409).json({
+        error: `Cannot move to in_progress: max concurrent limit reached (${runningCount}/${getMaxConcurrent()})`,
+      });
+      return;
+    }
+  }
+
   const ticket = await updateTicket(req.params.id, req.body, req.body.status ? 'user_action' : undefined);
   if (ticket) {
     broadcast({ type: 'ticket_updated', data: ticket });
@@ -1054,16 +1100,18 @@ wss.on('connection', async (ws) => {
   console.log(`[ws] Client connected (total: ${wss.clients.size})`);
 
   try {
-    const [teams, projectsData, soloAgents] = await Promise.all([
+    const [teams, projectsData, soloAgents, settings] = await Promise.all([
       getAllTeamsWithData(),
       getProjectsPayload(),
       detectSoloAgents(),
+      getSettings(),
     ]);
     ws.send(JSON.stringify({ type: 'initial', data: teams }));
     ws.send(JSON.stringify({ type: 'projects_updated', data: projectsData }));
     ws.send(JSON.stringify({ type: 'agents_updated', data: soloAgents }));
     ws.send(JSON.stringify({ type: 'auditor_updated', data: getWatchlistStatus() }));
     ws.send(JSON.stringify({ type: 'audit_schedules_updated', data: await listSchedules() }));
+    ws.send(JSON.stringify({ type: 'settings_updated', data: settings }));
   } catch (err) {
     console.error('[ws] Error sending initial data:', err);
   }

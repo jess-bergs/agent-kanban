@@ -85,7 +85,8 @@ export type WSEventType =
   | 'agents_updated'
   | 'auditor_updated'
   | 'audit_schedules_updated'
-  | 'audit_run_updated';
+  | 'audit_run_updated'
+  | 'settings_updated';
 
 export interface WSEvent {
   type: WSEventType;
