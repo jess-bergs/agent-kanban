@@ -27,6 +27,8 @@ import {
   ShieldAlert,
   ImagePlus,
   Images,
+  Send,
+  CornerDownLeft,
 } from 'lucide-react';
 import type { Ticket, TicketStatus, Project, AgentActivity, StateChangeEntry } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount, shortenUuids } from '../types';
@@ -116,7 +118,11 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
   const [showStateLog, setShowStateLog] = useState(false);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState(false);
+  const [steeringMessage, setSteeringMessage] = useState('');
+  const [steeringSending, setSteeringSending] = useState(false);
+  const [steeringResult, setSteeringResult] = useState<{ mode: string; error?: string } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const steeringInputRef = useRef<HTMLTextAreaElement>(null);
 
   async function handleRetry() {
     setActing(true);
@@ -190,6 +196,32 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
 
   async function handleDeleteImage(filename: string) {
     await fetch(`/api/tickets/${ticket.id}/images/${filename}`, { method: 'DELETE' });
+  }
+
+  async function handleSendSteering() {
+    const text = steeringMessage.trim();
+    if (!text || steeringSending) return;
+    setSteeringSending(true);
+    setSteeringResult(null);
+    try {
+      const res = await fetch(`/api/tickets/${ticket.id}/steer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSteeringMessage('');
+        setSteeringResult({ mode: data.mode });
+        setTimeout(() => setSteeringResult(null), 3000);
+      } else {
+        setSteeringResult({ mode: 'error', error: data.error || 'Failed to send' });
+      }
+    } catch {
+      setSteeringResult({ mode: 'error', error: 'Network error' });
+    } finally {
+      setSteeringSending(false);
+    }
   }
 
   useEffect(() => {
@@ -703,6 +735,81 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 >
                   {ticket.lastOutput || 'Waiting for output...'}
                 </pre>
+              </div>
+            </div>
+          )}
+
+          {/* Steering input — send messages to running or resumable agents */}
+          {(isAgentActive || ticket.agentSessionId) && (
+            <div className="flex items-start gap-3">
+              <Send className="w-4 h-4 text-accent-blue mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <p className="text-xs text-muted">
+                    {isAgentActive ? 'Steer Agent' : 'Resume & Message'}
+                  </p>
+                  {isAgentActive && (
+                    <span className="flex items-center gap-1 text-[10px] text-accent-blue">
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent-blue animate-pulse" />
+                      live
+                    </span>
+                  )}
+                  {!isAgentActive && ticket.agentSessionId && (
+                    <span className="text-[10px] text-accent-amber">
+                      will resume session
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-end gap-2">
+                  <textarea
+                    ref={steeringInputRef}
+                    value={steeringMessage}
+                    onChange={e => setSteeringMessage(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSendSteering();
+                      }
+                    }}
+                    placeholder={isAgentActive
+                      ? 'Send a follow-up message to the running agent...'
+                      : 'Send a message to resume the agent session...'
+                    }
+                    rows={2}
+                    className="flex-1 bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-xs text-primary placeholder-muted focus:outline-none focus:border-accent-blue transition-colors resize-none"
+                    disabled={steeringSending}
+                  />
+                  <button
+                    onClick={handleSendSteering}
+                    disabled={!steeringMessage.trim() || steeringSending}
+                    className="p-2 rounded-lg bg-accent-blue text-white hover:bg-accent-blue/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                    title={isAgentActive ? 'Send to running agent (Enter)' : 'Resume session with this message (Enter)'}
+                    aria-label="Send steering message"
+                  >
+                    {steeringSending
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <CornerDownLeft className="w-3.5 h-3.5" />
+                    }
+                  </button>
+                </div>
+                {steeringResult && (
+                  <p className={`text-[10px] mt-1 ${
+                    steeringResult.mode === 'error' ? 'text-accent-red' :
+                    steeringResult.mode === 'resume' ? 'text-accent-amber' :
+                    'text-accent-green'
+                  }`}>
+                    {steeringResult.mode === 'error' && steeringResult.error}
+                    {steeringResult.mode === 'stdin' && 'Message sent to agent'}
+                    {steeringResult.mode === 'resume' && 'Agent session resuming with your message...'}
+                  </p>
+                )}
+                <p className="text-[9px] text-faint mt-1">
+                  {isAgentActive
+                    ? 'Pipes directly to the agent\'s stdin. Use to answer questions or redirect the agent.'
+                    : 'Resumes the previous Claude session with your message as the prompt.'
+                  }
+                </p>
               </div>
             </div>
           )}

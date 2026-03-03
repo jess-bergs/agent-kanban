@@ -724,7 +724,7 @@ async function startAgent(ticket: Ticket) {
   const proc = spawn('claude', args, {
     cwd: agentCwd,
     env: envWithNvmNode(cleanEnv),
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ['pipe', 'pipe', 'pipe'],
   });
 
   running.set(ticket.id, proc);
@@ -1530,6 +1530,27 @@ export function abortAgent(ticketId: string): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Send a steering message to a running agent's stdin.
+ * Returns true if the message was written, false if no running process exists.
+ */
+export function sendSteeringMessage(ticketId: string, message: string): boolean {
+  const proc = running.get(ticketId);
+  if (!proc || !proc.stdin || proc.stdin.destroyed) {
+    return false;
+  }
+  console.log(`[dispatcher] Sending steering message to ticket #${ticketId}: ${message.slice(0, 100)}`);
+  proc.stdin.write(message + '\n');
+  return true;
+}
+
+/**
+ * Check whether an agent process is currently running for a given ticket.
+ */
+export function isAgentRunning(ticketId: string): boolean {
+  return running.has(ticketId);
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
