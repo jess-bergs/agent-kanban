@@ -354,41 +354,77 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           )}
 
           {/* Review verdict banner */}
-          {ticket.auditVerdict && (
-            <div className={`flex items-center gap-3 px-4 py-3 rounded-lg ${
-              ticket.auditVerdict === 'approve'
-                ? 'bg-accent-green/5 border border-accent-green/20'
-                : ticket.auditVerdict === 'request_changes'
-                  ? 'bg-accent-orange/5 border border-accent-orange/20'
-                  : 'bg-accent-cyan/5 border border-accent-cyan/20'
-            }`}>
-              <ClipboardCheck className={`w-5 h-5 shrink-0 ${
+          {ticket.auditVerdict && (() => {
+            const MAX_AUTO_ITERATIONS = 5;
+            const canAutoFix = !!ticket.agentSessionId && (ticket.automationIteration || 0) < MAX_AUTO_ITERATIONS;
+            const isRequestChanges = ticket.auditVerdict === 'request_changes';
+            const autoFixing = isRequestChanges && canAutoFix;
+
+            // Auto-fixing banner (blue) replaces orange when system will handle it
+            if (autoFixing) {
+              return (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent-blue/5 border border-accent-blue/20">
+                  <Loader2 className="w-5 h-5 text-accent-blue animate-spin shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-accent-blue">
+                      Agent Addressing Feedback ({(ticket.automationIteration || 0)}/{MAX_AUTO_ITERATIONS})
+                    </p>
+                    {ticket.auditResult && (
+                      <p className="text-xs text-tertiary mt-0.5">
+                        {ticket.auditResult}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-muted mt-1">
+                      The agent will resume and address the review feedback automatically.
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg ${
                 ticket.auditVerdict === 'approve'
-                  ? 'text-accent-green'
-                  : ticket.auditVerdict === 'request_changes'
-                    ? 'text-accent-orange'
-                    : 'text-accent-cyan'
-              }`} />
-              <div className="flex-1">
-                <p className={`text-sm font-medium ${
+                  ? 'bg-accent-green/5 border border-accent-green/20'
+                  : isRequestChanges
+                    ? 'bg-accent-orange/5 border border-accent-orange/20'
+                    : 'bg-accent-cyan/5 border border-accent-cyan/20'
+              }`}>
+                <ClipboardCheck className={`w-5 h-5 shrink-0 ${
                   ticket.auditVerdict === 'approve'
                     ? 'text-accent-green'
-                    : ticket.auditVerdict === 'request_changes'
+                    : isRequestChanges
                       ? 'text-accent-orange'
                       : 'text-accent-cyan'
-                }`}>
-                  {ticket.auditVerdict === 'approve' && 'Review: Approved'}
-                  {ticket.auditVerdict === 'request_changes' && 'Review: Changes Requested'}
-                  {ticket.auditVerdict === 'comment' && 'Review: Comments'}
-                </p>
-                {ticket.auditResult && (
-                  <p className="text-xs text-tertiary mt-0.5">
-                    {ticket.auditResult}
+                }`} />
+                <div className="flex-1">
+                  <p className={`text-sm font-medium ${
+                    ticket.auditVerdict === 'approve'
+                      ? 'text-accent-green'
+                      : isRequestChanges
+                        ? 'text-accent-orange'
+                        : 'text-accent-cyan'
+                  }`}>
+                    {ticket.auditVerdict === 'approve' && 'Review: Approved'}
+                    {isRequestChanges && 'Review: Changes Requested'}
+                    {ticket.auditVerdict === 'comment' && 'Review: Comments'}
                   </p>
-                )}
+                  {ticket.auditResult && (
+                    <p className="text-xs text-tertiary mt-0.5">
+                      {ticket.auditResult}
+                    </p>
+                  )}
+                  {isRequestChanges && (
+                    <p className="text-[11px] text-muted mt-1">
+                      {!ticket.agentSessionId
+                        ? 'No agent session to resume — manual review needed.'
+                        : `Auto-fix budget exhausted (${ticket.automationIteration || 0}/${MAX_AUTO_ITERATIONS} iterations) — manual review needed.`}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Review in progress */}
           {ticket.auditStatus === 'running' && !ticket.auditVerdict && (

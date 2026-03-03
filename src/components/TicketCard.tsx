@@ -75,7 +75,10 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
     }
   }
 
-  const needsReview = !isFinished && ticket.auditVerdict === 'request_changes';
+  const MAX_AUTO_ITERATIONS = 5;
+  const canAutoFix = !!ticket.agentSessionId && (ticket.automationIteration || 0) < MAX_AUTO_ITERATIONS;
+  const needsReview = !isFinished && ticket.auditVerdict === 'request_changes' && !canAutoFix;
+  const autoFixPending = !isFinished && ticket.auditVerdict === 'request_changes' && canAutoFix;
   const hasQuestion = !!ticket.needsInput;
 
   return (
@@ -150,10 +153,16 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             APPROVED
           </span>
         )}
-        {ticket.auditVerdict === 'request_changes' && (
+        {ticket.auditVerdict === 'request_changes' && !autoFixPending && (
           <span className={`flex items-center gap-1 text-[10px] font-medium text-accent-orange bg-accent-orange/10 px-1.5 py-0.5 rounded ${pulse}`} title="Reviewer has requested changes to this PR">
             <ShieldAlert className="w-3 h-3" aria-hidden="true" />
             CHANGES
+          </span>
+        )}
+        {autoFixPending && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            FIXING ({(ticket.automationIteration || 0)}/{MAX_AUTO_ITERATIONS})
           </span>
         )}
         {ticket.auditVerdict === 'comment' && (
@@ -248,12 +257,29 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         </div>
       )}
 
-      {/* Review verdict — needs human review */}
-      {ticket.status === 'in_review' && ticket.auditVerdict === 'request_changes' && (
+      {/* Review verdict — auto-fixing */}
+      {ticket.status === 'in_review' && autoFixPending && (
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <Loader2 className="w-3 h-3 text-accent-blue animate-spin" />
+            <span className="text-xs text-accent-blue font-medium">Agent addressing feedback</span>
+          </div>
+          {ticket.auditResult && (
+            <p className="text-[11px] text-slate-400 bg-accent-blue/5 border border-accent-blue/20 rounded px-2 py-1.5 line-clamp-2">
+              {ticket.auditResult}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Review verdict — needs human review (no session to resume or budget exhausted) */}
+      {ticket.status === 'in_review' && ticket.auditVerdict === 'request_changes' && !autoFixPending && (
         <div className="mt-2 space-y-1.5">
           <div className="flex items-center gap-1.5">
             <Eye className="w-3 h-3 text-accent-orange animate-pulse" />
-            <span className="text-xs text-accent-orange font-medium">Needs your review</span>
+            <span className="text-xs text-accent-orange font-medium">
+              {!ticket.agentSessionId ? 'Needs your review — no agent session to resume' : `Needs your review — auto-fix budget exhausted (${ticket.automationIteration || 0}/${MAX_AUTO_ITERATIONS})`}
+            </span>
           </div>
           {ticket.auditResult && (
             <p className="text-[11px] text-tertiary bg-accent-orange/5 border border-accent-orange/20 rounded px-2 py-1.5 line-clamp-2">

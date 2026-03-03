@@ -15,7 +15,7 @@ const MAX_CONCURRENT = 5;
 const MAX_AUTO_RETRIES = 2;
 const MAX_AUTOMATION_ITERATIONS = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
-const MAX_AGENT_TURNS = 50;
+const MAX_AGENT_TURNS = 75;
 const APPROVAL_WAIT_THRESHOLD_MS = 15_000; // 15s without tool_result = likely waiting for approval
 const running = new Map<string, ChildProcess>();
 /** Tracks the last stream activity time per ticket, for detecting approval waits */
@@ -1289,16 +1289,17 @@ async function checkAutoMerge(ticket: Ticket) {
       checks.every(c => c.conclusion === 'SUCCESS' || c.conclusion === 'NEUTRAL' || c.conclusion === 'SKIPPED');
     const isMergeable = pr.mergeable === 'MERGEABLE';
 
-    // Gate: don't merge while auditor is still running or has requested changes
+    // Gate: require auditor to have completed with approve/comment before merging
     const freshTicket = await getTicket(ticket.id);
     const auditStatus = freshTicket?.auditStatus;
     const auditVerdict = freshTicket?.auditVerdict;
-    if (auditStatus === 'running' || auditStatus === 'pending') {
-      console.log(`[auto-merge] Ticket #${ticket.id} audit still ${auditStatus} — deferring`);
-      return;
-    }
     if (auditVerdict === 'request_changes') {
       console.log(`[auto-merge] Ticket #${ticket.id} audit requested changes — skipping`);
+      return;
+    }
+    if (auditVerdict !== 'approve' && auditVerdict !== 'comment') {
+      // Audit hasn't completed yet (pending, running, error, or not started)
+      console.log(`[auto-merge] Ticket #${ticket.id} audit not complete (status=${auditStatus}, verdict=${auditVerdict}) — deferring`);
       return;
     }
 
@@ -1539,6 +1540,7 @@ const CONFLICT_CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const HEALTH_CHECK_INTERVAL_MS = 30_000; // 30 seconds
 const STUCK_AUDIT_GRACE_MS = 10 * 60_000; // 10 minutes
 const NO_PR_GRACE_MS = 5 * 60_000; // 5 minutes
+const STALE_REQUEST_CHANGES_MS = 2 * 60_000; // 2 minutes — re-dispatch if auditor's re-dispatch didn't fire
 const STUCK_TICKET_GRACE_MS = 30 * 60_000; // 30 minutes — flag tickets idle for this long
 
 function isProcessAlive(pid: number): boolean {
@@ -1719,9 +1721,9 @@ let healthCheckRunning = false;
 
 interface HealthLogEntry {
   timestamp: number;
-  check: 'orphan_pid' | 'stuck_audit' | 'no_pr' | 'stuck_ticket';
+  check: 'orphan_pid' | 'stuck_audit' | 'no_pr' | 'stuck_ticket' | 'stale_request_changes';
   ticketId: string;
-  action: 'retry' | 'fail' | 'reset_audit' | 'flag';
+  action: 'retry' | 'fail' | 'reset_audit' | 'flag' | 'redispatch';
   detail: string;
 }
 
@@ -1817,6 +1819,42 @@ export async function healthCheckTick(): Promise<void> {
     const resetCount = await resetStuckReviews(STUCK_AUDIT_GRACE_MS);
     if (resetCount > 0) {
       console.log(`[health-check] Reset ${resetCount} stuck watchlist review(s)`);
+    }
+
+    // ── Check 2b: Stale request_changes — auditor's re-dispatch didn't fire ──
+    // If a ticket is in_review with request_changes but wasn't re-dispatched,
+    // the auditor's proc.on('close') callback likely failed. Re-dispatch here.
+    const staleRequestChanges = tickets.filter(t =>
+      t.status === 'in_review' &&
+      t.auditStatus === 'done' &&
+      t.auditVerdict === 'request_changes' &&
+      t.agentSessionId &&
+      (t.automationIteration || 0) < MAX_AUTOMATION_ITERATIONS,
+    );
+    for (const ticket of staleRequestChanges) {
+      const auditDone = ticket.completedAt ?? 0;
+      if (now - auditDone < STALE_REQUEST_CHANGES_MS) continue;
+
+      const iteration = ticket.automationIteration || 0;
+      console.log(`[health-check] Stale request_changes: ticket #${ticket.id} (iteration ${iteration}) — re-dispatching`);
+      const redispatch = await updateTicket(ticket.id, {
+        status: 'todo',
+        error: undefined,
+        failureReason: undefined,
+        completedAt: undefined,
+        agentPid: undefined,
+        lastOutput: undefined,
+        resumePrompt: ticket.auditResult
+          ? `The PR auditor requested changes:\n\n${ticket.auditResult}\n\nPlease address the review feedback, commit, and push.\nDo NOT create a new PR — push to the existing branch.`
+          : ticket.resumePrompt,
+        automationIteration: iteration + 1,
+        postAgentAction: 'audit',
+      }, 'health_check_redispatch');
+      if (redispatch) broadcastTicket(redispatch);
+      await appendHealthLog({
+        timestamp: now, check: 'stale_request_changes', ticketId: ticket.id,
+        action: 'redispatch', detail: `Auditor verdict was request_changes but ticket stuck in in_review — re-dispatching (iteration ${iteration + 1})`,
+      });
     }
 
     // ── Check 3: In-Review with No PR ──

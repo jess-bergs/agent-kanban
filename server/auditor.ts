@@ -589,8 +589,13 @@ async function reviewPr(entry: WatchlistEntry): Promise<void> {
     await saveWatchlist();
     broadcastFn({ type: 'auditor_updated', data: getWatchlistStatus() });
 
-    // Update linked ticket
+    // Update linked ticket (only if it hasn't already moved to a terminal state)
     if (entry.ticketId) {
+      const currentTicket = await getTicket(entry.ticketId);
+      const terminalStatuses = new Set(['merged', 'done', 'failed']);
+      if (currentTicket && terminalStatuses.has(currentTicket.status)) {
+        console.log(`[auditor] Ticket #${entry.ticketId} already ${currentTicket.status} — skipping audit result update`);
+      } else {
       const auditStatus = code === 0 ? 'done' as const : 'error' as const;
       const auditResult = code === 0
         ? (entry.lastResult?.summary || fullText.slice(-2000))
@@ -662,7 +667,8 @@ async function reviewPr(entry: WatchlistEntry): Promise<void> {
           });
         }
       }
-    }
+      } // end: ticket not in terminal state
+    } // end: if (entry.ticketId)
 
     console.log(`[auditor] Review complete for ${entry.prUrl} — ${entry.lastResult?.overallVerdict || 'no structured result'}`);
   });

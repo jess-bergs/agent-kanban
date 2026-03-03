@@ -4,14 +4,15 @@ import { randomUUID } from 'node:crypto';
 import type { Project, Ticket, TicketImage, TicketStatus, StateChangeEntry } from '../src/types.ts';
 
 const DATA_DIR = join(import.meta.dirname, '..', 'data');
+const CACHE_DIR = join(import.meta.dirname, '..', '.cache');
 const PROJECTS_DIR = join(DATA_DIR, 'projects');
 const TICKETS_DIR = join(DATA_DIR, 'tickets');
-const IMAGES_DIR = join(DATA_DIR, 'ticket-images');
+const IMAGES_DIR = join(CACHE_DIR, 'ticket-images');
 
 async function ensureDirs() {
   await mkdir(PROJECTS_DIR, { recursive: true });
   await mkdir(TICKETS_DIR, { recursive: true });
-  await mkdir(IMAGES_DIR, { recursive: true });
+  await mkdir(IMAGES_DIR, { recursive: true }); // .cache/ticket-images
 }
 
 /** Atomic write: write to temp file then rename (rename is atomic on POSIX) */
@@ -230,15 +231,30 @@ export async function updateTicket(
       updated.needsInput = undefined;
     }
 
+    // Clean up cached images when ticket reaches a terminal state
+    const terminalStatuses: TicketStatus[] = ['done', 'merged', 'failed'];
+    if (updates.status && terminalStatuses.includes(updates.status) && updated.images?.length) {
+      for (const img of updated.images) {
+        try { await fsUnlink(join(IMAGES_DIR, img.filename)); } catch { /* already gone */ }
+      }
+      updated.images = [];
+    }
+
     await atomicWriteJson(join(TICKETS_DIR, `${updated.id}.json`), updated);
     return updated;
   });
 }
 
 export async function deleteTicket(id: string): Promise<boolean> {
-  const { unlink } = await import('node:fs/promises');
   try {
-    await unlink(join(TICKETS_DIR, `${id}.json`));
+    // Clean up any cached images before deleting the ticket
+    const ticket = await getTicket(id);
+    if (ticket?.images?.length) {
+      for (const img of ticket.images) {
+        try { await fsUnlink(join(IMAGES_DIR, img.filename)); } catch { /* already gone */ }
+      }
+    }
+    await fsUnlink(join(TICKETS_DIR, `${id}.json`));
     return true;
   } catch {
     return false;
