@@ -192,7 +192,7 @@ export function AnalyticsDashboard() {
 
   if (loading && !data) {
     return (
-      <div className="flex-1 flex items-center justify-center text-slate-500">
+      <div className="flex-1 flex items-center justify-center text-muted">
         <RefreshCw className="w-5 h-5 animate-spin mr-2" />
         Loading analytics...
       </div>
@@ -215,7 +215,7 @@ export function AnalyticsDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+          <h1 className="text-lg font-bold text-primary flex items-center gap-2">
             <Activity className="w-5 h-5 text-accent-blue" />
             Analytics
           </h1>
@@ -224,8 +224,8 @@ export function AnalyticsDashboard() {
               onClick={() => setActiveTab('overview')}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
                 activeTab === 'overview'
-                  ? 'bg-surface-600 text-slate-100'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-surface-600 text-primary'
+                  : 'text-tertiary hover:text-secondary'
               }`}
             >
               Overview
@@ -234,8 +234,8 @@ export function AnalyticsDashboard() {
               onClick={() => setActiveTab('reports')}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
                 activeTab === 'reports'
-                  ? 'bg-surface-600 text-slate-100'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-surface-600 text-primary'
+                  : 'text-tertiary hover:text-secondary'
               }`}
             >
               <FileText className="w-3 h-3" />
@@ -247,7 +247,7 @@ export function AnalyticsDashboard() {
           <button
             onClick={fetchAnalytics}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 bg-surface-700 hover:bg-surface-600 rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-tertiary hover:text-secondary bg-surface-700 hover:bg-surface-600 rounded-lg transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -308,7 +308,7 @@ export function AnalyticsDashboard() {
         <Section title="Data Coverage Gaps" icon={<AlertTriangle className="w-4 h-4 text-accent-amber" />}>
           <ul className="space-y-2">
             {data.coverageGaps.map((gap, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs text-slate-400">
+              <li key={i} className="flex items-start gap-2 text-xs text-tertiary">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent-amber mt-1.5 shrink-0" />
                 {gap}
               </li>
@@ -335,8 +335,8 @@ export function AnalyticsDashboard() {
           ))}
         </div>
         {data.dispatcher.avgDurationMs > 0 && (
-          <div className="text-xs text-slate-500 mb-3">
-            Avg duration: <span className="text-slate-300">{formatDuration(data.dispatcher.avgDurationMs)}</span>
+          <div className="text-xs text-muted mb-3">
+            Avg duration: <span className="text-secondary">{formatDuration(data.dispatcher.avgDurationMs)}</span>
             {Object.keys(data.dispatcher.failureBreakdown).length > 0 && (
               <span className="ml-4">
                 Failures:{' '}
@@ -365,8 +365,8 @@ export function AnalyticsDashboard() {
       >
         {data.auditor.totalWatched > 0 && (
           <div className="flex gap-4 mb-4 text-xs">
-            <span className="text-slate-500">
-              Watched: <span className="text-slate-300">{data.auditor.totalWatched}</span>
+            <span className="text-muted">
+              Watched: <span className="text-secondary">{data.auditor.totalWatched}</span>
             </span>
             {Object.entries(data.auditor.verdictBreakdown).map(([verdict, count]) => (
               <span key={verdict} className="flex items-center gap-1">
@@ -493,7 +493,7 @@ function ReportsView() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-slate-500">
+      <div className="flex items-center justify-center py-12 text-muted">
         <RefreshCw className="w-5 h-5 animate-spin mr-2" />
         Loading reports...
       </div>
@@ -511,7 +511,7 @@ function ReportsView() {
 
   if (runs.length === 0) {
     return (
-      <div className="text-center py-12 text-slate-500">
+      <div className="text-center py-12 text-muted">
         <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
         <p className="text-sm">No completed reports yet</p>
         <p className="text-xs mt-1">Reports appear here when scheduled audits complete</p>
@@ -566,7 +566,7 @@ function ReportsView() {
       {/* Score distribution bar */}
       {runs.length > 1 && (
         <div className="bg-surface-800 rounded-xl border border-surface-600 p-4">
-          <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-3">Score Distribution</h3>
+          <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3">Score Distribution</h3>
           <div className="flex items-end gap-1 h-16">
             {stats.scoreBuckets.map((count, i) => {
               const maxCount = Math.max(...stats.scoreBuckets, 1);
@@ -576,14 +576,14 @@ function ReportsView() {
                 <div key={i} className="flex-1 flex flex-col items-center gap-1">
                   <div className="w-full flex flex-col items-center justify-end" style={{ height: '48px' }}>
                     {count > 0 && (
-                      <span className="text-[9px] text-slate-500 mb-0.5">{count}</span>
+                      <span className="text-[9px] text-muted mb-0.5">{count}</span>
                     )}
                     <div
                       className={`w-full rounded-sm ${bucketColor} ${count === 0 ? 'opacity-10' : 'opacity-70'}`}
                       style={{ height: `${height}%`, minHeight: count > 0 ? '4px' : '2px' }}
                     />
                   </div>
-                  <span className="text-[9px] text-slate-600">{i}</span>
+                  <span className="text-[9px] text-faint">{i}</span>
                 </div>
               );
             })}
@@ -602,18 +602,18 @@ function ReportsView() {
           <div key={batchIdx}>
             {/* Batch header */}
             <div className="flex items-center gap-3 mb-2">
-              <Layers className="w-3.5 h-3.5 text-slate-500" />
-              <span className="text-xs font-medium text-slate-400">
+              <Layers className="w-3.5 h-3.5 text-muted" />
+              <span className="text-xs font-medium text-tertiary">
                 {formatBatchTime(batch.startedAt)}
               </span>
-              <span className="text-[10px] text-slate-600">
+              <span className="text-[10px] text-faint">
                 {batch.runs.length} report{batch.runs.length !== 1 ? 's' : ''}
               </span>
               <span className={`text-[10px] font-medium ${batchAvgColor}`}>
                 avg {batchAvg.toFixed(1)}
               </span>
               <div className="flex-1 border-t border-surface-700" />
-              <span className="text-[10px] text-slate-600">
+              <span className="text-[10px] text-faint">
                 {formatRelativeTime(batch.startedAt)}
               </span>
             </div>
@@ -643,7 +643,7 @@ function ReportsView() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-slate-200 truncate">
+                        <span className="text-sm font-medium text-secondary truncate">
                           {schedule?.name || run.scheduleId.slice(0, 8)}
                         </span>
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
@@ -659,22 +659,22 @@ function ReportsView() {
                             <span className={`text-[10px] ${
                               run.trend.direction === 'improving' ? 'text-accent-green' :
                               run.trend.direction === 'declining' ? 'text-accent-red' :
-                              'text-slate-500'
+                              'text-muted'
                             }`}>
                               {run.trend.delta > 0 ? '+' : ''}{run.trend.delta.toFixed(1)}
                             </span>
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5 truncate">
+                      <p className="text-xs text-muted mt-0.5 truncate">
                         {report.overallVerdict}
                       </p>
                     </div>
                     <div className="shrink-0 flex items-center gap-3">
                       {run.severityCounts && <SeverityBadges counts={run.severityCounts} />}
                       {isExpanded
-                        ? <ChevronUp className="w-4 h-4 text-slate-500" />
-                        : <ChevronDown className="w-4 h-4 text-slate-500" />}
+                        ? <ChevronUp className="w-4 h-4 text-muted" />
+                        : <ChevronDown className="w-4 h-4 text-muted" />}
                     </div>
                   </button>
 
@@ -683,18 +683,18 @@ function ReportsView() {
                     <div className="border-t border-surface-600 p-5 space-y-5">
                       {/* Summary */}
                       <div>
-                        <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Summary</h3>
-                        <p className="text-sm text-slate-400 leading-relaxed">{report.summary}</p>
+                        <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Summary</h3>
+                        <p className="text-sm text-tertiary leading-relaxed">{report.summary}</p>
                       </div>
 
                       {/* Rubric scores */}
                       {report.rubric.length > 0 && (
                         <div>
-                          <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Rubric Scores</h3>
+                          <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Rubric Scores</h3>
                           <div className="overflow-x-auto">
                             <table className="w-full text-xs">
                               <thead>
-                                <tr className="text-left text-slate-500 border-b border-surface-600">
+                                <tr className="text-left text-muted border-b border-surface-600">
                                   <th className="pb-2 pr-3 font-medium">Aspect</th>
                                   <th className="pb-2 pr-3 font-medium">Score</th>
                                   <th className="pb-2 pr-3 font-medium">Rating</th>
@@ -705,7 +705,7 @@ function ReportsView() {
                               <tbody>
                                 {report.rubric.map((item, i) => (
                                   <tr key={i} className="border-b border-surface-700/50">
-                                    <td className="py-2 pr-3 text-slate-300">{item.aspect}</td>
+                                    <td className="py-2 pr-3 text-secondary">{item.aspect}</td>
                                     <td className="py-2 pr-3">
                                       <span className={
                                         item.score >= 8 ? 'text-accent-green' :
@@ -724,8 +724,8 @@ function ReportsView() {
                                         {item.rating}
                                       </span>
                                     </td>
-                                    <td className="py-2 pr-3 text-slate-400">{item.findingCount}</td>
-                                    <td className="py-2 text-slate-500 max-w-[300px] truncate" title={item.summary}>
+                                    <td className="py-2 pr-3 text-tertiary">{item.findingCount}</td>
+                                    <td className="py-2 text-muted max-w-[300px] truncate" title={item.summary}>
                                       {item.summary}
                                     </td>
                                   </tr>
@@ -739,7 +739,7 @@ function ReportsView() {
                       {/* Findings */}
                       {report.findings.length > 0 && (
                         <div>
-                          <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                          <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
                             Findings ({report.findings.length})
                           </h3>
                           <div className="space-y-2">
@@ -752,7 +752,7 @@ function ReportsView() {
                                     color: sev === 'critical' ? 'var(--color-accent-red)' :
                                            sev === 'high' ? 'var(--color-accent-orange)' :
                                            sev === 'medium' ? 'var(--color-accent-amber)' :
-                                           'var(--color-slate-500)',
+                                           'rgb(var(--text-muted))',
                                   }}>
                                     {sev} ({items.length})
                                   </div>
@@ -768,15 +768,15 @@ function ReportsView() {
                                     >
                                       <div className="flex items-start gap-2">
                                         <div className="flex-1 min-w-0">
-                                          <div className="text-xs font-medium text-slate-200">
+                                          <div className="text-xs font-medium text-secondary">
                                             {finding.title}
                                           </div>
                                           {finding.location && (
-                                            <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                            <div className="text-[10px] text-muted font-mono mt-0.5">
                                               {finding.location}
                                             </div>
                                           )}
-                                          <p className="text-[11px] text-slate-400 mt-1">
+                                          <p className="text-[11px] text-tertiary mt-1">
                                             {finding.description}
                                           </p>
                                           {finding.recommendation && (
@@ -797,7 +797,7 @@ function ReportsView() {
 
                       {/* Trend details */}
                       {run.trend && (
-                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <div className="flex items-center gap-4 text-xs text-muted">
                           <span>Previous score: {run.trend.previousScore.toFixed(1)}</span>
                           <span>Current: {run.trend.currentScore.toFixed(1)}</span>
                           {run.trend.newFindings.length > 0 && (
@@ -864,7 +864,7 @@ function RubricTrendsChart({ runs }: { runs: AuditRunEntry[] }) {
 
   return (
     <div className="bg-surface-800 rounded-xl border border-surface-600 p-4">
-      <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-3">
+      <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3">
         Rubric Trends
       </h3>
       <div className="space-y-2">
@@ -876,7 +876,7 @@ function RubricTrendsChart({ runs }: { runs: AuditRunEntry[] }) {
           return (
             <div key={aspect} className="flex items-center gap-3">
               {/* Aspect label */}
-              <div className="w-36 shrink-0 text-xs text-slate-400 truncate" title={aspect}>
+              <div className="w-36 shrink-0 text-xs text-tertiary truncate" title={aspect}>
                 {aspect}
               </div>
 
@@ -925,12 +925,12 @@ function RubricTrendsChart({ runs }: { runs: AuditRunEntry[] }) {
                   <span className={`text-[10px] ${
                     delta > 0.5 ? 'text-accent-green' :
                     delta < -0.5 ? 'text-accent-red' :
-                    'text-slate-600'
+                    'text-faint'
                   }`}>
                     {delta > 0 ? '+' : ''}{delta.toFixed(1)}
                   </span>
                 ) : (
-                  <span className="text-[10px] text-slate-600">—</span>
+                  <span className="text-[10px] text-faint">—</span>
                 )}
               </div>
             </div>
@@ -938,7 +938,7 @@ function RubricTrendsChart({ runs }: { runs: AuditRunEntry[] }) {
         })}
       </div>
       {/* Legend */}
-      <div className="flex items-center gap-4 mt-3 text-[10px] text-slate-600">
+      <div className="flex items-center gap-4 mt-3 text-[10px] text-faint">
         <span>← oldest</span>
         <div className="flex-1 border-t border-surface-700" />
         <span>newest →</span>
@@ -1037,12 +1037,12 @@ function StatCard({
   };
   return (
     <div className={`bg-surface-800 rounded-xl border ${colorMap[color] || 'border-surface-600'} p-4`}>
-      <div className={`flex items-center gap-2 text-xs ${colorMap[color]?.split(' ')[0] || 'text-slate-400'} mb-1`}>
+      <div className={`flex items-center gap-2 text-xs ${colorMap[color]?.split(' ')[0] || 'text-tertiary'} mb-1`}>
         {icon}
         {label}
       </div>
-      <div className="text-2xl font-bold text-slate-100">{value}</div>
-      <div className="text-xs text-slate-500 mt-1">{sub}</div>
+      <div className="text-2xl font-bold text-primary">{value}</div>
+      <div className="text-xs text-muted mt-1">{sub}</div>
     </div>
   );
 }
@@ -1067,7 +1067,7 @@ function Section({
   return (
     <div className="bg-surface-800 rounded-xl border border-surface-600 p-5">
       <h2
-        className={`text-sm font-semibold text-slate-200 flex items-center gap-2 ${
+        className={`text-sm font-semibold text-secondary flex items-center gap-2 ${
           collapsible ? 'cursor-pointer select-none' : 'mb-4'
         } ${collapsible && !collapsed ? 'mb-4' : ''}`}
         onClick={collapsible ? () => setCollapsed(c => !c) : undefined}
@@ -1077,10 +1077,10 @@ function Section({
         {collapsible && (
           <>
             <span className="flex-1" />
-            {collapsed && summary && <span className="text-xs font-normal text-slate-500">{summary}</span>}
+            {collapsed && summary && <span className="text-xs font-normal text-muted">{summary}</span>}
             {collapsed
-              ? <ChevronDown className="w-4 h-4 text-slate-500" />
-              : <ChevronUp className="w-4 h-4 text-slate-500" />}
+              ? <ChevronDown className="w-4 h-4 text-muted" />
+              : <ChevronUp className="w-4 h-4 text-muted" />}
           </>
         )}
       </h2>
@@ -1100,15 +1100,15 @@ function MiniStat({ label, value, color }: { label: string; value: number; color
   };
   return (
     <div className="text-center">
-      <div className={`text-lg font-bold ${colorMap[color] || 'text-slate-300'}`}>{value}</div>
-      <div className="text-[10px] text-slate-500 uppercase tracking-wider">{label}</div>
+      <div className={`text-lg font-bold ${colorMap[color] || 'text-secondary'}`}>{value}</div>
+      <div className="text-[10px] text-muted uppercase tracking-wider">{label}</div>
     </div>
   );
 }
 
 function EmptySection({ message }: { message: string }) {
   return (
-    <div className="text-center py-6 text-sm text-slate-500">{message}</div>
+    <div className="text-center py-6 text-sm text-muted">{message}</div>
   );
 }
 
@@ -1132,11 +1132,11 @@ function isExtremeUsage(run: DispatcherRunSummary): boolean {
 }
 
 function UsageCell({ value, threshold, format }: { value?: number; threshold: number; format?: (v: number) => string }) {
-  if (value == null) return <span className="text-slate-400">-</span>;
+  if (value == null) return <span className="text-tertiary">-</span>;
   const over = value >= threshold;
   const formatted = format ? format(value) : String(value);
   return (
-    <span className={over ? 'text-accent-red font-medium' : 'text-slate-400'}>
+    <span className={over ? 'text-accent-red font-medium' : 'text-tertiary'}>
       {formatted}{over && ' !'}
     </span>
   );
@@ -1153,7 +1153,7 @@ function RunTable({ runs }: { runs: DispatcherRunSummary[] }) {
             <AlertTriangle className="w-3.5 h-3.5" />
             {extremeRuns.length} run{extremeRuns.length > 1 ? 's' : ''} with extreme usage
           </div>
-          <div className="text-[10px] text-slate-500">
+          <div className="text-[10px] text-muted">
             Thresholds: {'>='}{USAGE_THRESHOLDS.turns} turns, {'>='}{USAGE_THRESHOLDS.toolCalls} tools, {'>='}{formatTokenCount(USAGE_THRESHOLDS.inputTokens)} input tokens, {'>='}{formatDuration(USAGE_THRESHOLDS.durationMs)}
           </div>
         </div>
@@ -1161,7 +1161,7 @@ function RunTable({ runs }: { runs: DispatcherRunSummary[] }) {
       <div className="overflow-auto max-h-64">
         <table className="w-full text-xs">
           <thead>
-            <tr className="text-left text-slate-500 border-b border-surface-600">
+            <tr className="text-left text-muted border-b border-surface-600">
               <th className="pb-2 pr-3 font-medium">Subject</th>
               <th className="pb-2 pr-3 font-medium">Status</th>
               <th className="pb-2 pr-3 font-medium">Cost</th>
@@ -1177,14 +1177,14 @@ function RunTable({ runs }: { runs: DispatcherRunSummary[] }) {
               const extreme = isExtremeUsage(run);
               return (
                 <tr key={run.ticketId} className={`border-b border-surface-700/50 hover:bg-surface-700/30 ${extreme ? 'bg-accent-red/5' : ''}`}>
-                  <td className="py-2 pr-3 text-slate-300 max-w-[200px] truncate" title={run.subject}>
+                  <td className="py-2 pr-3 text-secondary max-w-[200px] truncate" title={run.subject}>
                     {extreme && <AlertTriangle className="w-3 h-3 text-accent-red inline mr-1" />}
                     {run.subject}
                   </td>
                   <td className="py-2 pr-3">
                     <StatusBadge status={run.status} />
                   </td>
-                  <td className="py-2 pr-3 text-slate-400">
+                  <td className="py-2 pr-3 text-tertiary">
                     {run.costUsd != null ? `$${run.costUsd.toFixed(2)}` : '-'}
                   </td>
                   <td className="py-2 pr-3">
@@ -1204,7 +1204,7 @@ function RunTable({ runs }: { runs: DispatcherRunSummary[] }) {
                         format={v => `${formatTokenCount(v)}/${formatTokenCount(run.outputTokens || 0)}`}
                       />
                     ) : (
-                      <span className="text-slate-400">-</span>
+                      <span className="text-tertiary">-</span>
                     )}
                   </td>
                   <td className="py-2">
@@ -1243,7 +1243,7 @@ function AuditorTable({ reviews }: { reviews: AuditorReviewSummary[] }) {
     <div className="overflow-auto max-h-64">
       <table className="w-full text-xs">
         <thead>
-          <tr className="text-left text-slate-500 border-b border-surface-600">
+          <tr className="text-left text-muted border-b border-surface-600">
             <th className="pb-2 pr-3 font-medium">PR</th>
             <th className="pb-2 pr-3 font-medium">Repo</th>
             <th className="pb-2 pr-3 font-medium">Verdict</th>
@@ -1265,7 +1265,7 @@ function AuditorTable({ reviews }: { reviews: AuditorReviewSummary[] }) {
                   #{review.prNumber}
                 </a>
               </td>
-              <td className="py-2 pr-3 text-slate-400 max-w-[150px] truncate">{review.repo}</td>
+              <td className="py-2 pr-3 text-tertiary max-w-[150px] truncate">{review.repo}</td>
               <td className="py-2 pr-3">
                 {review.lastVerdict ? (
                   <span className="flex items-center gap-1">
@@ -1275,10 +1275,10 @@ function AuditorTable({ reviews }: { reviews: AuditorReviewSummary[] }) {
                     </span>
                   </span>
                 ) : (
-                  <span className="text-slate-500">-</span>
+                  <span className="text-muted">-</span>
                 )}
               </td>
-              <td className="py-2 pr-3 text-slate-400">{review.reviewCount}</td>
+              <td className="py-2 pr-3 text-tertiary">{review.reviewCount}</td>
               <td className="py-2 pr-3">
                 {review.rubricSummary ? (
                   <div className="flex gap-1">
@@ -1295,12 +1295,12 @@ function AuditorTable({ reviews }: { reviews: AuditorReviewSummary[] }) {
                     ))}
                   </div>
                 ) : (
-                  <span className="text-slate-500">-</span>
+                  <span className="text-muted">-</span>
                 )}
               </td>
               <td className="py-2">
                 {review.resolved ? (
-                  <span className="text-slate-500">resolved</span>
+                  <span className="text-muted">resolved</span>
                 ) : (
                   <span className="text-accent-green">active</span>
                 )}
@@ -1320,7 +1320,7 @@ function SchedulerTable({ runs }: { runs: SchedulerRunSummary[] }) {
     <div className="overflow-auto max-h-64">
       <table className="w-full text-xs">
         <thead>
-          <tr className="text-left text-slate-500 border-b border-surface-600">
+          <tr className="text-left text-muted border-b border-surface-600">
             <th className="pb-2 pr-3 font-medium">Mode</th>
             <th className="pb-2 pr-3 font-medium">Status</th>
             <th className="pb-2 pr-3 font-medium">Score</th>
@@ -1355,7 +1355,7 @@ function SchedulerTable({ runs }: { runs: SchedulerRunSummary[] }) {
                     {run.overallScore.toFixed(1)}
                   </span>
                 ) : (
-                  <span className="text-slate-500">-</span>
+                  <span className="text-muted">-</span>
                 )}
               </td>
               <td className="py-2 pr-3">
@@ -1365,23 +1365,23 @@ function SchedulerTable({ runs }: { runs: SchedulerRunSummary[] }) {
                     <span className={
                       run.trendDirection === 'improving' ? 'text-accent-green' :
                       run.trendDirection === 'declining' ? 'text-accent-red' :
-                      'text-slate-500'
+                      'text-muted'
                     }>
                       {run.trendDelta != null ? `${run.trendDelta > 0 ? '+' : ''}${run.trendDelta.toFixed(1)}` : run.trendDirection}
                     </span>
                   </span>
                 ) : (
-                  <span className="text-slate-500">-</span>
+                  <span className="text-muted">-</span>
                 )}
               </td>
               <td className="py-2 pr-3">
                 {run.severityCounts ? (
                   <SeverityBadges counts={run.severityCounts} />
                 ) : (
-                  <span className="text-slate-500">-</span>
+                  <span className="text-muted">-</span>
                 )}
               </td>
-              <td className="py-2 pr-3 text-slate-400">
+              <td className="py-2 pr-3 text-tertiary">
                 {run.durationMs ? formatDuration(run.durationMs) : '-'}
               </td>
               <td className="py-2">
@@ -1428,7 +1428,7 @@ function IssuesTable({ issues }: { issues: IssueEntry[] }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-slate-200">{issue.summary}</span>
+              <span className="text-xs font-medium text-secondary">{issue.summary}</span>
               <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                 issue.source === 'dispatcher'
                   ? 'bg-accent-blue/20 text-accent-blue'
@@ -1440,10 +1440,10 @@ function IssuesTable({ issues }: { issues: IssueEntry[] }) {
               </span>
             </div>
             {issue.detail && (
-              <p className="text-[11px] text-slate-500 mt-1 truncate">{issue.detail}</p>
+              <p className="text-[11px] text-muted mt-1 truncate">{issue.detail}</p>
             )}
           </div>
-          <span className="text-[10px] text-slate-600 shrink-0">
+          <span className="text-[10px] text-faint shrink-0">
             {formatRelativeTime(issue.timestamp)}
           </span>
         </div>
@@ -1469,7 +1469,7 @@ function StatusBadge({ status }: { status: string }) {
     completed: 'bg-accent-green/20 text-accent-green',
   };
   return (
-    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${colors[status] || 'bg-surface-600 text-slate-400'}`}>
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${colors[status] || 'bg-surface-600 text-tertiary'}`}>
       {status.replace('_', ' ')}
     </span>
   );
@@ -1489,7 +1489,7 @@ function verdictTextColor(verdict: string): string {
     case 'approve': return 'text-accent-green';
     case 'request_changes': return 'text-accent-red';
     case 'comment': return 'text-accent-amber';
-    default: return 'text-slate-400';
+    default: return 'text-tertiary';
   }
 }
 
@@ -1497,7 +1497,7 @@ function TrendIcon({ direction }: { direction: string }) {
   switch (direction) {
     case 'improving': return <TrendingUp className="w-3 h-3 text-accent-green" />;
     case 'declining': return <TrendingDown className="w-3 h-3 text-accent-red" />;
-    default: return <Minus className="w-3 h-3 text-slate-500" />;
+    default: return <Minus className="w-3 h-3 text-muted" />;
   }
 }
 
@@ -1509,8 +1509,8 @@ function SeverityBar({ counts }: { counts: SeverityCounts }) {
       {counts.critical > 0 && <span className="text-accent-red font-bold">{counts.critical}C</span>}
       {counts.high > 0 && <span className="text-accent-orange">{counts.high}H</span>}
       {counts.medium > 0 && <span className="text-accent-amber">{counts.medium}M</span>}
-      {counts.low > 0 && <span className="text-slate-400">{counts.low}L</span>}
-      {counts.info > 0 && <span className="text-slate-500">{counts.info}I</span>}
+      {counts.low > 0 && <span className="text-tertiary">{counts.low}L</span>}
+      {counts.info > 0 && <span className="text-muted">{counts.info}I</span>}
     </div>
   );
 }
@@ -1534,12 +1534,12 @@ function SeverityBadges({ counts }: { counts: SeverityCounts }) {
         </span>
       )}
       {counts.low > 0 && (
-        <span className="px-1 py-0.5 rounded bg-surface-600 text-slate-400 text-[10px]">
+        <span className="px-1 py-0.5 rounded bg-surface-600 text-tertiary text-[10px]">
           {counts.low}L
         </span>
       )}
       {counts.info > 0 && (
-        <span className="px-1 py-0.5 rounded bg-surface-600 text-slate-500 text-[10px]">
+        <span className="px-1 py-0.5 rounded bg-surface-600 text-muted text-[10px]">
           {counts.info}I
         </span>
       )}

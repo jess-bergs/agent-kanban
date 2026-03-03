@@ -51,15 +51,15 @@ export function AddProjectModal({ onClose, onCreated }: AddProjectModalProps) {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 border-b border-surface-700">
-          <h2 className="text-lg font-bold text-slate-100">Add Project</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors">
+          <h2 className="text-lg font-bold text-primary">Add Project</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-tertiary hover:text-secondary transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            <label className="block text-xs font-medium text-tertiary mb-1.5">
               Repository Path
             </label>
             <div className="flex gap-2">
@@ -68,7 +68,7 @@ export function AddProjectModal({ onClose, onCreated }: AddProjectModalProps) {
                 value={repoPath}
                 onChange={e => { setRepoPath(e.target.value); setShowPicker(false); }}
                 placeholder="/Users/you/development/my-project"
-                className="flex-1 bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent-blue transition-colors font-mono"
+                className="flex-1 bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-accent-blue transition-colors font-mono"
                 autoFocus={!showPicker}
               />
               <button
@@ -77,14 +77,14 @@ export function AddProjectModal({ onClose, onCreated }: AddProjectModalProps) {
                 className={`px-3 py-2 rounded-lg border transition-colors ${
                   showPicker
                     ? 'bg-accent-blue/20 border-accent-blue text-accent-blue'
-                    : 'bg-surface-900 border-surface-600 text-slate-400 hover:text-slate-200 hover:border-surface-500'
+                    : 'bg-surface-900 border-surface-600 text-tertiary hover:text-secondary hover:border-surface-500'
                 }`}
                 title="Browse folders"
               >
                 <FolderOpen className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-[10px] text-slate-500 mt-1">
+            <p className="text-[10px] text-muted mt-1">
               Absolute path to a git repository, or use the folder picker.
             </p>
           </div>
@@ -100,15 +100,15 @@ export function AddProjectModal({ onClose, onCreated }: AddProjectModalProps) {
           )}
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
-              Display Name <span className="text-slate-500">(optional)</span>
+            <label className="block text-xs font-medium text-tertiary mb-1.5">
+              Display Name <span className="text-muted">(optional)</span>
             </label>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="Auto-detected from folder name"
-              className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent-blue transition-colors"
+              className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-accent-blue transition-colors"
             />
           </div>
 
@@ -119,7 +119,7 @@ export function AddProjectModal({ onClose, onCreated }: AddProjectModalProps) {
           )}
 
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 transition-colors">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-tertiary hover:text-secondary transition-colors">
               Cancel
             </button>
             <button

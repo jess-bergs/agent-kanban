@@ -165,19 +165,19 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
       <div className="flex flex-col gap-4 h-full">
         {/* Search bar */}
         <div className="relative shrink-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" aria-hidden="true" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" aria-hidden="true" />
           <input
             ref={searchRef}
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search tickets by ID, title, or description... (⌘K)"
-            className="w-full pl-9 pr-8 py-2 text-sm bg-surface-700 border border-surface-600 rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-accent-blue/50 focus:ring-1 focus:ring-accent-blue/25"
+            className="w-full pl-9 pr-8 py-2 text-sm bg-surface-700 border border-surface-600 rounded-lg text-secondary placeholder:text-muted focus:outline-none focus:border-accent-blue/50 focus:ring-1 focus:ring-accent-blue/25"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-secondary transition-colors"
               title="Clear search"
               aria-label="Clear search"
             >
@@ -241,12 +241,12 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
                     {status === 'todo' ? (
                       <button
                         onClick={() => setShowCreate(true)}
-                        className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                        className="text-xs text-muted hover:text-secondary transition-colors"
                       >
                         + Create a ticket
                       </button>
                     ) : (
-                      <p className="text-xs text-slate-500">No tickets</p>
+                      <p className="text-xs text-muted">No tickets</p>
                     )}
                   </div>
                 ) : (
@@ -261,7 +261,7 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
                     {hiddenCount > 0 && (
                       <button
                         onClick={() => showMore(status)}
-                        className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-surface-600/40 rounded-lg transition-colors"
+                        className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-tertiary hover:text-secondary hover:bg-surface-600/40 rounded-lg transition-colors"
                         title={`Load ${hiddenCount} more older ticket${hiddenCount !== 1 ? 's' : ''}`}
                         aria-label={`Show ${hiddenCount} more tickets`}
                       >

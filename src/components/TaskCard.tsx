@@ -22,11 +22,11 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
       className={`bg-surface-700 rounded-lg p-3 border border-surface-600 border-l-2 ${borderColor} hover:border-surface-500 transition-colors cursor-pointer`}
     >
       {/* Subject */}
-      <p className="text-sm font-medium text-slate-100">{task.subject}</p>
+      <p className="text-sm font-medium text-primary">{task.subject}</p>
 
       {/* Description */}
       {task.description && (
-        <p className="text-xs text-slate-400 mt-1 line-clamp-2">
+        <p className="text-xs text-tertiary mt-1 line-clamp-2">
           {task.description}
         </p>
       )}

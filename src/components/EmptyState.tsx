@@ -8,11 +8,11 @@ export function EmptyState({ hasTeams }: EmptyStateProps) {
   return (
     <div className="flex-1 flex items-center justify-center">
       <div className="text-center max-w-sm">
-        <Radio className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-        <h2 className="text-lg font-semibold text-slate-300 mb-2">
+        <Radio className="w-12 h-12 text-faint mx-auto mb-4" />
+        <h2 className="text-lg font-semibold text-secondary mb-2">
           {hasTeams ? 'No team selected' : 'No active teams'}
         </h2>
-        <p className="text-sm text-slate-500 leading-relaxed">
+        <p className="text-sm text-muted leading-relaxed">
           Agent Kanban monitors Claude Code agent teams in real-time.
           {hasTeams
             ? ' Select a team from the sidebar to view its tasks and activity.'

@@ -65,11 +65,11 @@ function AgentCard({ agent, ticket, onNavigateToTicket }: {
               className={`w-2.5 h-2.5 rounded-full shrink-0 ${
                 isActive
                   ? 'bg-accent-green animate-pulse'
-                  : 'bg-slate-500'
+                  : 'bg-surface-500'
               }`}
             />
           )}
-          <span className="font-medium text-sm text-slate-100 truncate">
+          <span className="font-medium text-sm text-primary truncate">
             {dispatched ? humanName(agent, ticket) : (agent.slug || agent.sessionId.slice(0, 8))}
           </span>
         </div>
@@ -83,7 +83,7 @@ function AgentCard({ agent, ticket, onNavigateToTicket }: {
             className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
               isActive
                 ? 'bg-accent-green/20 text-accent-green'
-                : 'bg-slate-700 text-slate-400'
+                : 'bg-surface-600 text-tertiary'
             }`}
           >
             {isActive ? 'Working' : 'Idle'}
@@ -91,7 +91,7 @@ function AgentCard({ agent, ticket, onNavigateToTicket }: {
         </div>
       </div>
 
-      <div className="mt-2 space-y-1 text-xs text-slate-400">
+      <div className="mt-2 space-y-1 text-xs text-tertiary">
         {agent.gitBranch && agent.gitBranch !== 'HEAD' && !(dispatched && ticket) && (
           <div className="flex items-center gap-1.5">
             <GitBranch className="w-3 h-3 text-accent-purple shrink-0" />
@@ -103,7 +103,7 @@ function AgentCard({ agent, ticket, onNavigateToTicket }: {
           <span>{srcLabel}</span>
           {agent.model && (
             <>
-              <span className="text-slate-600">·</span>
+              <span className="text-faint">·</span>
               <span className="truncate">{agent.model}</span>
             </>
           )}
@@ -117,19 +117,19 @@ function AgentCard({ agent, ticket, onNavigateToTicket }: {
       {/* Prompt */}
       {agent.prompt && (
         <div className="mt-2 pt-2 border-t border-surface-600">
-          <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-1">
+          <div className="flex items-center gap-1 text-[10px] text-muted mb-1">
             <MessageSquare className="w-2.5 h-2.5" />
             Prompt
           </div>
-          <p className="text-xs text-slate-300 line-clamp-2">{agent.prompt}</p>
+          <p className="text-xs text-secondary line-clamp-2">{agent.prompt}</p>
         </div>
       )}
 
       {/* Last output */}
       {agent.lastOutput && (
         <div className="mt-2 pt-2 border-t border-surface-600">
-          <div className="text-[10px] text-slate-500 mb-1">Last output</div>
-          <p className="text-[11px] text-slate-400 line-clamp-3 font-mono leading-relaxed">
+          <div className="text-[10px] text-muted mb-1">Last output</div>
+          <p className="text-[11px] text-tertiary line-clamp-3 font-mono leading-relaxed">
             {agent.lastOutput}
           </p>
         </div>
@@ -179,7 +179,7 @@ export function AgentKanban({ agents, tickets, onNavigateToTicket }: AgentKanban
 
   if (agents.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-slate-500">
+      <div className="flex-1 flex items-center justify-center text-muted">
         <div className="text-center">
           <Bot className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="text-sm">No active agents detected</p>
@@ -196,7 +196,7 @@ export function AgentKanban({ agents, tickets, onNavigateToTicket }: AgentKanban
     <div className="flex-1 flex flex-col min-h-0">
       {/* Summary bar */}
       <div className="flex items-center gap-4 px-4 py-2.5 border-b border-surface-700 text-xs">
-        <span className="text-slate-400">
+        <span className="text-tertiary">
           {agents.length} agent{agents.length !== 1 ? 's' : ''} across {columns.length} project{columns.length !== 1 ? 's' : ''}
         </span>
         {activeCount > 0 && (
@@ -206,8 +206,8 @@ export function AgentKanban({ agents, tickets, onNavigateToTicket }: AgentKanban
           </span>
         )}
         {idleCount > 0 && (
-          <span className="flex items-center gap-1.5 text-slate-400">
-            <span className="w-2 h-2 rounded-full bg-slate-500" />
+          <span className="flex items-center gap-1.5 text-tertiary">
+            <span className="w-2 h-2 rounded-full bg-surface-500" />
             {idleCount} idle
           </span>
         )}
@@ -238,15 +238,15 @@ export function AgentKanban({ agents, tickets, onNavigateToTicket }: AgentKanban
                       {hasActive && (
                         <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse shrink-0" />
                       )}
-                      <h3 className="font-semibold text-sm text-slate-100 truncate">
+                      <h3 className="font-semibold text-sm text-primary truncate">
                         {projectName}
                       </h3>
-                      <span className="text-xs text-slate-500 bg-surface-700 px-1.5 py-0.5 rounded">
+                      <span className="text-xs text-muted bg-surface-700 px-1.5 py-0.5 rounded">
                         {projectAgents.length}
                       </span>
                     </div>
                   </div>
-                  <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">
+                  <p className="text-[10px] text-muted font-mono mt-0.5 truncate">
                     {repoPath}
                   </p>
                 </div>

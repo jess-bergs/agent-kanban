@@ -136,12 +136,12 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-surface-700">
           <div>
-            <h2 className="text-lg font-bold text-slate-100">New Ticket</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <h2 className="text-lg font-bold text-primary">New Ticket</h2>
+            <p className="text-xs text-tertiary mt-0.5">
               {project.name} &middot; {project.repoPath}
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors" title="Close modal" aria-label="Close modal">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-tertiary hover:text-secondary transition-colors" title="Close modal" aria-label="Close modal">
             <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
@@ -149,7 +149,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
         {/* Form */}
         <form ref={formRef} onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            <label className="block text-xs font-medium text-tertiary mb-1.5">
               Title
             </label>
             <input
@@ -157,13 +157,13 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
               value={subject}
               onChange={e => setSubject(e.target.value)}
               placeholder="e.g. Add dark mode toggle"
-              className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent-blue transition-colors"
+              className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-accent-blue transition-colors"
               autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            <label className="block text-xs font-medium text-tertiary mb-1.5">
               Instructions
             </label>
             <textarea
@@ -172,9 +172,9 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
               onPaste={handlePaste}
               placeholder="Full prompt for the agent. Paste screenshots here with Cmd+V..."
               rows={6}
-              className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent-blue transition-colors font-mono leading-relaxed resize-y"
+              className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-accent-blue transition-colors font-mono leading-relaxed resize-y"
             />
-            <p className="text-[10px] text-slate-500 mt-1">
+            <p className="text-[10px] text-muted mt-1">
               Paste screenshots (Cmd+V) or drag images onto this form. The agent will receive them as context.
             </p>
           </div>
@@ -184,8 +184,8 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
             onDragOver={e => e.preventDefault()}
             onDrop={handleDrop}
           >
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
-              Images {images.length > 0 && <span className="text-slate-500">({images.length})</span>}
+            <label className="block text-xs font-medium text-tertiary mb-1.5">
+              Images {images.length > 0 && <span className="text-muted">({images.length})</span>}
             </label>
 
             {images.length > 0 && (
@@ -206,7 +206,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
                     >
                       <X className="w-3 h-3" aria-hidden="true" />
                     </button>
-                    <p className="text-[9px] text-slate-500 truncate w-20 mt-0.5">{img.name}</p>
+                    <p className="text-[9px] text-muted truncate w-20 mt-0.5">{img.name}</p>
                   </div>
                 ))}
               </div>
@@ -215,7 +215,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-surface-500 hover:border-accent-blue/50 hover:bg-surface-900/50 text-slate-400 hover:text-slate-300 transition-colors text-xs w-full justify-center"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-surface-500 hover:border-accent-blue/50 hover:bg-surface-900/50 text-tertiary hover:text-secondary transition-colors text-xs w-full justify-center"
               title="Add images or screenshots to this ticket"
               aria-label="Add images"
             >
@@ -237,7 +237,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
 
           {/* Options grid */}
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            <label className="block text-xs font-medium text-tertiary mb-1.5">
               Options
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -251,8 +251,8 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
                 }`}
                 title="Skip all permission prompts. Agent runs fully autonomous. Without YOLO, the ticket moves to 'Needs Approval' when waiting for tool permission."
               >
-                <Zap className={`w-4 h-4 shrink-0 ${yolo ? 'fill-accent-amber text-accent-amber' : 'text-slate-500'}`} />
-                <span className={`text-xs font-medium ${yolo ? 'text-accent-amber' : 'text-slate-300'}`}>YOLO</span>
+                <Zap className={`w-4 h-4 shrink-0 ${yolo ? 'fill-accent-amber text-accent-amber' : 'text-muted'}`} />
+                <span className={`text-xs font-medium ${yolo ? 'text-accent-amber' : 'text-secondary'}`}>YOLO</span>
                 <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
                   yolo ? 'bg-accent-amber justify-end' : 'bg-surface-600 justify-start'
                 }`}>
@@ -272,8 +272,8 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
                 }`}
                 title={planOnly ? 'Disabled — plan-only produces a report, not mergeable code.' : 'Automatically merge PR when approved and checks pass.'}
               >
-                <GitMerge className={`w-4 h-4 shrink-0 ${planOnly ? 'text-slate-600' : autoMerge ? 'text-accent-purple' : 'text-slate-500'}`} />
-                <span className={`text-xs font-medium ${planOnly ? 'text-slate-600' : autoMerge ? 'text-accent-purple' : 'text-slate-300'}`}>Auto-Merge</span>
+                <GitMerge className={`w-4 h-4 shrink-0 ${planOnly ? 'text-faint' : autoMerge ? 'text-accent-purple' : 'text-muted'}`} />
+                <span className={`text-xs font-medium ${planOnly ? 'text-faint' : autoMerge ? 'text-accent-purple' : 'text-secondary'}`}>Auto-Merge</span>
                 <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
                   planOnly ? 'bg-surface-700 justify-start' : autoMerge ? 'bg-accent-purple justify-end' : 'bg-surface-600 justify-start'
                 }`}>
@@ -291,8 +291,8 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
                 }`}
                 title="Don't start until all other non-queued tickets finish."
               >
-                <Clock className={`w-4 h-4 shrink-0 ${queued ? 'text-accent-cyan' : 'text-slate-500'}`} />
-                <span className={`text-xs font-medium ${queued ? 'text-accent-cyan' : 'text-slate-300'}`}>Queue</span>
+                <Clock className={`w-4 h-4 shrink-0 ${queued ? 'text-accent-cyan' : 'text-muted'}`} />
+                <span className={`text-xs font-medium ${queued ? 'text-accent-cyan' : 'text-secondary'}`}>Queue</span>
                 <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
                   queued ? 'bg-accent-cyan justify-end' : 'bg-surface-600 justify-start'
                 }`}>
@@ -312,8 +312,8 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
                 }`}
                 title={planOnly ? "Disabled — plan-only doesn't need iterative refinement." : 'Iterative self-improving loop until criteria met.'}
               >
-                <RefreshCw className={`w-4 h-4 shrink-0 ${planOnly ? 'text-slate-600' : useRalph ? 'text-accent-green' : 'text-slate-500'}`} />
-                <span className={`text-xs font-medium ${planOnly ? 'text-slate-600' : useRalph ? 'text-accent-green' : 'text-slate-300'}`}>Ralph Loop</span>
+                <RefreshCw className={`w-4 h-4 shrink-0 ${planOnly ? 'text-faint' : useRalph ? 'text-accent-green' : 'text-muted'}`} />
+                <span className={`text-xs font-medium ${planOnly ? 'text-faint' : useRalph ? 'text-accent-green' : 'text-secondary'}`}>Ralph Loop</span>
                 <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
                   planOnly ? 'bg-surface-700 justify-start' : useRalph ? 'bg-accent-green justify-end' : 'bg-surface-600 justify-start'
                 }`}>
@@ -333,8 +333,8 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
                 }`}
                 title={planOnly ? "Disabled — plan-only doesn't benefit from team mode." : 'Agent spawns a team of sub-agents for heavy-lifting tasks.'}
               >
-                <Users className={`w-4 h-4 shrink-0 ${planOnly ? 'text-slate-600' : useTeam ? 'text-accent-blue' : 'text-slate-500'}`} />
-                <span className={`text-xs font-medium ${planOnly ? 'text-slate-600' : useTeam ? 'text-accent-blue' : 'text-slate-300'}`}>Team</span>
+                <Users className={`w-4 h-4 shrink-0 ${planOnly ? 'text-faint' : useTeam ? 'text-accent-blue' : 'text-muted'}`} />
+                <span className={`text-xs font-medium ${planOnly ? 'text-faint' : useTeam ? 'text-accent-blue' : 'text-secondary'}`}>Team</span>
                 <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
                   planOnly ? 'bg-surface-700 justify-start' : useTeam ? 'bg-accent-blue justify-end' : 'bg-surface-600 justify-start'
                 }`}>
@@ -360,8 +360,8 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
                 }`}
                 title="Investigation only — agent produces a plan-report.md instead of code changes."
               >
-                <FileSearch className={`w-4 h-4 shrink-0 ${planOnly ? 'text-accent-cyan' : 'text-slate-500'}`} />
-                <span className={`text-xs font-medium ${planOnly ? 'text-accent-cyan' : 'text-slate-300'}`}>Plan Only</span>
+                <FileSearch className={`w-4 h-4 shrink-0 ${planOnly ? 'text-accent-cyan' : 'text-muted'}`} />
+                <span className={`text-xs font-medium ${planOnly ? 'text-accent-cyan' : 'text-secondary'}`}>Plan Only</span>
                 <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
                   planOnly ? 'bg-accent-cyan justify-end' : 'bg-surface-600 justify-start'
                 }`}>
@@ -375,7 +375,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+              className="px-4 py-2 text-sm text-tertiary hover:text-secondary transition-colors"
             >
               Cancel
             </button>

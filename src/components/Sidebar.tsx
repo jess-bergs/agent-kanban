@@ -76,7 +76,7 @@ export function Sidebar({
           className={`flex-1 px-2 py-1.5 text-[11px] font-medium transition-colors ${
             viewMode === 'projects'
               ? 'text-accent-blue border-b-2 border-accent-blue'
-              : 'text-slate-500 hover:text-slate-300'
+              : 'text-muted hover:text-secondary'
           }`}
         >
           Projects
@@ -86,7 +86,7 @@ export function Sidebar({
           className={`flex-1 px-2 py-1.5 text-[11px] font-medium transition-colors ${
             viewMode === 'teams'
               ? 'text-accent-blue border-b-2 border-accent-blue'
-              : 'text-slate-500 hover:text-slate-300'
+              : 'text-muted hover:text-secondary'
           }`}
         >
           Teams
@@ -96,7 +96,7 @@ export function Sidebar({
           className={`flex-1 px-2 py-1.5 text-[11px] font-medium transition-colors relative ${
             viewMode === 'agents'
               ? 'text-accent-cyan border-b-2 border-accent-cyan'
-              : 'text-slate-500 hover:text-slate-300'
+              : 'text-muted hover:text-secondary'
           }`}
         >
           Agents
@@ -109,7 +109,7 @@ export function Sidebar({
           className={`flex-1 px-2 py-1.5 text-[11px] font-medium transition-colors ${
             viewMode === 'analytics'
               ? 'text-accent-purple border-b-2 border-accent-purple'
-              : 'text-slate-500 hover:text-slate-300'
+              : 'text-muted hover:text-secondary'
           }`}
         >
           Stats
@@ -120,8 +120,8 @@ export function Sidebar({
         {viewMode === 'analytics' ? (
           <div className="px-3 py-4 text-center">
             <BarChart3 className="w-8 h-8 text-accent-purple mx-auto mb-2 opacity-50" />
-            <p className="text-sm text-slate-400">Analytics Dashboard</p>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-sm text-tertiary">Analytics Dashboard</p>
+            <p className="text-xs text-muted mt-1">
               Dispatcher runs, PR reviews, audit reports, and issues
             </p>
           </div>
@@ -130,14 +130,14 @@ export function Sidebar({
             {/* Add project button */}
             <button
               onClick={() => setShowAddProject(true)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-slate-200 hover:bg-surface-700 rounded-lg transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-tertiary hover:text-secondary hover:bg-surface-700 rounded-lg transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Add Project
             </button>
 
             {projects.length === 0 && (
-              <p className="text-sm text-slate-500 px-2 py-4 text-center">
+              <p className="text-sm text-muted px-2 py-4 text-center">
                 No projects yet
               </p>
             )}
@@ -161,21 +161,21 @@ export function Sidebar({
                   >
                     <div className="flex items-start justify-between">
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-sm text-slate-100 truncate">
+                        <p className="font-medium text-sm text-primary truncate">
                           {project.name}
                         </p>
-                        <p className="text-[10px] text-slate-500 mt-0.5 font-mono truncate">
+                        <p className="text-[10px] text-muted mt-0.5 font-mono truncate">
                           {project.repoPath.split('/').slice(-2).join('/')}
                         </p>
                       </div>
                       <ChevronRight
-                        className={`w-4 h-4 text-slate-500 mt-0.5 shrink-0 transition-transform ${
+                        className={`w-4 h-4 text-muted mt-0.5 shrink-0 transition-transform ${
                           isSelected ? 'rotate-90' : ''
                         }`}
                         aria-hidden="true"
                       />
                     </div>
-                    <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
+                    <div className="flex items-center gap-3 mt-1.5 text-xs text-muted">
                       <span className="flex items-center gap-1" title={`Default branch: ${project.defaultBranch}`}>
                         <GitBranch className="w-3 h-3" aria-hidden="true" />
                         {project.defaultBranch}
@@ -200,7 +200,7 @@ export function Sidebar({
                       handleDeleteProject(project.id, project.name);
                     }}
                     disabled={isDeleting}
-                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-surface-800 border border-surface-600 text-slate-400 hover:text-accent-red hover:border-accent-red transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-surface-800 border border-surface-600 text-tertiary hover:text-accent-red hover:border-accent-red transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Remove project from list"
                     aria-label={`Remove ${project.name} from project list`}
                   >
@@ -213,7 +213,7 @@ export function Sidebar({
         ) : viewMode === 'agents' ? (
           <>
             {soloAgents.length === 0 && (
-              <p className="text-sm text-slate-500 px-2 py-4 text-center">
+              <p className="text-sm text-muted px-2 py-4 text-center">
                 No active agents
               </p>
             )}
@@ -247,16 +247,16 @@ export function Sidebar({
                           {activeCount > 0 && (
                             <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse shrink-0" />
                           )}
-                          <p className="font-medium text-sm text-slate-100 truncate">
+                          <p className="font-medium text-sm text-primary truncate">
                             {projectName}
                           </p>
                         </div>
-                        <p className="text-[10px] text-slate-500 mt-0.5 font-mono truncate">
+                        <p className="text-[10px] text-muted mt-0.5 font-mono truncate">
                           {cwd.split('/').slice(-2).join('/')}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
+                    <div className="flex items-center gap-3 mt-1.5 text-xs text-muted">
                       {activeCount > 0 && (
                         <span className="text-accent-green">{activeCount} working</span>
                       )}
@@ -270,14 +270,14 @@ export function Sidebar({
                         <div key={agent.sessionId} className="flex items-center gap-2 py-0.5">
                           <span
                             className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                              agent.status === 'active' ? 'bg-accent-green' : 'bg-slate-500'
+                              agent.status === 'active' ? 'bg-accent-green' : 'bg-surface-500'
                             }`}
                           />
-                          <span className="text-xs text-slate-300 truncate">
+                          <span className="text-xs text-secondary truncate">
                             {agent.slug || agent.sessionId.slice(0, 8)}
                           </span>
                           {agent.model && (
-                            <span className="text-[10px] text-slate-500 truncate">
+                            <span className="text-[10px] text-muted truncate">
                               {agent.model}
                             </span>
                           )}
@@ -298,7 +298,7 @@ export function Sidebar({
               return (
                 <>
                   {teams.length === 0 && pendingTeamTickets.length === 0 && (
-                    <p className="text-sm text-slate-500 px-2 py-4 text-center">
+                    <p className="text-sm text-muted px-2 py-4 text-center">
                       No active teams
                     </p>
                   )}
@@ -310,10 +310,10 @@ export function Sidebar({
                           {ticket.teamName}
                         </p>
                       </div>
-                      <p className="text-xs text-slate-500 mt-1 truncate">
+                      <p className="text-xs text-muted mt-1 truncate">
                         Waiting for agent to create team…
                       </p>
-                      <p className="text-[10px] text-slate-600 mt-0.5 truncate">
+                      <p className="text-[10px] text-faint mt-0.5 truncate">
                         {ticket.subject}
                       </p>
                     </div>
@@ -335,23 +335,23 @@ export function Sidebar({
                   >
                     <div className="flex items-start justify-between">
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-sm text-slate-100 truncate">
+                        <p className="font-medium text-sm text-primary truncate">
                           {team.name}
                         </p>
                         {team.description && (
-                          <p className="text-xs text-slate-400 mt-0.5 truncate">
+                          <p className="text-xs text-tertiary mt-0.5 truncate">
                             {team.description}
                           </p>
                         )}
                       </div>
                       <ChevronRight
-                        className={`w-4 h-4 text-slate-500 mt-0.5 shrink-0 transition-transform ${
+                        className={`w-4 h-4 text-muted mt-0.5 shrink-0 transition-transform ${
                           isSelected ? 'rotate-90' : ''
                         }`}
                         aria-hidden="true"
                       />
                     </div>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
+                    <div className="flex items-center gap-3 mt-2 text-xs text-muted">
                       <span className="flex items-center gap-1" title={`${team.members.length} team member${team.members.length !== 1 ? 's' : ''}`}>
                         <Users className="w-3.5 h-3.5" aria-hidden="true" />
                         {team.members.length}
@@ -368,11 +368,11 @@ export function Sidebar({
                           <div key={member.agentId} className="flex items-center gap-2 py-1">
                             <span
                               className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                isActive ? 'bg-accent-green' : 'bg-slate-500'
+                                isActive ? 'bg-accent-green' : 'bg-surface-500'
                               }`}
                             />
                             <AgentBadge name={member.name} color={member.color} size="sm" />
-                            <span className="text-[10px] text-slate-500 truncate">
+                            <span className="text-[10px] text-muted truncate">
                               {member.model}
                             </span>
                           </div>
