@@ -494,7 +494,7 @@ async function reviewPr(entry: WatchlistEntry): Promise<void> {
   if (entry.ticketId) {
     const ticket = await getTicket(entry.ticketId);
     if (ticket) {
-      const updated = await updateTicket(entry.ticketId, { auditStatus: 'running' });
+      const updated = await updateTicket(entry.ticketId, { auditStatus: 'running', auditVerdict: undefined });
       if (updated) broadcastFn({ type: 'ticket_updated', data: updated });
     }
   }
