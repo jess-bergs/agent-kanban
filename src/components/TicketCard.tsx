@@ -265,7 +265,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             <span className="text-xs text-accent-blue font-medium">Agent addressing feedback</span>
           </div>
           {ticket.auditResult && (
-            <p className="text-[11px] text-slate-400 bg-accent-blue/5 border border-accent-blue/20 rounded px-2 py-1.5 line-clamp-2">
+            <p className="text-[11px] text-tertiary bg-accent-blue/5 border border-accent-blue/20 rounded px-2 py-1.5 line-clamp-2">
               {ticket.auditResult}
             </p>
           )}
