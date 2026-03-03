@@ -10,6 +10,7 @@ import { runAudit, resetStuckReviews } from './auditor.ts';
 import type { Ticket, AgentActivity, TicketEffort, WSEvent, FailureReason } from '../src/types.ts';
 import { isSignalExit, SIGNAL_NAMES } from '../src/types.ts';
 import { envWithNvmNode } from './nvm.ts';
+import { ensurePrTemplate } from './pr-template.ts';
 
 const MAX_CONCURRENT = 5;
 const MAX_AUTO_RETRIES = 2;
@@ -429,6 +430,9 @@ async function startAgent(ticket: Ticket) {
     }, 'project_not_found');
     return;
   }
+
+  // Ensure the project repo has a PR template (idempotent, no-op if it exists)
+  await ensurePrTemplate(project.repoPath);
 
   // Resume mode: reuse existing branch if the auditor requested changes
   const isResume = !!(ticket.agentSessionId && ticket.branchName && ticket.resumePrompt);

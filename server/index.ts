@@ -31,6 +31,7 @@ import {
 } from './store.ts';
 import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick, attemptMerge, checkAndReconcilePrState, prepareRetryFields } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
+import { ensurePrTemplate } from './pr-template.ts';
 import {
   runAudit,
   isAuditRunning,
@@ -191,6 +192,9 @@ app.post('/api/projects', async (req, res) => {
       defaultBranch: req.body.defaultBranch || defaultBranch,
       remoteUrl,
     });
+
+    // Ensure the project repo has a PR template for agent-created PRs
+    await ensurePrTemplate(repoPath);
 
     broadcast({ type: 'projects_updated', data: await getProjectsPayload() });
     res.status(201).json(project);
