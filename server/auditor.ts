@@ -431,7 +431,16 @@ ${conventions ? `Check adherence to these project conventions:\n${conventions}` 
 - FAIL if: architecture docs are stale/incorrect due to changes in this PR, or the PR contradicts documented conventions
 
 ### 6. PR Checklist
-${templateReqs ? `The repo has a PR template. The PR body MUST satisfy these requirements:\n${templateReqs.compact}\n\n${templateReqs.checkboxSections.map(cb => `**${cb.heading}** (${cb.rule === 'all' ? 'ALL must be [x]' : 'at least 1 must be [x]'}):\n${cb.items.map(i => `  - ${i}`).join('\n')}`).join('\n')}\n\n${templateReqs.requiredSections.length > 0 ? `**Required text sections** (must not be empty/placeholder): ${templateReqs.requiredSections.join(', ')}` : ''}` : 'No PR template found — check for clear commit messages and focused changes.'}
+${templateReqs ? `The repo has a PR template. The PR body MUST satisfy these requirements:\n${templateReqs.compact}\n\n${templateReqs.checkboxSections.map(cb => `**${cb.heading}** (${cb.rule === 'all' ? 'ALL must be [x]' : 'at least 1 must be [x]'}):\n${cb.items.map(i => `  - ${i}`).join('\n')}`).join('\n')}\n\n${templateReqs.requiredSections.length > 0 ? `**Required text sections** (must not be empty/placeholder): ${templateReqs.requiredSections.join(', ')}` : ''}
+
+**Screenshots validation (if "Screenshots (choose one)" section exists):**
+- If "Screenshots added (UI changes made and images provided above)" is checked:
+  - FAIL if the Screenshots section does not contain at least one image reference (![...](...)
+  - PASS if actual images are present
+- If "Not applicable (no UI changes, or screenshots not possible — explain in Screenshots section)" is checked:
+  - FAIL if the Screenshots section is empty or only contains placeholder text
+  - PASS if a clear explanation is provided for why screenshots are not included
+- FAIL if: both boxes are checked, neither box is checked, or the box selection contradicts the content` : 'No PR template found — check for clear commit messages and focused changes.'}
 - FAIL if: PR body doesn't follow the repo's PR template structure, required checkbox sections are missing, checkboxes are left unchecked, or required sections are empty/placeholder-only
 
 ## Output Format
