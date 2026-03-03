@@ -77,8 +77,9 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
 
   const MAX_AUTO_ITERATIONS = 5;
   const canAutoFix = !!ticket.agentSessionId && (ticket.automationIteration || 0) < MAX_AUTO_ITERATIONS;
+  const isReviewing = ticket.status === 'in_review' && ticket.auditStatus === 'running';
   const needsReview = !isFinished && ticket.auditVerdict === 'request_changes' && !canAutoFix;
-  const autoFixPending = !isFinished && ticket.auditVerdict === 'request_changes' && canAutoFix;
+  const autoFixPending = !isFinished && ticket.auditVerdict === 'request_changes' && canAutoFix && !isReviewing;
   const hasQuestion = !!ticket.needsInput;
 
   return (
