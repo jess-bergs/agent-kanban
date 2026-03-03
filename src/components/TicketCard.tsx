@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
+  Bot,
   Brain,
   CheckCircle,
   Clock,
@@ -122,6 +123,12 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
           <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded" title="Plan only: Agent will investigate and create a plan-report.md instead of making code changes">
             <FileSearch className="w-3 h-3" aria-hidden="true" />
             PLAN
+          </span>
+        )}
+        {ticket.source === 'external_pr_scan' && ticket.prAuthor && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded" title={`External PR by ${ticket.prAuthor}`}>
+            <Bot className="w-3 h-3" aria-hidden="true" />
+            {ticket.prAuthor}
           </span>
         )}
         {ticket.images && ticket.images.length > 0 && (

@@ -98,6 +98,17 @@ export async function createProject(data: {
   return project;
 }
 
+export async function updateProject(
+  id: string,
+  updates: Partial<Project>,
+): Promise<Project | null> {
+  const project = await getProject(id);
+  if (!project) return null;
+  const updated = { ...project, ...updates, id: project.id };
+  await atomicWriteJson(join(PROJECTS_DIR, `${id}.json`), updated);
+  return updated;
+}
+
 export async function deleteProject(id: string): Promise<boolean> {
   const { unlink } = await import('node:fs/promises');
   try {

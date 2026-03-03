@@ -16,6 +16,7 @@ import { startWatcher, type ChangeEvent } from './watcher.ts';
 import {
   listProjects,
   createProject,
+  updateProject,
   deleteProject,
   getProject,
   listTickets,
@@ -63,6 +64,12 @@ import {
 } from './audit-store.ts';
 import { listTemplates, getTemplate } from './audit-templates.ts';
 import { buildAnalytics } from './analytics.ts';
+import {
+  startExternalPrScanner,
+  stopExternalPrScanner,
+  setExternalPrScannerBroadcast,
+  externalPrScanTick,
+} from './external-pr-scanner.ts';
 import type { TeamWithData, WSEvent, AuditTemplateId, ChatMessage } from '../src/types.ts';
 
 const PORT = 3003;
@@ -201,6 +208,21 @@ app.post('/api/projects', async (req, res) => {
   } catch (err) {
     console.error('Error creating project:', err);
     res.status(500).json({ error: 'Failed to create project' });
+  }
+});
+
+app.patch('/api/projects/:id', async (req, res) => {
+  try {
+    const project = await updateProject(req.params.id, req.body);
+    if (project) {
+      broadcast({ type: 'projects_updated', data: await getProjectsPayload() });
+      res.json(project);
+    } else {
+      res.status(404).json({ error: 'Project not found' });
+    }
+  } catch (err) {
+    console.error('Error updating project:', err);
+    res.status(500).json({ error: 'Failed to update project' });
   }
 });
 
@@ -718,6 +740,16 @@ app.post('/api/tickets/check-conflicts', async (_req, res) => {
   }
 });
 
+app.post('/api/external-pr-scan', async (_req, res) => {
+  try {
+    const created = await externalPrScanTick();
+    res.json({ success: true, imported: created.length });
+  } catch (err) {
+    console.error('Error running external PR scan:', err);
+    res.status(500).json({ error: 'Failed to scan external PRs' });
+  }
+});
+
 app.delete('/api/tickets/:id', async (req, res) => {
   // Kill running agent process if any
   killAgent(req.params.id);
@@ -1102,6 +1134,7 @@ function broadcast(event: WSEvent) {
 setDispatchBroadcast(broadcast);
 setAuditorBroadcast(broadcast);
 setSchedulerBroadcast(broadcast);
+setExternalPrScannerBroadcast(broadcast);
 // Wire auditor → dispatcher merge callback (breaks circular import)
 setAttemptMergeFn(attemptMerge);
 
@@ -1196,10 +1229,11 @@ server.listen(PORT, () => {
   console.log(`[server] Projects API at http://localhost:${PORT}/api/projects`);
 });
 
-// Start the dispatcher, auditor, and audit scheduler
+// Start the dispatcher, auditor, audit scheduler, and external PR scanner
 startDispatcher();
 startAuditor();
 startAuditScheduler();
+startExternalPrScanner();
 
 // ─── Solo Agent Polling ──────────────────────────────────────────
 
@@ -1228,6 +1262,7 @@ function shutdown() {
   stopDispatcher();
   stopAuditor();
   stopAuditScheduler();
+  stopExternalPrScanner();
   clearInterval(agentPollInterval);
   watcher.close();
   // Terminate all WebSocket connections so server.close() doesn't hang

@@ -114,12 +114,22 @@ export interface WSInboxUpdatedEvent extends WSEvent {
 
 // ─── Dispatch Models (User Projects + Tickets) ────────────────────
 
+export interface ExternalPrPolicy {
+  enabled: boolean;
+  /** Which PR authors to import: 'all', 'dependabot', or a list of usernames */
+  authors: 'all' | 'dependabot' | string[];
+  autoMerge: boolean;
+  /** Use lighter (yolo) review for version bumps */
+  yolo: boolean;
+}
+
 export interface Project {
   id: string;
   name: string;
   repoPath: string;
   defaultBranch: string;
   remoteUrl?: string;
+  externalPrPolicy?: ExternalPrPolicy;
   createdAt: number;
 }
 
@@ -247,6 +257,10 @@ export interface Ticket {
   needsAttention?: boolean;
   /** True when the agent is waiting for user input (AskUserQuestion / EnterPlanMode) */
   needsInput?: boolean;
+  /** How this ticket was created */
+  source?: 'user' | 'dispatcher' | 'scheduler' | 'external_pr_scan';
+  /** GitHub username of the PR author (for externally-imported PRs) */
+  prAuthor?: string;
 }
 
 // ─── Scheduled Audits ─────────────────────────────────────────────
