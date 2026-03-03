@@ -29,7 +29,7 @@ import {
   deleteTicketImage,
   getImagesDir,
 } from './store.ts';
-import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, checkPrStatus, conflictCheckTick, attemptMerge, checkAndReconcilePrState, prepareRetryFields } from './dispatcher.ts';
+import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, sendSteeringMessage, isAgentRunning, checkPrStatus, conflictCheckTick, attemptMerge, checkAndReconcilePrState, prepareRetryFields } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
 import { ensurePrTemplate } from './pr-template.ts';
 import {
@@ -376,6 +376,49 @@ app.post('/api/tickets/:id/abort', async (req, res) => {
     if (updated) broadcast({ type: 'ticket_updated', data: updated });
   }
   res.json({ success: true });
+});
+
+app.post('/api/tickets/:id/steer', async (req, res) => {
+  const ticket = await getTicket(req.params.id);
+  if (!ticket) {
+    res.status(404).json({ error: 'Ticket not found' });
+    return;
+  }
+
+  const { message } = req.body;
+  if (!message || typeof message !== 'string' || !message.trim()) {
+    res.status(400).json({ error: 'message is required' });
+    return;
+  }
+
+  // Case 1: Agent is currently running — pipe message to stdin
+  if (isAgentRunning(req.params.id)) {
+    const sent = sendSteeringMessage(req.params.id, message.trim());
+    if (sent) {
+      res.json({ success: true, mode: 'stdin' });
+    } else {
+      res.status(500).json({ error: 'Failed to write to agent stdin' });
+    }
+    return;
+  }
+
+  // Case 2: Agent has finished but has a session ID — resume with the message
+  if (ticket.agentSessionId) {
+    const retryFields = await prepareRetryFields(ticket);
+    const updated = await updateTicket(req.params.id, {
+      ...retryFields,
+      resumePrompt: message.trim(),
+    }, 'user_action');
+    if (updated) {
+      broadcast({ type: 'ticket_updated', data: updated });
+      res.json({ success: true, mode: 'resume' });
+    } else {
+      res.status(500).json({ error: 'Failed to update ticket for resume' });
+    }
+    return;
+  }
+
+  res.status(400).json({ error: 'No running agent and no session to resume' });
 });
 
 app.post('/api/tickets/:id/refresh-status', async (req, res) => {

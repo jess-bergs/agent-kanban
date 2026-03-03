@@ -92,7 +92,7 @@ claude -p "{prompt}" --output-format stream-json --verbose
 **Environment isolation**:
 - Strips `CLAUDECODE_*`, `CLAUDE_CODE_*`, and `ANTHROPIC_API_KEY` from env
 - Uses `envWithNvmNode()` (from `server/nvm.ts`) to prepend the nvm-managed Node bin to PATH
-- stdin is closed (`'ignore'`), stdout and stderr are piped
+- stdin is piped (`'pipe'`), stdout and stderr are piped — stdin pipe enables steering (see below)
 
 The spawned process PID is stored as `ticket.agentPid` for kill/orphan detection.
 
@@ -205,6 +205,42 @@ When retrying a ticket (conflict resolution, review feedback), the dispatcher us
 2. `resumePrompt` set to describe what needs fixing (conflict, review changes)
 3. Worktree recreated from the existing remote branch (`origin/{branchName}`)
 4. `automationIteration` incremented (capped at 5)
+
+## Agent Steering
+
+Users can send messages to agents from the ticket detail modal via `POST /api/tickets/:id/steer`.
+The endpoint operates in two modes:
+
+### Mode 1: stdin (live agent)
+
+When the agent process is still running (`isAgentRunning(ticketId)` returns true),
+the message is written directly to the agent's stdin via `sendSteeringMessage()`:
+
+```
+proc.stdin.write(message + '\n')
+```
+
+This is useful for answering `AskUserQuestion` prompts or redirecting the agent mid-task.
+The stdin pipe was changed from `'ignore'` to `'pipe'` to enable this.
+
+### Mode 2: resume (dead session)
+
+When the agent has exited but has a stored `agentSessionId`, the endpoint stores the
+user's message as `resumePrompt`, resets the ticket to `todo` via `prepareRetryFields()`,
+and the normal dispatcher poll picks it up. The agent is then respawned with:
+
+```
+claude --resume {sessionId} -p "{resumePrompt}" --output-format stream-json
+```
+
+This continues the previous Claude conversation with the user's message as input.
+
+### UI
+
+The steering input appears in the ticket detail modal below the agent output section.
+It shows contextual labels: "Steer Agent" with a live pulse indicator for running agents,
+or "Resume & Message" for resumable dead sessions. The input is hidden when no agent
+process exists and no session ID is available.
 
 ## File Layout
 
