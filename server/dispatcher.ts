@@ -716,10 +716,14 @@ async function startAgent(ticket: Ticket) {
     args.push('--dangerously-skip-permissions');
   }
 
-  // Remove env vars that would override subscription auth or block nested sessions
+  // Remove env vars that would override subscription auth or block nested sessions.
+  // Clean ALL CLAUDE_CODE_* vars to future-proof against new vars added by Claude Code updates.
   const cleanEnv: Record<string, string | undefined> = { ...process.env };
   delete cleanEnv.CLAUDECODE;
   delete cleanEnv.CLAUDE_CODE;
+  for (const key of Object.keys(cleanEnv)) {
+    if (key.startsWith('CLAUDE_CODE_')) delete cleanEnv[key];
+  }
   delete cleanEnv.ANTHROPIC_API_KEY;
 
   // Enable or disable agent teams based on ticket option
