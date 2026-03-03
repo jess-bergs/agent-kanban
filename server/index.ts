@@ -70,6 +70,12 @@ import {
   setExternalPrScannerBroadcast,
   externalPrScanTick,
 } from './external-pr-scanner.ts';
+import {
+  startAuthMonitor,
+  stopAuthMonitor,
+  setAuthMonitorBroadcast,
+  getAuthStatus,
+} from './auth-monitor.ts';
 import type { TeamWithData, WSEvent, AuditTemplateId, ChatMessage } from '../src/types.ts';
 
 const PORT = 3003;
@@ -750,6 +756,10 @@ app.post('/api/external-pr-scan', async (_req, res) => {
   }
 });
 
+app.get('/api/auth-status', (_req, res) => {
+  res.json(getAuthStatus());
+});
+
 app.delete('/api/tickets/:id', async (req, res) => {
   // Kill running agent process if any
   killAgent(req.params.id);
@@ -1135,6 +1145,7 @@ setDispatchBroadcast(broadcast);
 setAuditorBroadcast(broadcast);
 setSchedulerBroadcast(broadcast);
 setExternalPrScannerBroadcast(broadcast);
+setAuthMonitorBroadcast(broadcast);
 // Wire auditor → dispatcher merge callback (breaks circular import)
 setAttemptMergeFn(attemptMerge);
 
@@ -1234,6 +1245,7 @@ startDispatcher();
 startAuditor();
 startAuditScheduler();
 startExternalPrScanner();
+startAuthMonitor();
 
 // ─── Solo Agent Polling ──────────────────────────────────────────
 
@@ -1263,6 +1275,7 @@ function shutdown() {
   stopAuditor();
   stopAuditScheduler();
   stopExternalPrScanner();
+  stopAuthMonitor();
   clearInterval(agentPollInterval);
   watcher.close();
   // Terminate all WebSocket connections so server.close() doesn't hang
