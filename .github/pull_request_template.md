@@ -47,7 +47,8 @@
 
 ## Ticket
 
-<!-- If dispatched by Agent Kanban, the ticket ID will be added here automatically -->
+<!-- If dispatched by Agent Kanban, put the ticket ID here. Format: Ticket-ID: `<uuid>` -->
+Ticket-ID: `N/A`
 
 ## Related Issues
 
