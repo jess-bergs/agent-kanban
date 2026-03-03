@@ -91,79 +91,79 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
       <p className="text-sm font-medium text-slate-100 truncate">{ticket.subject}</p>
       <div className="flex flex-wrap items-center gap-1 mt-1">
         {ticket.queued && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded">
-            <Clock className="w-3 h-3" />
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded" title="This ticket is queued and will start after other non-queued tickets finish">
+            <Clock className="w-3 h-3" aria-hidden="true" />
             QUEUED
           </span>
         )}
         {ticket.autoMerge && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded">
-            <GitMerge className="w-3 h-3" />
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded" title="Auto-merge enabled: PR will be automatically merged when approved and checks pass">
+            <GitMerge className="w-3 h-3" aria-hidden="true" />
           </span>
         )}
         {ticket.yolo && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-amber bg-accent-amber/10 px-1.5 py-0.5 rounded">
-            <Zap className="w-3 h-3 fill-accent-amber" />
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-amber bg-accent-amber/10 px-1.5 py-0.5 rounded" title="YOLO mode: Agent runs fully autonomous without permission prompts">
+            <Zap className="w-3 h-3 fill-accent-amber" aria-hidden="true" />
             YOLO
           </span>
         )}
         {ticket.useTeam && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded">
-            <Users className="w-3 h-3" />
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded" title={`Team mode: Agent will spawn sub-agents${ticket.teamName ? ` in team "${ticket.teamName}"` : ''}`}>
+            <Users className="w-3 h-3" aria-hidden="true" />
             {ticket.teamName || 'TEAM'}
           </span>
         )}
         {ticket.planOnly && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded">
-            <FileSearch className="w-3 h-3" />
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded" title="Plan only: Agent will investigate and create a plan-report.md instead of making code changes">
+            <FileSearch className="w-3 h-3" aria-hidden="true" />
             PLAN
           </span>
         )}
         {ticket.images && ticket.images.length > 0 && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-surface-600/40 px-1.5 py-0.5 rounded">
-            <Images className="w-3 h-3" />
+          <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-surface-600/40 px-1.5 py-0.5 rounded" title={`${ticket.images.length} image${ticket.images.length !== 1 ? 's' : ''} attached`}>
+            <Images className="w-3 h-3" aria-hidden="true" />
             {ticket.images.length}
           </span>
         )}
         {ticket.needsAttention && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded animate-pulse">
-            <AlertTriangle className="w-3 h-3" />
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded animate-pulse" title="This ticket requires your immediate attention">
+            <AlertTriangle className="w-3 h-3" aria-hidden="true" />
             NEEDS ATTENTION
           </span>
         )}
         {hasQuestion && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-amber bg-accent-amber/10 px-1.5 py-0.5 rounded animate-pulse">
-            <HelpCircle className="w-3 h-3" />
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-amber bg-accent-amber/10 px-1.5 py-0.5 rounded animate-pulse" title="Agent has a question and is waiting for your response in the terminal">
+            <HelpCircle className="w-3 h-3" aria-hidden="true" />
             HAS QUESTION
           </span>
         )}
         {ticket.hasConflict && (
-          <span className={`flex items-center gap-1 text-[10px] font-medium text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded ${pulse}`}>
-            <AlertTriangle className="w-3 h-3" />
+          <span className={`flex items-center gap-1 text-[10px] font-medium text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded ${pulse}`} title="PR has merge conflicts that need to be resolved">
+            <AlertTriangle className="w-3 h-3" aria-hidden="true" />
             CONFLICT
           </span>
         )}
         {ticket.auditVerdict === 'approve' && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded">
-            <CheckCircle className="w-3 h-3" />
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded" title="PR has been reviewed and approved">
+            <CheckCircle className="w-3 h-3" aria-hidden="true" />
             APPROVED
           </span>
         )}
         {ticket.auditVerdict === 'request_changes' && (
-          <span className={`flex items-center gap-1 text-[10px] font-medium text-accent-orange bg-accent-orange/10 px-1.5 py-0.5 rounded ${pulse}`}>
-            <ShieldAlert className="w-3 h-3" />
+          <span className={`flex items-center gap-1 text-[10px] font-medium text-accent-orange bg-accent-orange/10 px-1.5 py-0.5 rounded ${pulse}`} title="Reviewer has requested changes to this PR">
+            <ShieldAlert className="w-3 h-3" aria-hidden="true" />
             CHANGES
           </span>
         )}
         {ticket.auditVerdict === 'comment' && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded">
-            <MessageSquare className="w-3 h-3" />
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded" title="PR has been reviewed with comments">
+            <MessageSquare className="w-3 h-3" aria-hidden="true" />
             REVIEWED
           </span>
         )}
         {ticket.status === 'in_review' && ticket.auditStatus === 'running' && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded">
-            <Loader2 className="w-3 h-3 animate-spin" />
+          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded" title="PR review is currently in progress">
+            <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
             REVIEWING
           </span>
         )}
@@ -303,8 +303,10 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             onClick={handleAbort}
             disabled={aborting}
             className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-accent-red bg-accent-red/10 rounded hover:bg-accent-red/20 disabled:opacity-50 transition-colors"
+            title="Stop the agent and cancel this ticket"
+            aria-label="Abort ticket"
           >
-            <StopCircle className="w-3 h-3" />
+            <StopCircle className="w-3 h-3" aria-hidden="true" />
             {aborting ? 'Aborting...' : 'Abort'}
           </button>
         </div>
@@ -326,12 +328,14 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
           rel="noopener noreferrer"
           onClick={e => e.stopPropagation()}
           className="flex items-center gap-1.5 mt-2 text-xs text-accent-green hover:text-accent-green/80 transition-colors"
+          title={`View Pull Request #${ticket.prNumber || ''} on GitHub`}
+          aria-label={`View Pull Request #${ticket.prNumber || 'opened'}`}
         >
-          <GitPullRequest className="w-3.5 h-3.5" />
+          <GitPullRequest className="w-3.5 h-3.5" aria-hidden="true" />
           <span className="font-medium">
             PR #{ticket.prNumber || 'opened'}
           </span>
-          <ExternalLink className="w-3 h-3" />
+          <ExternalLink className="w-3 h-3" aria-hidden="true" />
         </a>
       )}
     </div>

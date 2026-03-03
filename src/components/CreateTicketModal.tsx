@@ -141,8 +141,8 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
               {project.name} &middot; {project.repoPath}
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors" title="Close modal" aria-label="Close modal">
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -194,15 +194,17 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
                   <div key={img.id} className="relative group">
                     <img
                       src={img.dataUrl}
-                      alt={img.name}
+                      alt={`Screenshot: ${img.name}`}
                       className="w-20 h-20 object-cover rounded-lg border border-surface-600"
                     />
                     <button
                       type="button"
                       onClick={() => removeImage(img.id)}
                       className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-accent-red text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      title={`Remove ${img.name}`}
+                      aria-label={`Remove ${img.name}`}
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-3 h-3" aria-hidden="true" />
                     </button>
                     <p className="text-[9px] text-slate-500 truncate w-20 mt-0.5">{img.name}</p>
                   </div>
@@ -214,8 +216,10 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-surface-500 hover:border-accent-blue/50 hover:bg-surface-900/50 text-slate-400 hover:text-slate-300 transition-colors text-xs w-full justify-center"
+              title="Add images or screenshots to this ticket"
+              aria-label="Add images"
             >
-              <ImagePlus className="w-4 h-4" />
+              <ImagePlus className="w-4 h-4" aria-hidden="true" />
               Add images
             </button>
             <input
@@ -384,7 +388,7 @@ export function CreateTicketModal({ project, onClose, onCreated }: CreateTicketM
                   : 'bg-accent-blue text-white hover:bg-accent-blue/90'
               }`}
             >
-              {yolo ? <Zap className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+              {yolo ? <Zap className="w-4 h-4" aria-hidden="true" /> : <Send className="w-4 h-4" aria-hidden="true" />}
               {submitting ? 'Creating...' : yolo ? 'YOLO & Dispatch' : 'Create & Dispatch'}
               <kbd className="hidden sm:inline-flex items-center gap-0.5 ml-1.5 text-[10px] opacity-60 font-sans">
                 <span>⌘</span><span>↵</span>

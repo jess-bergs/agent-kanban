@@ -224,7 +224,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
               >
                 <Hash className="w-3 h-3" />
                 {ticket.id.slice(0, 8)}
-                {copiedId ? <Check className="w-3 h-3 text-accent-green" /> : <Copy className="w-3 h-3" />}
+                {copiedId ? <Check className="w-3 h-3 text-accent-green" aria-hidden="true" /> : <Copy className="w-3 h-3" aria-hidden="true" />}
               </button>
               <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${style.bg} ${style.text}`}>
                 <StatusIcon className={`w-3 h-3 ${ticket.status === 'in_progress' ? 'animate-spin' : ''} ${ticket.status === 'needs_approval' ? 'animate-pulse' : ''}`} />
@@ -257,8 +257,8 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
             </div>
             <h2 className="text-lg font-bold text-slate-100">{ticket.subject}</h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors shrink-0">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors shrink-0" title="Close modal" aria-label="Close modal">
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -466,8 +466,10 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                       <button
                         onClick={() => imageInputRef.current?.click()}
                         className="text-[10px] text-accent-blue hover:text-accent-blue/80 transition-colors flex items-center gap-1"
+                        title="Add images to this ticket"
+                        aria-label="Add images"
                       >
-                        <ImagePlus className="w-3 h-3" />
+                        <ImagePlus className="w-3 h-3" aria-hidden="true" />
                         Add
                       </button>
                       <input
@@ -492,10 +494,12 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                           type="button"
                           onClick={() => setExpandedImage(`/api/ticket-images/${img.filename}`)}
                           className="block"
+                          title={`View ${img.originalName} in full size`}
+                          aria-label={`View ${img.originalName} in full size`}
                         >
                           <img
                             src={`/api/ticket-images/${img.filename}`}
-                            alt={img.originalName}
+                            alt={`Screenshot: ${img.originalName}`}
                             className="w-24 h-24 object-cover rounded-lg border border-surface-600 hover:border-accent-blue/50 transition-colors cursor-pointer"
                           />
                         </button>
@@ -503,8 +507,10 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                           <button
                             onClick={() => handleDeleteImage(img.filename)}
                             className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-accent-red text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            title={`Remove ${img.originalName}`}
+                            aria-label={`Remove ${img.originalName}`}
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3 h-3" aria-hidden="true" />
                           </button>
                         )}
                         <p className="text-[9px] text-slate-500 truncate w-24 mt-0.5">{img.originalName}</p>
@@ -526,7 +532,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
             >
               <img
                 src={expandedImage}
-                alt="Expanded view"
+                alt="Full size screenshot preview"
                 className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
                 onClick={e => e.stopPropagation()}
               />
@@ -790,8 +796,10 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 onClick={handleAbort}
                 disabled={acting}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-red/10 text-accent-red rounded-lg hover:bg-accent-red/20 disabled:opacity-50 transition-colors"
+                title="Stop the agent and cancel this ticket"
+                aria-label="Abort ticket"
               >
-                <StopCircle className="w-4 h-4" />
+                <StopCircle className="w-4 h-4" aria-hidden="true" />
                 Abort
               </button>
             )}
@@ -800,8 +808,10 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 onClick={handleRetry}
                 disabled={acting}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-amber/10 text-accent-amber rounded-lg hover:bg-accent-amber/20 disabled:opacity-50 transition-colors"
+                title="Retry this ticket from the beginning"
+                aria-label="Retry ticket"
               >
-                <RotateCcw className="w-4 h-4" />
+                <RotateCcw className="w-4 h-4" aria-hidden="true" />
                 Retry
               </button>
             )}
@@ -810,8 +820,10 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 onClick={handleRefreshStatus}
                 disabled={acting}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-cyan/10 text-accent-cyan rounded-lg hover:bg-accent-cyan/20 disabled:opacity-50 transition-colors"
+                title="Check if PR has been merged or closed"
+                aria-label="Refresh PR status"
               >
-                <RefreshCw className={`w-4 h-4 ${acting ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${acting ? 'animate-spin' : ''}`} aria-hidden="true" />
                 Refresh Status
               </button>
             )}
@@ -820,8 +832,10 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 onClick={handleMarkDone}
                 disabled={acting}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-green/10 text-accent-green rounded-lg hover:bg-accent-green/20 disabled:opacity-50 transition-colors"
+                title="Manually mark this ticket as done"
+                aria-label="Mark ticket as done"
               >
-                <CheckCircle className="w-4 h-4" />
+                <CheckCircle className="w-4 h-4" aria-hidden="true" />
                 Mark Done
               </button>
             )}
@@ -829,8 +843,10 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
               onClick={handleDelete}
               disabled={acting}
               className="flex items-center gap-2 px-4 py-2 text-sm text-slate-400 hover:text-accent-red hover:bg-accent-red/10 rounded-lg disabled:opacity-50 transition-colors ml-auto"
+              title="Permanently delete this ticket"
+              aria-label="Delete ticket"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
               Delete
             </button>
           </div>
