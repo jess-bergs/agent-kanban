@@ -1567,6 +1567,7 @@ const STUCK_AUDIT_GRACE_MS = 10 * 60_000; // 10 minutes
 const NO_PR_GRACE_MS = 5 * 60_000; // 5 minutes
 const STALE_REQUEST_CHANGES_MS = 2 * 60_000; // 2 minutes — re-dispatch if auditor's re-dispatch didn't fire
 const STUCK_TICKET_GRACE_MS = 30 * 60_000; // 30 minutes — flag tickets idle for this long
+const NO_STREAM_ACTIVITY_MS = 5 * 60_000; // 5 minutes — kill agent if no stream output since spawn
 
 function isProcessAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch { return false; }
@@ -1651,6 +1652,8 @@ export async function prepareRetryFields(ticket: Ticket): Promise<Partial<Ticket
     completedAt: undefined,
     lastOutput: undefined,
     agentPid: undefined,
+    agentActivity: undefined,
+    lastThinking: undefined,
   };
 
   // Check if there's resumable state: branch on remote + session ID
@@ -1746,9 +1749,9 @@ let healthCheckRunning = false;
 
 interface HealthLogEntry {
   timestamp: number;
-  check: 'orphan_pid' | 'stuck_audit' | 'no_pr' | 'stuck_ticket' | 'stale_request_changes';
+  check: 'orphan_pid' | 'stuck_audit' | 'no_pr' | 'stuck_ticket' | 'stale_request_changes' | 'no_stream_activity';
   ticketId: string;
-  action: 'retry' | 'fail' | 'reset_audit' | 'flag' | 'redispatch';
+  action: 'retry' | 'fail' | 'reset_audit' | 'flag' | 'redispatch' | 'kill_retry';
   detail: string;
 }
 
@@ -1810,6 +1813,40 @@ export async function healthCheckTick(): Promise<void> {
           action: 'fail', detail: `Retry budget exhausted (${priorAttempts} attempts)`,
         });
       }
+    }
+
+    // ── Check 1b: No Stream Activity (zombie agent) ──
+    // Catches agents that are alive but never produced stream-json output.
+    // This happens when claude --resume hits an init error and silently idles.
+    for (const [ticketId, proc] of running) {
+      const lastActivity = lastStreamActivity.get(ticketId);
+      if (!lastActivity || now - lastActivity < NO_STREAM_ACTIVITY_MS) continue;
+      // Only act if the agent has produced zero output (lastOutput is empty/undefined)
+      const ticket = await getTicket(ticketId);
+      if (!ticket || ticket.status !== 'in_progress') continue;
+      if (ticket.lastOutput) continue; // agent IS producing output, just slow
+
+      const idleMin = Math.round((now - lastActivity) / 60_000);
+      console.log(`[health-check] No stream activity for ticket #${ticketId} (${idleMin}min) — killing zombie agent`);
+      try { proc.kill('SIGTERM'); } catch { /* already dead */ }
+
+      // Wait a moment for close handler, then force retry
+      setTimeout(async () => {
+        const t = await getTicket(ticketId);
+        if (t && t.status === 'in_progress') {
+          // close handler didn't fire — force cleanup
+          running.delete(ticketId);
+          lastStreamActivity.delete(ticketId);
+          const retryFields = await prepareRetryFields(t);
+          const updated = await updateTicket(ticketId, retryFields, 'health_check_zombie');
+          if (updated) broadcastTicket(updated);
+        }
+      }, 5000);
+
+      await appendHealthLog({
+        timestamp: now, check: 'no_stream_activity', ticketId,
+        action: 'kill_retry', detail: `Agent alive but no stream output for ${idleMin}min — killed and retrying`,
+      });
     }
 
     // ── Check 2: Stuck Audit Detection ──
