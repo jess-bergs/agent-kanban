@@ -43,12 +43,17 @@
 - [ ] I have performed a self-review of my own code
 - [ ] I have commented my code, particularly in hard-to-understand areas
 - [ ] My changes generate no new warnings
-- [ ] Screenshots added if UI changes were made
+
+## Screenshots (choose one)
+
+<!-- If you made UI changes and can capture screenshots, check the first box and add images in the Screenshots section above. -->
+<!-- If no UI changes were made, or screenshots cannot be captured, check the second box and explain why in the Screenshots section above. -->
+- [ ] Screenshots added (UI changes made and images provided above)
+- [ ] Not applicable (no UI changes, or screenshots not possible — explain in Screenshots section)
 
 ## Ticket
 
-<!-- If dispatched by Agent Kanban, put the ticket ID here. Format: Ticket-ID: `<uuid>` -->
-Ticket-ID: `N/A`
+<!-- If dispatched by Agent Kanban, the ticket ID will be added here automatically -->
 
 ## Related Issues
 
