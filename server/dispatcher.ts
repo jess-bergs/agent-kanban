@@ -644,7 +644,7 @@ async function startAgent(ticket: Ticket) {
       '1. Read `.github/pull_request_template.md`',
       '2. Fill in every section: Description, Changes, Type of Change (mark checkboxes with x),',
       '   Screenshots (if UI changes), Testing (check what you did), and Checklist (check all that apply)',
-      `3. Set the Ticket section to: \`${ticket.id}\``,
+      `3. In the Ticket section, replace the placeholder with: Ticket-ID: \`${ticket.id}\``,
       '4. Create the PR with a HEREDOC body:',
       '   ```',
       `   gh pr create --base ${project.defaultBranch} --title "your title" --body "$(cat <<'EOF'`,
