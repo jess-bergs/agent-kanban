@@ -48,13 +48,13 @@ export function FolderPicker({ onSelect, onCancel }: FolderPickerProps) {
           <button
             type="button"
             onClick={() => browse(data.parent!)}
-            className="p-1 rounded hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors shrink-0"
+            className="p-1 rounded hover:bg-surface-700 text-tertiary hover:text-secondary transition-colors shrink-0"
             title="Go up"
           >
             <ChevronUp className="w-4 h-4" />
           </button>
         )}
-        <span className="text-xs text-slate-400 font-mono truncate flex-1">
+        <span className="text-xs text-tertiary font-mono truncate flex-1">
           {data?.current ?? '...'}
         </span>
         <button
@@ -69,7 +69,7 @@ export function FolderPicker({ onSelect, onCancel }: FolderPickerProps) {
       {/* Directory list */}
       <div className="max-h-52 overflow-y-auto">
         {loading && (
-          <div className="flex items-center justify-center py-6 text-slate-500">
+          <div className="flex items-center justify-center py-6 text-muted">
             <Loader2 className="w-4 h-4 animate-spin" />
           </div>
         )}
@@ -79,7 +79,7 @@ export function FolderPicker({ onSelect, onCancel }: FolderPickerProps) {
         )}
 
         {!loading && !error && data && data.dirs.length === 0 && (
-          <p className="text-xs text-slate-500 px-3 py-4 text-center">No subdirectories</p>
+          <p className="text-xs text-muted px-3 py-4 text-center">No subdirectories</p>
         )}
 
         {!loading && !error && data?.dirs.map(dir => (
@@ -92,9 +92,9 @@ export function FolderPicker({ onSelect, onCancel }: FolderPickerProps) {
             {dir.isGit ? (
               <FolderGit2 className="w-4 h-4 text-accent-green shrink-0" />
             ) : (
-              <Folder className="w-4 h-4 text-slate-500 shrink-0" />
+              <Folder className="w-4 h-4 text-muted shrink-0" />
             )}
-            <span className={`text-sm truncate ${dir.isGit ? 'text-slate-100' : 'text-slate-400'}`}>
+            <span className={`text-sm truncate ${dir.isGit ? 'text-primary' : 'text-tertiary'}`}>
               {dir.name}
             </span>
             {dir.isGit && (
@@ -111,7 +111,7 @@ export function FolderPicker({ onSelect, onCancel }: FolderPickerProps) {
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          className="text-xs text-muted hover:text-secondary transition-colors"
         >
           Cancel
         </button>

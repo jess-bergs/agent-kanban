@@ -30,14 +30,14 @@ export function TeamHeader({ team }: TeamHeaderProps) {
     <div className="px-6 py-4 border-b border-surface-700 bg-surface-800/50 shrink-0">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-lg font-bold text-slate-100">{team.name}</h1>
+          <h1 className="text-lg font-bold text-primary">{team.name}</h1>
           {team.description && (
-            <p className="text-sm text-slate-400 mt-0.5">
+            <p className="text-sm text-tertiary mt-0.5">
               {team.description}
             </p>
           )}
         </div>
-        <span className="text-xs text-slate-500 shrink-0">
+        <span className="text-xs text-muted shrink-0">
           Created {formatTimestamp(team.createdAt)}
         </span>
       </div>
@@ -51,9 +51,9 @@ export function TeamHeader({ team }: TeamHeaderProps) {
               <span
                 key={cwd}
                 title={folder}
-                className="inline-flex items-center gap-1.5 text-xs text-slate-400 bg-surface-700 px-2.5 py-1 rounded-md border border-surface-600"
+                className="inline-flex items-center gap-1.5 text-xs text-tertiary bg-surface-700 px-2.5 py-1 rounded-md border border-surface-600"
               >
-                <FolderOpen className="w-3.5 h-3.5 text-slate-500" />
+                <FolderOpen className="w-3.5 h-3.5 text-muted" />
                 <span className="font-mono">{short}</span>
               </span>
             );

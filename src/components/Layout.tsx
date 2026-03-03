@@ -1,8 +1,10 @@
 import { useState, useCallback } from 'react';
-import { Radio, Bot, Loader2 } from 'lucide-react';
+import { Radio, Bot, Loader2, Sun, Moon, Monitor } from 'lucide-react';
 import type { TeamWithData, Project, Ticket, SoloAgent } from '../types';
 import { shortenPillLabel } from '../types';
 import type { ViewMode } from '../hooks/useWebSocket';
+import { useTheme } from '../hooks/useTheme';
+import type { Theme } from '../hooks/useTheme';
 import { Sidebar } from './Sidebar';
 import { KanbanBoard } from './KanbanBoard';
 import { TicketKanban } from './TicketKanban';
@@ -46,6 +48,12 @@ export function Layout({
   selectedProjectTickets,
 }: LayoutProps) {
   const [openTicketId, setOpenTicketId] = useState<string | null>(null);
+  const { theme, setTheme, resolvedTheme } = useTheme();
+
+  const cycleTheme = useCallback(() => {
+    const order: Theme[] = ['light', 'dark', 'system'];
+    setTheme(order[(order.indexOf(theme) + 1) % order.length]);
+  }, [theme, setTheme]);
 
   const handleNavigateToTicket = useCallback((projectId: string, ticketId: string) => {
     setViewMode('projects');
@@ -67,8 +75,8 @@ export function Layout({
             <Loader2 className="w-5 h-5 text-accent-blue/60 animate-spin absolute -bottom-1 -right-1" />
           </div>
           <div className="text-center">
-            <h1 className="text-base font-semibold text-slate-200">Agent Kanban</h1>
-            <p className="text-xs text-slate-500 mt-1">
+            <h1 className="text-base font-semibold text-secondary">Agent Kanban</h1>
+            <p className="text-xs text-muted mt-1">
               {connected ? 'Loading projects and teams…' : 'Connecting to server…'}
             </p>
           </div>
@@ -97,6 +105,20 @@ export function Layout({
               <span className="font-medium">{soloAgents.length} agent{soloAgents.length !== 1 ? 's' : ''}</span>
             </button>
           )}
+          <button
+            onClick={cycleTheme}
+            className="p-1 rounded text-muted hover:text-primary transition-colors"
+            title={`Theme: ${theme} (click to cycle)`}
+            aria-label={`Current theme: ${theme}. Click to change.`}
+          >
+            {theme === 'system' ? (
+              <Monitor className="w-3.5 h-3.5" />
+            ) : resolvedTheme === 'dark' ? (
+              <Moon className="w-3.5 h-3.5" />
+            ) : (
+              <Sun className="w-3.5 h-3.5" />
+            )}
+          </button>
           <span
             className={`w-2 h-2 rounded-full ${
               connected ? 'bg-accent-green' : 'bg-accent-red'
@@ -122,17 +144,17 @@ export function Layout({
               >
                 <span
                   className={`w-1.5 h-1.5 rounded-full ${
-                    isActive ? 'bg-accent-green animate-pulse' : 'bg-slate-500'
+                    isActive ? 'bg-accent-green animate-pulse' : 'bg-surface-500'
                   }`}
                 />
-                <span className="font-medium text-slate-200">{shortenPillLabel(agent.projectName)}</span>
+                <span className="font-medium text-secondary">{shortenPillLabel(agent.projectName)}</span>
                 {agent.gitBranch && agent.gitBranch !== 'HEAD' && (
                   <span className="text-accent-purple font-mono">{shortenPillLabel(agent.gitBranch)}</span>
                 )}
               </div>
             );
           })}
-          <span className="text-[10px] text-slate-500 ml-auto shrink-0">Full view →</span>
+          <span className="text-[10px] text-muted ml-auto shrink-0">Full view →</span>
         </button>
       )}
 

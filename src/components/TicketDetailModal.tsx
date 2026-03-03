@@ -88,7 +88,7 @@ function ActivityIcon({ type }: { type: AgentActivity['type'] }) {
     case 'tool_result':
       return <CheckCircle className="w-3 h-3 text-accent-green" />;
     case 'text':
-      return <MessageSquare className="w-3 h-3 text-slate-400" />;
+      return <MessageSquare className="w-3 h-3 text-tertiary" />;
   }
 }
 
@@ -101,7 +101,7 @@ function ActivityLabel({ entry }: { entry: AgentActivity }) {
     case 'tool_result':
       return <span className="text-accent-green">Result</span>;
     case 'text':
-      return <span className="text-slate-400">Output</span>;
+      return <span className="text-tertiary">Output</span>;
   }
 }
 
@@ -220,7 +220,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   setTimeout(() => setCopiedId(false), 1500);
                 }}
                 title={`Copy full ID: ${ticket.id}`}
-                className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                className="flex items-center gap-1 text-xs text-muted hover:text-secondary transition-colors cursor-pointer"
               >
                 <Hash className="w-3 h-3" />
                 {ticket.id.slice(0, 8)}
@@ -255,9 +255,9 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 </span>
               )}
             </div>
-            <h2 className="text-lg font-bold text-slate-100">{ticket.subject}</h2>
+            <h2 className="text-lg font-bold text-primary">{ticket.subject}</h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors shrink-0" title="Close modal" aria-label="Close modal">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-700 text-tertiary hover:text-secondary transition-colors shrink-0" title="Close modal" aria-label="Close modal">
             <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
@@ -281,7 +281,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 <p className={`text-sm font-medium ${ticket.hasConflict ? 'text-accent-red' : 'text-accent-green'}`}>
                   Pull Request #{ticket.prNumber || ''}
                 </p>
-                <p className="text-xs text-slate-400 truncate">{ticket.prUrl}</p>
+                <p className="text-xs text-tertiary truncate">{ticket.prUrl}</p>
               </div>
               <ExternalLink className={`w-4 h-4 ${ticket.hasConflict ? 'text-accent-red' : 'text-accent-green'}`} />
             </a>
@@ -293,7 +293,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
               <AlertTriangle className="w-5 h-5 text-accent-red shrink-0" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-accent-red">Merge Conflict Detected</p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-tertiary">
                   This PR has conflicts with the base branch that must be resolved before merging.
                   {ticket.conflictDetectedAt && (
                     <> Detected {formatTimestamp(ticket.conflictDetectedAt)}.</>
@@ -312,7 +312,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   <p className="text-sm font-medium text-accent-amber">
                     Agent has a question
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-tertiary">
                     The agent is waiting for your input in the terminal. It may need clarification or a decision before it can continue.
                   </p>
                 </div>
@@ -324,7 +324,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   <p className="text-sm font-medium text-accent-orange">
                     Waiting for tool approval
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-tertiary">
                     This agent is not running in YOLO mode and needs you to approve a tool call in the terminal.
                   </p>
                 </div>
@@ -340,7 +340,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 <p className="text-sm font-medium text-accent-orange">
                   On Hold — Usage Limit Reached
                 </p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-tertiary">
                   {ticket.holdUntil
                     ? `Will automatically resume at ${new Date(ticket.holdUntil).toLocaleTimeString()}.`
                     : 'Waiting for usage limit to reset.'}
@@ -378,7 +378,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   {ticket.auditVerdict === 'comment' && 'Review: Comments'}
                 </p>
                 {ticket.auditResult && (
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-tertiary mt-0.5">
                     {ticket.auditResult}
                   </p>
                 )}
@@ -394,7 +394,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 <p className="text-sm font-medium text-accent-purple">
                   Review in Progress
                 </p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-tertiary">
                   The pull request is being reviewed.
                 </p>
               </div>
@@ -404,11 +404,11 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           {/* Project info */}
           {project && (
             <div className="flex items-start gap-3">
-              <FolderOpen className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <FolderOpen className="w-4 h-4 text-muted mt-0.5 shrink-0" />
               <div>
-                <p className="text-xs text-slate-500 mb-1">Project</p>
-                <p className="text-sm text-slate-200">{project.name}</p>
-                <p className="text-xs text-slate-400 font-mono">{project.repoPath}</p>
+                <p className="text-xs text-muted mb-1">Project</p>
+                <p className="text-sm text-secondary">{project.name}</p>
+                <p className="text-xs text-tertiary font-mono">{project.repoPath}</p>
               </div>
             </div>
           )}
@@ -418,7 +418,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
             <div className="flex items-start gap-3">
               <GitBranch className="w-4 h-4 text-accent-purple mt-0.5 shrink-0" />
               <div>
-                <p className="text-xs text-slate-500 mb-1">Branch</p>
+                <p className="text-xs text-muted mb-1">Branch</p>
                 <code className="text-sm text-accent-purple bg-accent-purple/10 px-2 py-0.5 rounded">
                   {shortenUuids(ticket.branchName)}
                 </code>
@@ -431,7 +431,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
             <div className="flex items-start gap-3">
               <AlertCircle className="w-4 h-4 text-accent-red mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-slate-500 mb-1">Error</p>
+                <p className="text-xs text-muted mb-1">Error</p>
                 <pre className="text-sm text-accent-red whitespace-pre-wrap font-mono bg-accent-red/5 rounded-lg p-3 border border-accent-red/20">
                   {ticket.error}
                 </pre>
@@ -442,10 +442,10 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           {/* Instructions */}
           {ticket.instructions && (
             <div className="flex items-start gap-3">
-              <FileText className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <FileText className="w-4 h-4 text-muted mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-slate-500 mb-2">Instructions</p>
-                <pre className="text-sm text-slate-300 whitespace-pre-wrap font-mono bg-surface-900 rounded-lg p-4 border border-surface-700 leading-relaxed overflow-x-auto">
+                <p className="text-xs text-muted mb-2">Instructions</p>
+                <pre className="text-sm text-secondary whitespace-pre-wrap font-mono bg-surface-900 rounded-lg p-4 border border-surface-700 leading-relaxed overflow-x-auto">
                   {ticket.instructions}
                 </pre>
               </div>
@@ -455,10 +455,10 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           {/* Attached images */}
           {(ticket.images?.length || ticket.status === 'todo') ? (
             <div className="flex items-start gap-3">
-              <Images className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <Images className="w-4 h-4 text-muted mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted">
                     Images {ticket.images?.length ? `(${ticket.images.length})` : ''}
                   </p>
                   {ticket.status === 'todo' && (
@@ -513,12 +513,12 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                             <X className="w-3 h-3" aria-hidden="true" />
                           </button>
                         )}
-                        <p className="text-[9px] text-slate-500 truncate w-24 mt-0.5">{img.originalName}</p>
+                        <p className="text-[9px] text-muted truncate w-24 mt-0.5">{img.originalName}</p>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-600 italic">No images attached</p>
+                  <p className="text-xs text-faint italic">No images attached</p>
                 )}
               </div>
             </div>
@@ -562,7 +562,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 </button>
                 {showReasoning && (
                   <pre
-                    className="text-xs text-slate-400 whitespace-pre-wrap font-mono bg-accent-purple/5 rounded-lg p-3 border border-accent-purple/20 max-h-48 overflow-y-auto"
+                    className="text-xs text-tertiary whitespace-pre-wrap font-mono bg-accent-purple/5 rounded-lg p-3 border border-accent-purple/20 max-h-48 overflow-y-auto"
                     ref={el => {
                       if (el && isAgentActive) {
                         el.scrollTop = el.scrollHeight;
@@ -579,11 +579,11 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           {/* Agent activity feed — live tool calls + output stream */}
           {(ticket.agentActivity?.length || isAgentActive) ? (
             <div className="flex items-start gap-3">
-              <Activity className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <Activity className="w-4 h-4 text-muted mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
                 <button
                   onClick={() => setShowActivity(!showActivity)}
-                  className="flex items-center gap-1.5 mb-2 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                  className="flex items-center gap-1.5 mb-2 text-xs text-muted hover:text-secondary transition-colors"
                 >
                   {showActivity
                     ? <ChevronDown className="w-3 h-3" />
@@ -591,7 +591,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   }
                   Agent Activity
                   {ticket.agentActivity?.length ? (
-                    <span className="text-[10px] text-slate-600">
+                    <span className="text-[10px] text-faint">
                       ({ticket.agentActivity.length} events)
                     </span>
                   ) : null}
@@ -612,7 +612,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                     }}
                   >
                     {(!ticket.agentActivity || ticket.agentActivity.length === 0) ? (
-                      <p className="text-xs text-slate-600 italic px-1">Waiting for activity...</p>
+                      <p className="text-xs text-faint italic px-1">Waiting for activity...</p>
                     ) : (
                       ticket.agentActivity.map((entry, idx) => (
                         <div key={idx} className="flex items-start gap-2 px-1 py-0.5 rounded hover:bg-surface-800">
@@ -623,11 +623,11 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                             <span className="text-[10px] font-medium">
                               <ActivityLabel entry={entry} />
                             </span>
-                            <p className="text-[11px] text-slate-500 font-mono truncate leading-tight">
+                            <p className="text-[11px] text-muted font-mono truncate leading-tight">
                               {entry.content}
                             </p>
                           </div>
-                          <span className="text-[9px] text-slate-600 shrink-0 mt-0.5">
+                          <span className="text-[9px] text-faint shrink-0 mt-0.5">
                             {formatTimestamp(entry.timestamp)}
                           </span>
                         </div>
@@ -642,10 +642,10 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           {/* Agent output — live terminal */}
           {(ticket.lastOutput || isAgentActive) && (
             <div className="flex items-start gap-3">
-              <Hash className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <Hash className="w-4 h-4 text-muted mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  <p className="text-xs text-slate-500">Agent Output</p>
+                  <p className="text-xs text-muted">Agent Output</p>
                   {isAgentActive && (
                     <span className="flex items-center gap-1 text-[10px] text-accent-blue">
                       <span className="w-1.5 h-1.5 rounded-full bg-accent-blue animate-pulse" />
@@ -654,7 +654,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                   )}
                 </div>
                 <pre
-                  className="text-xs text-slate-400 whitespace-pre-wrap font-mono bg-surface-900 rounded-lg p-3 border border-surface-700 max-h-64 overflow-y-auto"
+                  className="text-xs text-tertiary whitespace-pre-wrap font-mono bg-surface-900 rounded-lg p-3 border border-surface-700 max-h-64 overflow-y-auto"
                   ref={el => {
                     if (el && isAgentActive) {
                       el.scrollTop = el.scrollHeight;
@@ -670,18 +670,18 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           {/* Effort metrics — compact inline bar */}
           {ticket.effort && ticket.effort.turns > 0 && (
             <div className="flex items-center gap-3 text-xs bg-surface-900/60 rounded-lg px-3 py-2 border border-surface-700">
-              <Gauge className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-              <div className="flex items-center gap-3 flex-wrap font-mono text-slate-400">
-                <span><span className="text-slate-500">turns</span> {ticket.effort.turns}</span>
-                <span><span className="text-slate-500">tools</span> {ticket.effort.toolCalls}</span>
+              <Gauge className="w-3.5 h-3.5 text-muted shrink-0" />
+              <div className="flex items-center gap-3 flex-wrap font-mono text-tertiary">
+                <span><span className="text-muted">turns</span> {ticket.effort.turns}</span>
+                <span><span className="text-muted">tools</span> {ticket.effort.toolCalls}</span>
                 {ticket.effort.durationMs != null && (
-                  <span><span className="text-slate-500">time</span> {formatDuration(ticket.effort.durationMs)}</span>
+                  <span><span className="text-muted">time</span> {formatDuration(ticket.effort.durationMs)}</span>
                 )}
                 {(ticket.effort.inputTokens != null || ticket.effort.outputTokens != null) && (
                   <span>
-                    <span className="text-slate-500">tokens</span>{' '}
+                    <span className="text-muted">tokens</span>{' '}
                     {ticket.effort.inputTokens != null ? formatTokenCount(ticket.effort.inputTokens) : '?'}
-                    <span className="text-slate-600">/</span>
+                    <span className="text-faint">/</span>
                     {ticket.effort.outputTokens != null ? formatTokenCount(ticket.effort.outputTokens) : '?'}
                   </span>
                 )}
@@ -695,18 +695,18 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           {/* State history timeline */}
           {ticket.stateLog && ticket.stateLog.length > 0 && (
             <div className="flex items-start gap-3">
-              <History className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <History className="w-4 h-4 text-muted mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
                 <button
                   onClick={() => setShowStateLog(!showStateLog)}
-                  className="flex items-center gap-1.5 mb-2 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                  className="flex items-center gap-1.5 mb-2 text-xs text-muted hover:text-secondary transition-colors"
                 >
                   {showStateLog
                     ? <ChevronDown className="w-3 h-3" />
                     : <ChevronRight className="w-3 h-3" />
                   }
                   State History
-                  <span className="text-[10px] text-slate-600">
+                  <span className="text-[10px] text-faint">
                     ({ticket.stateLog.length} transitions)
                   </span>
                 </button>
@@ -730,18 +730,18 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                               {TICKET_STATUS_LABELS[entry.status]}
                             </span>
                             {entry.reason && (
-                              <span className="text-[10px] text-slate-600">
+                              <span className="text-[10px] text-faint">
                                 {STATE_REASON_LABELS[entry.reason] || entry.reason}
                               </span>
                             )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             {elapsed != null && elapsed > 0 && (
-                              <span className="text-[9px] text-slate-600 font-mono">
+                              <span className="text-[9px] text-faint font-mono">
                                 +{formatDuration(elapsed)}
                               </span>
                             )}
-                            <span className="text-[9px] text-slate-600">
+                            <span className="text-[9px] text-faint">
                               {new Date(entry.timestamp).toLocaleTimeString()}
                             </span>
                           </div>
@@ -757,12 +757,12 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           {/* Legacy ticket info */}
           {!compat.isFullyModern && (
             <div className="flex items-start gap-3 text-xs">
-              <Archive className="w-4 h-4 text-slate-600 mt-0.5 shrink-0" />
+              <Archive className="w-4 h-4 text-faint mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-slate-500 mb-1">
+                <p className="text-muted mb-1">
                   Generation {compat.generation} ticket
                 </p>
-                <div className="text-slate-600 space-y-0.5">
+                <div className="text-faint space-y-0.5">
                   {compat.missingFeatures.includes('stateLog') && (
                     <p>No state history — created before status tracking was added.</p>
                   )}
@@ -783,7 +783,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
           )}
 
           {/* Timestamps */}
-          <div className="flex gap-6 text-xs text-slate-500 pt-2 border-t border-surface-700">
+          <div className="flex gap-6 text-xs text-muted pt-2 border-t border-surface-700">
             <span>Created {formatTimestamp(ticket.createdAt)}</span>
             {ticket.startedAt && <span>Started {formatTimestamp(ticket.startedAt)}</span>}
             {ticket.completedAt && <span>Completed {formatTimestamp(ticket.completedAt)}</span>}
@@ -842,7 +842,7 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
             <button
               onClick={handleDelete}
               disabled={acting}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-400 hover:text-accent-red hover:bg-accent-red/10 rounded-lg disabled:opacity-50 transition-colors ml-auto"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-tertiary hover:text-accent-red hover:bg-accent-red/10 rounded-lg disabled:opacity-50 transition-colors ml-auto"
               title="Permanently delete this ticket"
               aria-label="Delete ticket"
             >

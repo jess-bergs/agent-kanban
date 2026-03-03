@@ -139,7 +139,7 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
         onClick={() => setOpen(!open)}
         className={`fixed bottom-5 right-5 z-50 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all ${
           open
-            ? 'bg-surface-700 text-slate-400 hover:text-slate-200'
+            ? 'bg-surface-700 text-tertiary hover:text-secondary'
             : 'bg-accent-blue text-white hover:bg-accent-blue/90'
         }`}
       >
@@ -152,16 +152,16 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-700 shrink-0">
             <MessageCircle className="w-4 h-4 text-accent-blue" />
-            <span className="text-sm font-semibold text-slate-100">Agent Kanban Chat</span>
+            <span className="text-sm font-semibold text-primary">Agent Kanban Chat</span>
           </div>
 
           {/* Project selector bar */}
           <div className="px-3 py-2 border-b border-surface-700 shrink-0 flex items-center gap-2">
-            <FolderOpen className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <FolderOpen className="w-3.5 h-3.5 text-tertiary shrink-0" />
             <select
               value={selectedProjectId ?? ''}
               onChange={e => handleProjectChange(e.target.value)}
-              className="flex-1 bg-surface-900 border border-surface-600 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-accent-blue"
+              className="flex-1 bg-surface-900 border border-surface-600 rounded px-2 py-1 text-xs text-secondary focus:outline-none focus:border-accent-blue"
             >
               <option value="">All projects</option>
               {projects.map(p => (
@@ -174,7 +174,7 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
                 className={`p-1 rounded transition-colors ${
                   showFilePicker
                     ? 'bg-accent-blue/20 text-accent-blue'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-surface-700'
+                    : 'text-tertiary hover:text-secondary hover:bg-surface-700'
                 }`}
                 title="Attach files"
               >
@@ -207,7 +207,7 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
           {/* File picker overlay */}
           {showFilePicker && selectedProjectId ? (
             <div className="flex-1 overflow-y-auto min-h-0">
-              <div className="px-3 py-2 border-b border-surface-700 flex items-center gap-2 text-xs text-slate-400">
+              <div className="px-3 py-2 border-b border-surface-700 flex items-center gap-2 text-xs text-tertiary">
                 {browseDir && (
                   <button
                     onClick={() => {
@@ -216,7 +216,7 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
                         : '';
                       setBrowseDir(parent);
                     }}
-                    className="flex items-center gap-0.5 text-slate-400 hover:text-slate-200 transition-colors"
+                    className="flex items-center gap-0.5 text-tertiary hover:text-secondary transition-colors"
                   >
                     <ChevronLeft className="w-3 h-3" />
                     Back
@@ -227,17 +227,17 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
                 </span>
                 <button
                   onClick={() => setShowFilePicker(false)}
-                  className="ml-auto text-slate-500 hover:text-slate-300 text-[10px]"
+                  className="ml-auto text-muted hover:text-secondary text-[10px]"
                 >
                   Done
                 </button>
               </div>
               {browseLoading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
+                  <Loader2 className="w-4 h-4 animate-spin text-muted" />
                 </div>
               ) : browseItems.length === 0 ? (
-                <div className="text-center text-xs text-slate-500 py-8">Empty directory</div>
+                <div className="text-center text-xs text-muted py-8">Empty directory</div>
               ) : (
                 <div className="divide-y divide-surface-700/50">
                   {browseItems.map(item => (
@@ -257,11 +257,11 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
                       {item.type === 'dir' ? (
                         <FolderOpen className="w-3.5 h-3.5 text-accent-amber shrink-0" />
                       ) : (
-                        <File className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <File className="w-3.5 h-3.5 text-tertiary shrink-0" />
                       )}
-                      <span className="truncate text-slate-200">{item.name}</span>
+                      <span className="truncate text-secondary">{item.name}</span>
                       {item.type === 'dir' && (
-                        <ChevronRight className="w-3 h-3 text-slate-500 ml-auto shrink-0" />
+                        <ChevronRight className="w-3 h-3 text-muted ml-auto shrink-0" />
                       )}
                       {item.type === 'file' && attachedFiles.includes(item.path) && (
                         <span className="ml-auto text-[10px] text-accent-blue">attached</span>
@@ -275,11 +275,11 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
             /* Messages */
             <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
               {messages.length === 0 && (
-                <div className="text-center text-xs text-slate-500 mt-8 space-y-2">
-                  <MessageCircle className="w-8 h-8 mx-auto text-slate-600" />
+                <div className="text-center text-xs text-muted mt-8 space-y-2">
+                  <MessageCircle className="w-8 h-8 mx-auto text-faint" />
                   <p>Ask me about your projects, code, or agents.</p>
                   <div className="space-y-1 text-[11px]">
-                    <p className="text-slate-600">Try:</p>
+                    <p className="text-faint">Try:</p>
                     <button
                       onClick={() => setInput('What tickets are in progress?')}
                       className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
@@ -316,8 +316,8 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
                   <div
                     className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
                       msg.role === 'user'
-                        ? 'bg-accent-blue/20 text-slate-100'
-                        : 'bg-surface-700 text-slate-200'
+                        ? 'bg-accent-blue/20 text-primary'
+                        : 'bg-surface-700 text-secondary'
                     }`}
                   >
                     <MessageContent content={msg.content} />
@@ -327,7 +327,7 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
 
               {loading && (
                 <div className="flex justify-start">
-                  <div className="bg-surface-700 rounded-lg px-3 py-2 text-xs text-slate-400 flex items-center gap-2">
+                  <div className="bg-surface-700 rounded-lg px-3 py-2 text-xs text-tertiary flex items-center gap-2">
                     <Loader2 className="w-3 h-3 animate-spin" />
                     Thinking...
                   </div>
@@ -348,7 +348,7 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
                 onKeyDown={handleKeyDown}
                 placeholder={selectedProject ? `Ask about ${selectedProject.name}...` : 'Ask a question...'}
                 rows={1}
-                className="flex-1 bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent-blue transition-colors resize-none max-h-20"
+                className="flex-1 bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-xs text-primary placeholder-muted focus:outline-none focus:border-accent-blue transition-colors resize-none max-h-20"
               />
               <button
                 onClick={handleSend}
@@ -408,7 +408,7 @@ function MessageContent({ content }: { content: string }) {
           const firstNewline = inner.indexOf('\n');
           const code = firstNewline >= 0 ? inner.slice(firstNewline + 1) : inner;
           return (
-            <pre key={i} className="bg-surface-900 rounded p-2 overflow-x-auto font-mono text-[11px] text-slate-300">
+            <pre key={i} className="bg-surface-900 rounded p-2 overflow-x-auto font-mono text-[11px] text-secondary">
               {code}
             </pre>
           );

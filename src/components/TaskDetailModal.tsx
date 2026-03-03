@@ -58,7 +58,7 @@ export function TaskDetailModal({ task, members, onClose }: TaskDetailModalProps
         <div className="flex items-start justify-between p-5 border-b border-surface-700 shrink-0">
           <div className="min-w-0 flex-1 pr-4">
             <div className="flex items-center gap-2 mb-2">
-              <span className="flex items-center gap-1 text-xs text-slate-500">
+              <span className="flex items-center gap-1 text-xs text-muted">
                 <Hash className="w-3 h-3" />
                 {task.id}
               </span>
@@ -67,11 +67,11 @@ export function TaskDetailModal({ task, members, onClose }: TaskDetailModalProps
                 {STATUS_LABELS[task.status]}
               </span>
             </div>
-            <h2 className="text-lg font-bold text-slate-100">{task.subject}</h2>
+            <h2 className="text-lg font-bold text-primary">{task.subject}</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-surface-700 text-slate-400 hover:text-slate-200 transition-colors shrink-0"
+            className="p-1.5 rounded-lg hover:bg-surface-700 text-tertiary hover:text-secondary transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -90,12 +90,12 @@ export function TaskDetailModal({ task, members, onClose }: TaskDetailModalProps
           {/* Owner */}
           {task.owner && (
             <div className="flex items-start gap-3">
-              <User className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <User className="w-4 h-4 text-muted mt-0.5 shrink-0" />
               <div>
-                <p className="text-xs text-slate-500 mb-1">Assigned to</p>
+                <p className="text-xs text-muted mb-1">Assigned to</p>
                 <AgentBadge name={task.owner} color={ownerMember?.color} />
                 {ownerMember && (
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-muted mt-1">
                     {ownerMember.model} &middot; {ownerMember.agentType}
                     {ownerMember.cwd && <span> &middot; {ownerMember.cwd}</span>}
                   </p>
@@ -109,7 +109,7 @@ export function TaskDetailModal({ task, members, onClose }: TaskDetailModalProps
             <div className="flex items-start gap-3">
               <GitBranch className="w-4 h-4 text-accent-red mt-0.5 shrink-0" />
               <div>
-                <p className="text-xs text-slate-500 mb-1">Blocked by</p>
+                <p className="text-xs text-muted mb-1">Blocked by</p>
                 <div className="flex flex-wrap gap-1.5">
                   {task.blockedBy.map(id => (
                     <span
@@ -129,7 +129,7 @@ export function TaskDetailModal({ task, members, onClose }: TaskDetailModalProps
             <div className="flex items-start gap-3">
               <GitBranch className="w-4 h-4 text-accent-amber mt-0.5 shrink-0" />
               <div>
-                <p className="text-xs text-slate-500 mb-1">Blocks</p>
+                <p className="text-xs text-muted mb-1">Blocks</p>
                 <div className="flex flex-wrap gap-1.5">
                   {task.blocks.map(id => (
                     <span
@@ -147,10 +147,10 @@ export function TaskDetailModal({ task, members, onClose }: TaskDetailModalProps
           {/* Description / Full Prompt */}
           {task.description && (
             <div className="flex items-start gap-3">
-              <FileText className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <FileText className="w-4 h-4 text-muted mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-slate-500 mb-2">Description / Prompt</p>
-                <pre className="text-sm text-slate-300 whitespace-pre-wrap font-mono bg-surface-900 rounded-lg p-4 border border-surface-700 leading-relaxed overflow-x-auto">
+                <p className="text-xs text-muted mb-2">Description / Prompt</p>
+                <pre className="text-sm text-secondary whitespace-pre-wrap font-mono bg-surface-900 rounded-lg p-4 border border-surface-700 leading-relaxed overflow-x-auto">
                   {task.description}
                 </pre>
               </div>
@@ -162,8 +162,8 @@ export function TaskDetailModal({ task, members, onClose }: TaskDetailModalProps
             <div className="flex items-start gap-3">
               <Terminal className="w-4 h-4 text-accent-purple mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-slate-500 mb-2">Agent System Prompt</p>
-                <pre className="text-sm text-slate-300 whitespace-pre-wrap font-mono bg-surface-900 rounded-lg p-4 border border-accent-purple/20 leading-relaxed overflow-x-auto">
+                <p className="text-xs text-muted mb-2">Agent System Prompt</p>
+                <pre className="text-sm text-secondary whitespace-pre-wrap font-mono bg-surface-900 rounded-lg p-4 border border-accent-purple/20 leading-relaxed overflow-x-auto">
                   {ownerMember.prompt}
                 </pre>
               </div>
@@ -173,10 +173,10 @@ export function TaskDetailModal({ task, members, onClose }: TaskDetailModalProps
           {/* Metadata */}
           {Object.keys(task.metadata).filter(k => k !== '_internal').length > 0 && (
             <div className="flex items-start gap-3">
-              <Hash className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+              <Hash className="w-4 h-4 text-muted mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-slate-500 mb-2">Metadata</p>
-                <pre className="text-xs text-slate-400 whitespace-pre-wrap font-mono bg-surface-900 rounded-lg p-3 border border-surface-700">
+                <p className="text-xs text-muted mb-2">Metadata</p>
+                <pre className="text-xs text-tertiary whitespace-pre-wrap font-mono bg-surface-900 rounded-lg p-3 border border-surface-700">
                   {JSON.stringify(
                     Object.fromEntries(
                       Object.entries(task.metadata).filter(([k]) => k !== '_internal')

@@ -45,7 +45,7 @@ function EffortBadge({ effort }: { effort: TicketEffort }) {
   if (safe.durationMs != null) parts.push(formatDuration(safe.durationMs));
   parts.push(`${safe.turns}t/${safe.toolCalls}tc`);
   return (
-    <span className="text-[10px] font-mono text-slate-500 bg-surface-600/40 px-1.5 py-0.5 rounded shrink-0">
+    <span className="text-[10px] font-mono text-muted bg-surface-600/40 px-1.5 py-0.5 rounded shrink-0">
       {parts.join(' · ')}
     </span>
   );
@@ -88,7 +88,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             : 'border border-surface-600'
       }`}
     >
-      <p className="text-sm font-medium text-slate-100 truncate">{ticket.subject}</p>
+      <p className="text-sm font-medium text-primary truncate">{ticket.subject}</p>
       <div className="flex flex-wrap items-center gap-1 mt-1">
         {ticket.queued && (
           <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded" title="This ticket is queued and will start after other non-queued tickets finish">
@@ -120,7 +120,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
           </span>
         )}
         {ticket.images && ticket.images.length > 0 && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-surface-600/40 px-1.5 py-0.5 rounded" title={`${ticket.images.length} image${ticket.images.length !== 1 ? 's' : ''} attached`}>
+          <span className="flex items-center gap-1 text-[10px] font-medium text-tertiary bg-surface-600/40 px-1.5 py-0.5 rounded" title={`${ticket.images.length} image${ticket.images.length !== 1 ? 's' : ''} attached`}>
             <Images className="w-3 h-3" aria-hidden="true" />
             {ticket.images.length}
           </span>
@@ -172,7 +172,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
         )}
         {!compat.isFullyModern && (
           <span
-            className="flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-surface-600/30 px-1.5 py-0.5 rounded"
+            className="flex items-center gap-1 text-[10px] font-medium text-faint bg-surface-600/30 px-1.5 py-0.5 rounded"
             title={`Gen ${compat.generation} ticket — missing: ${compat.missingFeatures.join(', ')}`}
           >
             <Archive className="w-3 h-3" />
@@ -182,7 +182,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
       </div>
 
       {ticket.instructions && (
-        <p className="text-xs text-slate-400 mt-1 line-clamp-2">
+        <p className="text-xs text-tertiary mt-1 line-clamp-2">
           {ticket.instructions}
         </p>
       )}
@@ -191,7 +191,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
       {ticket.planSummary && (
         <div className="mt-2 bg-accent-cyan/5 border border-accent-cyan/20 rounded px-2 py-1.5">
           <p className="text-[10px] font-medium text-accent-cyan mb-0.5">Plan Summary</p>
-          <p className="text-xs text-slate-300 line-clamp-3">{ticket.planSummary}</p>
+          <p className="text-xs text-secondary line-clamp-3">{ticket.planSummary}</p>
         </div>
       )}
 
@@ -212,7 +212,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             )}
           </div>
           {ticket.lastOutput && (
-            <pre className="text-[11px] text-slate-400 font-mono bg-surface-900/60 rounded px-2 py-1.5 line-clamp-3 whitespace-pre-wrap leading-relaxed">
+            <pre className="text-[11px] text-tertiary font-mono bg-surface-900/60 rounded px-2 py-1.5 line-clamp-3 whitespace-pre-wrap leading-relaxed">
               {ticket.lastOutput.slice(-200)}
             </pre>
           )}
@@ -227,12 +227,12 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             <span className="text-xs text-accent-orange font-medium">Usage limit — on hold</span>
           </div>
           {ticket.holdUntil && (
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-tertiary">
               Resumes {new Date(ticket.holdUntil).toLocaleTimeString()}
             </p>
           )}
           {ticket.error && (
-            <p className="text-[11px] text-slate-500 truncate">{ticket.error}</p>
+            <p className="text-[11px] text-muted truncate">{ticket.error}</p>
           )}
         </div>
       )}
@@ -255,7 +255,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             <span className="text-xs text-accent-orange font-medium">Needs your review</span>
           </div>
           {ticket.auditResult && (
-            <p className="text-[11px] text-slate-400 bg-accent-orange/5 border border-accent-orange/20 rounded px-2 py-1.5 line-clamp-2">
+            <p className="text-[11px] text-tertiary bg-accent-orange/5 border border-accent-orange/20 rounded px-2 py-1.5 line-clamp-2">
               {ticket.auditResult}
             </p>
           )}
@@ -279,7 +279,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
           {ticket.agentActivity && ticket.agentActivity.length > 0 && (() => {
             const last = ticket.agentActivity[ticket.agentActivity.length - 1];
             return (
-              <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+              <div className="flex items-center gap-1.5 text-[10px] text-muted">
                 {last.type === 'tool_use' && <Terminal className="w-3 h-3 text-accent-cyan" />}
                 {last.type === 'thinking' && <Brain className="w-3 h-3 text-accent-purple" />}
                 <span className="truncate font-mono">
@@ -289,7 +289,7 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
             );
           })()}
           {ticket.lastOutput && (
-            <pre className="text-[11px] text-slate-400 font-mono bg-surface-900/60 rounded px-2 py-1.5 line-clamp-3 whitespace-pre-wrap leading-relaxed">
+            <pre className="text-[11px] text-tertiary font-mono bg-surface-900/60 rounded px-2 py-1.5 line-clamp-3 whitespace-pre-wrap leading-relaxed">
               {ticket.lastOutput.slice(-200)}
             </pre>
           )}

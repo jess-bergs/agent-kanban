@@ -37,15 +37,15 @@ export function ActivityFeed({ inboxes, members }: ActivityFeedProps) {
   return (
     <aside className="w-80 bg-surface-800 border-l border-surface-700 flex flex-col shrink-0">
       <div className="px-4 py-3 border-b border-surface-700 flex items-center gap-2">
-        <MessageSquare className="w-4 h-4 text-slate-400" />
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <MessageSquare className="w-4 h-4 text-tertiary" />
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-tertiary">
           Activity
         </h2>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {items.length === 0 ? (
-          <p className="text-sm text-slate-500 text-center py-8">
+          <p className="text-sm text-muted text-center py-8">
             No activity yet
           </p>
         ) : (
@@ -66,16 +66,16 @@ export function ActivityFeed({ inboxes, members }: ActivityFeedProps) {
                       color={memberColorMap.get(item.from)}
                       size="sm"
                     />
-                    <span className="text-[10px] text-slate-500">
+                    <span className="text-[10px] text-muted">
                       {formatTimestamp(item.timestamp)}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-300">
+                  <p className="text-xs text-secondary">
                     {item.summary || item.text.slice(0, 100)}
                   </p>
 
                   {isExpanded && (
-                    <pre className="mt-2 text-xs text-slate-400 whitespace-pre-wrap font-mono bg-surface-900/50 rounded p-2 max-h-60 overflow-y-auto">
+                    <pre className="mt-2 text-xs text-tertiary whitespace-pre-wrap font-mono bg-surface-900/50 rounded p-2 max-h-60 overflow-y-auto">
                       {item.text}
                     </pre>
                   )}

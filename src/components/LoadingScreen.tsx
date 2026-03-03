@@ -13,10 +13,10 @@ export function LoadingScreen({ connected }: LoadingScreenProps) {
           <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-accent-blue animate-ping" />
         </div>
         <div className="text-center">
-          <h1 className="text-lg font-semibold text-slate-200 tracking-wide">
+          <h1 className="text-lg font-semibold text-secondary tracking-wide">
             Agent Kanban
           </h1>
-          <p className="text-sm text-slate-500 mt-2">
+          <p className="text-sm text-muted mt-2">
             {connected ? 'Loading data\u2026' : 'Connecting to server\u2026'}
           </p>
         </div>
