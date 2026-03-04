@@ -26,7 +26,14 @@ import {
 } from './audit-store.ts';
 import { listTemplates, getTemplate } from './audit-templates.ts';
 import { triggerAudit } from './audit-scheduler.ts';
-import type { AuditTemplateId } from '../src/types.ts';
+import { prepareRetryFields, checkAndReconcilePrState } from './dispatcher.ts';
+import type { AuditTemplateId, TicketStatus } from '../src/types.ts';
+
+/** All valid ticket statuses, kept in sync with src/types.ts TicketStatus */
+const TICKET_STATUSES = [
+  'todo', 'in_progress', 'needs_approval', 'in_review',
+  'on_hold', 'done', 'merged', 'failed', 'error',
+] as const satisfies readonly TicketStatus[];
 
 const server = new McpServer({
   name: 'agent-kanban',
@@ -76,7 +83,7 @@ server.tool(
   'List tickets with optional filtering and pagination. Returns { tickets, total, limit, offset }.',
   {
     projectId: z.string().optional().describe('Filter by project UUID'),
-    status: z.enum(['todo', 'in_progress', 'needs_approval', 'in_review', 'done', 'merged', 'failed', 'error']).optional().describe('Filter by ticket status'),
+    status: z.enum(TICKET_STATUSES).optional().describe('Filter by ticket status'),
     limit: z.number().optional().describe('Max tickets to return (default 50)'),
     offset: z.number().optional().describe('Number of tickets to skip (default 0)'),
   },
@@ -133,7 +140,7 @@ server.tool(
   'Update fields on an existing ticket',
   {
     ticketId: z.string().describe('Ticket UUID'),
-    status: z.enum(['todo', 'in_progress', 'needs_approval', 'in_review', 'done', 'merged', 'failed', 'error']).optional().describe('New status'),
+    status: z.enum(TICKET_STATUSES).optional().describe('New status'),
     subject: z.string().optional().describe('Updated subject'),
     instructions: z.string().optional().describe('Updated instructions'),
     yolo: z.boolean().optional().describe('YOLO mode flag'),
@@ -167,29 +174,72 @@ server.tool(
 
 server.tool(
   'retry_ticket',
-  'Reset a failed/error ticket back to todo so the dispatcher picks it up again',
+  'Reset a failed/error ticket back to todo so the dispatcher picks it up again. Preserves resumable state (branch + session) when possible.',
   { ticketId: z.string().describe('Full ticket UUID or short prefix (min 4 chars)') },
   async ({ ticketId }) => {
     // Resolve prefix to full ID
     const resolved = await resolveTicket(ticketId);
     if (!resolved) return { content: [{ type: 'text', text: 'Ticket not found' }], isError: true };
+
+    // Check if PR is already merged/closed before blindly resetting
+    if (resolved.prUrl) {
+      const reconciled = await checkAndReconcilePrState(resolved);
+      if (reconciled) {
+        const fresh = await resolveTicket(resolved.id);
+        return { content: [{ type: 'text', text: JSON.stringify(fresh, null, 2) }] };
+      }
+    }
+
+    const retryFields = await prepareRetryFields(resolved);
     const ticket = await updateTicket(resolved.id, {
-      status: 'todo',
-      error: undefined,
-      failureReason: undefined,
-      branchName: undefined,
-      worktreePath: undefined,
-      startedAt: undefined,
-      completedAt: undefined,
-      lastOutput: undefined,
-      agentPid: undefined,
-      agentSessionId: undefined,
-      resumePrompt: undefined,
+      ...retryFields,
+      // Manual retry also clears automation-specific fields
+      teamName: undefined,
       automationIteration: undefined,
       postAgentAction: undefined,
-    });
+      holdUntil: undefined,
+    }, 'user_retry');
     if (!ticket) return { content: [{ type: 'text', text: 'Ticket not found' }], isError: true };
     return { content: [{ type: 'text', text: JSON.stringify(ticket, null, 2) }] };
+  },
+);
+
+server.tool(
+  'status_check',
+  'List tickets that need attention: failed, error, on_hold, or needs_approval. Useful for monitoring and triage.',
+  {
+    projectId: z.string().optional().describe('Filter by project UUID'),
+    includeOnHold: z.boolean().default(true).optional().describe('Include on_hold tickets (default true)'),
+    includeNeedsApproval: z.boolean().default(false).optional().describe('Include needs_approval tickets (default false)'),
+  },
+  async ({ projectId, includeOnHold, includeNeedsApproval }) => {
+    let tickets = (await listTicketsFiltered({ projectId })).tickets;
+    const problemStatuses: TicketStatus[] = ['failed', 'error'];
+    if (includeOnHold !== false) problemStatuses.push('on_hold');
+    if (includeNeedsApproval) problemStatuses.push('needs_approval');
+
+    tickets = tickets.filter(t => problemStatuses.includes(t.status));
+
+    const summary = {
+      total: tickets.length,
+      byStatus: Object.fromEntries(
+        problemStatuses.map(s => [s, tickets.filter(t => t.status === s).length]),
+      ),
+      tickets: tickets.map(t => ({
+        id: t.id,
+        subject: t.subject,
+        status: t.status,
+        error: t.error,
+        failureReason: t.failureReason,
+        holdUntil: t.holdUntil,
+        needsAttention: t.needsAttention,
+        needsInput: t.needsInput,
+        prUrl: t.prUrl,
+        createdAt: t.createdAt,
+        completedAt: t.completedAt,
+      })),
+    };
+    return { content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }] };
   },
 );
 
