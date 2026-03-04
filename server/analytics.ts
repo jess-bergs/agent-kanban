@@ -90,6 +90,12 @@ export interface SchedulerStats {
   recentRuns: SchedulerRunSummary[];
   /** Aggregate severity counts across latest completed runs */
   aggregateSeverity: SeverityCounts;
+  /** Average overall score across completed runs with reports */
+  avgScore: number | null;
+  /** Overall trend direction based on majority of recent trend data */
+  overallTrend: 'improving' | 'stable' | 'declining' | null;
+  /** Count of improving / declining / stable trend entries */
+  trendCounts: { improving: number; declining: number; stable: number };
 }
 
 export interface SchedulerRunSummary {
@@ -286,6 +292,10 @@ function buildSchedulerStats(runs: AuditRun[]): SchedulerStats {
   const byStatus = { pending: 0, running: 0, completed: 0, failed: 0 } as Record<AuditRunStatus, number>;
   const aggregateSeverity: SeverityCounts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
 
+  let scoreSum = 0;
+  let scoreCount = 0;
+  const trendCounts = { improving: 0, declining: 0, stable: 0 };
+
   const summaries: SchedulerRunSummary[] = [];
 
   for (const r of runs) {
@@ -296,6 +306,15 @@ function buildSchedulerStats(runs: AuditRun[]): SchedulerStats {
         aggregateSeverity[sev] += r.severityCounts[sev] || 0;
       }
     }
+
+    if (r.status === 'completed' && r.structuredReport?.overallScore != null) {
+      scoreSum += r.structuredReport.overallScore;
+      scoreCount++;
+    }
+
+    if (r.trend?.direction === 'improving') trendCounts.improving++;
+    else if (r.trend?.direction === 'declining') trendCounts.declining++;
+    else if (r.trend?.direction === 'stable') trendCounts.stable++;
 
     const durationMs = r.completedAt && r.startedAt
       ? r.completedAt - r.startedAt
@@ -321,12 +340,23 @@ function buildSchedulerStats(runs: AuditRun[]): SchedulerStats {
 
   summaries.sort((a, b) => b.startedAt - a.startedAt);
 
+  const overallTrend = trendCounts.improving + trendCounts.declining + trendCounts.stable === 0
+    ? null
+    : trendCounts.improving > trendCounts.declining
+      ? 'improving' as const
+      : trendCounts.declining > trendCounts.improving
+        ? 'declining' as const
+        : 'stable' as const;
+
   return {
     byStatus,
     totalCompleted: byStatus.completed,
     totalFailed: byStatus.failed,
     recentRuns: summaries.slice(0, 30),
     aggregateSeverity,
+    avgScore: scoreCount > 0 ? scoreSum / scoreCount : null,
+    overallTrend,
+    trendCounts,
   };
 }
 

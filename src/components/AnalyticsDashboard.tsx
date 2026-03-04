@@ -108,6 +108,9 @@ interface SchedulerStats {
   totalFailed: number;
   recentRuns: SchedulerRunSummary[];
   aggregateSeverity: SeverityCounts;
+  avgScore: number | null;
+  overallTrend: 'improving' | 'stable' | 'declining' | null;
+  trendCounts: { improving: number; declining: number; stable: number };
 }
 
 interface IssueEntry {
@@ -427,6 +430,7 @@ export function AnalyticsDashboard() {
           ))}
           <div className="flex-1" />
           <SeverityBar counts={data.scheduler.aggregateSeverity} />
+          <ReportsSummaryPill scheduler={data.scheduler} />
         </div>
         {data.scheduler.recentRuns.length > 0 ? (
           <SchedulerTable runs={data.scheduler.recentRuns} />
@@ -1730,6 +1734,48 @@ function SeverityBadges({ counts }: { counts: SeverityCounts }) {
         <span className="px-1 py-0.5 rounded bg-surface-600 text-muted text-[10px]">
           {counts.info}I
         </span>
+      )}
+    </div>
+  );
+}
+
+/** Compact pill summarising H/C findings, trend direction, and average score. */
+function ReportsSummaryPill({ scheduler }: { scheduler: SchedulerStats }) {
+  const { aggregateSeverity: sev, avgScore, overallTrend } = scheduler;
+  const hc = sev.critical + sev.high;
+  // Nothing to show if there are no completed runs with reports
+  if (hc === 0 && avgScore == null && overallTrend == null) return null;
+
+  const trendLabel = overallTrend === 'improving' ? '↑' : overallTrend === 'declining' ? '↓' : '→';
+  const trendColor = overallTrend === 'improving'
+    ? 'text-accent-green'
+    : overallTrend === 'declining'
+      ? 'text-accent-red'
+      : 'text-muted';
+
+  const scoreColor = avgScore != null
+    ? avgScore >= 8 ? 'text-accent-green' : avgScore >= 5 ? 'text-accent-amber' : 'text-accent-red'
+    : 'text-muted';
+
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-surface-700 text-[10px]">
+      {hc > 0 && (
+        <span className="flex items-center gap-0.5">
+          {sev.critical > 0 && <span className="font-bold text-accent-red">{sev.critical}C</span>}
+          {sev.high > 0 && <span className="text-accent-orange">{sev.high}H</span>}
+        </span>
+      )}
+      {hc > 0 && (overallTrend != null || avgScore != null) && (
+        <span className="text-surface-500">|</span>
+      )}
+      {overallTrend != null && (
+        <span className={`font-semibold ${trendColor}`}>{trendLabel}</span>
+      )}
+      {avgScore != null && (
+        <>
+          {overallTrend != null && <span className="text-surface-500">|</span>}
+          <span className={`font-semibold ${scoreColor}`}>{avgScore.toFixed(1)}</span>
+        </>
       )}
     </div>
   );
