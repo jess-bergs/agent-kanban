@@ -121,6 +121,7 @@ async function proactiveRefresh(): Promise<boolean> {
       if (key.startsWith('CLAUDE_CODE_')) delete cleanEnv[key];
     }
     delete cleanEnv.ANTHROPIC_API_KEY;
+    cleanEnv.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = '1';
 
     const proc = spawn('claude', ['-p', 'Reply with just the word OK', '--max-turns', '1'], {
       cwd: '/tmp',

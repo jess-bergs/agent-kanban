@@ -525,6 +525,8 @@ async function reviewPr(entry: WatchlistEntry): Promise<void> {
     if (key.startsWith('CLAUDE_CODE_')) delete cleanEnv[key];
   }
   delete cleanEnv.ANTHROPIC_API_KEY;
+  // Disable remote MCP servers (Gmail, Calendar, etc.) — they hang agent startup
+  cleanEnv.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = '1';
 
   const proc = spawn('claude', args, {
     cwd: entry.repoPath,

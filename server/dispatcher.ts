@@ -728,6 +728,8 @@ async function startAgent(ticket: Ticket) {
 
   // Enable or disable agent teams based on ticket option
   cleanEnv.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = ticket.useTeam ? '1' : '0';
+  // Disable remote MCP servers (Gmail, Calendar, etc.) — they hang agent startup
+  cleanEnv.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = '1';
 
   const proc = spawn('claude', args, {
     cwd: agentCwd,
