@@ -13,7 +13,8 @@ import { envWithNvmNode } from './nvm.ts';
 import { ensurePrTemplate } from './pr-template.ts';
 
 const MAX_CONCURRENT = 5;
-const MAX_AUTO_RETRIES = 2;
+const MAX_AUTO_RETRIES = 3;
+const RETRY_WAIT_MS = 30_000; // 30s cooldown between auto-retries
 const MAX_AUTOMATION_ITERATIONS = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
 const MAX_AGENT_TURNS = 75;
@@ -460,6 +461,7 @@ async function startAgent(ticket: Ticket) {
       worktreePath,
       teamName,
       startedAt: Date.now(),
+      retryAfter: undefined,
     }, 'agent_started');
     if (updated) await broadcastTicket(updated);
 
@@ -544,6 +546,7 @@ async function startAgent(ticket: Ticket) {
       status: 'in_progress',
       teamName,
       startedAt: Date.now(),
+      retryAfter: undefined,
     }, 'agent_started');
     if (updated) await broadcastTicket(updated);
   }
@@ -1440,7 +1443,7 @@ export async function dispatcherTick() {
 
   // Start new agents
   if (running.size < MAX_CONCURRENT && !anyOnHold) {
-    const todoTickets = tickets.filter(t => t.status === 'todo');
+    const todoTickets = tickets.filter(t => t.status === 'todo' && (!t.retryAfter || t.retryAfter <= now));
 
     // Separate queued from non-queued tickets
     const nonQueued = todoTickets.filter(t => !t.queued);
@@ -1725,10 +1728,10 @@ async function recoverOrphanedTickets() {
     const priorAttempts = countOrphanRecoveries(ticket);
 
     if (priorAttempts < MAX_AUTO_RETRIES) {
-      // Under budget — reset to todo for automatic re-dispatch
-      console.log(`[dispatcher] Auto-retrying orphaned ticket #${ticket.id}: ${ticket.subject} (attempt ${priorAttempts + 1}/${MAX_AUTO_RETRIES})`);
+      // Under budget — reset to todo for automatic re-dispatch (with cooldown)
+      console.log(`[dispatcher] Auto-retrying orphaned ticket #${ticket.id}: ${ticket.subject} (attempt ${priorAttempts + 1}/${MAX_AUTO_RETRIES}, wait ${RETRY_WAIT_MS / 1000}s)`);
       const retryFields = await prepareRetryFields(ticket);
-      const updated = await updateTicket(ticket.id, retryFields, 'auto_retry');
+      const updated = await updateTicket(ticket.id, { ...retryFields, retryAfter: Date.now() + RETRY_WAIT_MS }, 'auto_retry');
       if (updated) broadcastTicket(updated);
       retried++;
     } else {
@@ -1800,9 +1803,9 @@ export async function healthCheckTick(): Promise<void> {
       const priorAttempts = countOrphanRecoveries(ticket);
 
       if (priorAttempts < MAX_AUTO_RETRIES) {
-        console.log(`[health-check] Orphan detected: ticket #${ticket.id} (attempt ${priorAttempts + 1}/${MAX_AUTO_RETRIES})`);
+        console.log(`[health-check] Orphan detected: ticket #${ticket.id} (attempt ${priorAttempts + 1}/${MAX_AUTO_RETRIES}, wait ${RETRY_WAIT_MS / 1000}s)`);
         const retryFields = await prepareRetryFields(ticket);
-        const updated = await updateTicket(ticket.id, retryFields, 'health_check_orphan');
+        const updated = await updateTicket(ticket.id, { ...retryFields, retryAfter: now + RETRY_WAIT_MS }, 'health_check_orphan');
         if (updated) broadcastTicket(updated);
         await appendHealthLog({
           timestamp: now, check: 'orphan_pid', ticketId: ticket.id,

@@ -67,7 +67,7 @@
 - PR status polling every 3 seconds
 - Auto-merge with CI check-pass requirements
 - Exponential backoff on merge polling
-- Conflict detection & resolution dispatch (auto-retry up to 2x)
+- Conflict detection & resolution dispatch (auto-retry up to 3x with 30s cooldown)
 - PR screenshot capture (dev server spin-up + Playwright)
 - Ticket ID injection via HTML comment in PR body
 
