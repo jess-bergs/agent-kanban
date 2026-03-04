@@ -101,9 +101,53 @@ To connect from another MCP client (e.g., Claude Code), add to `.mcp.json`:
 }
 ```
 
+## Chat Popover Tool Integration
+
+The chat popover (`POST /api/chat`) exposes a subset of MCP tools via the Anthropic
+tool_use API, allowing users to take actions through natural language (e.g., "retry all
+failed tickets").
+
+**Source**: `server/chat-tools.ts`
+
+### How it works
+
+1. Tool schemas are defined in Anthropic's native format (not Zod)
+2. The `/api/chat` endpoint sends these tools with each API request
+3. When the model responds with `tool_use` blocks, the server executes them in-process
+4. Results are sent back as `tool_result` blocks and the loop continues (max 5 rounds)
+
+### Available tools (chat subset)
+
+| Tool | Description |
+|------|-------------|
+| `list_projects` | List all registered projects |
+| `list_tickets` | List tickets with optional filtering |
+| `create_ticket` | Create a new ticket |
+| `get_ticket` | Get a single ticket by ID or prefix |
+| `update_ticket` | Update ticket fields (allowlisted: status, subject, instructions, yolo, autoMerge, queued) |
+| `delete_ticket` | Delete a ticket |
+| `retry_ticket` | Reset failed/error ticket to todo |
+| `status_check` | List tickets needing attention |
+| `list_audit_schedules` | List audit schedules |
+| `trigger_audit` | Manually trigger an audit run |
+| `list_audit_templates` | List built-in audit templates |
+
+Unlike the MCP server (which uses Zod for input validation), the chat tools use an
+explicit field allowlist for `update_ticket` to prevent the LLM from injecting internal
+fields.
+
+### Differences from MCP server
+
+- **No project/schedule CRUD**: The chat does not expose `create_project`, `delete_project`,
+  `create_audit_schedule`, `update_audit_schedule`, or `delete_audit_schedule` to keep
+  destructive operations behind explicit UI actions
+- **In-process execution**: Calls store/dispatcher functions directly instead of HTTP
+- **Anthropic tool format**: Uses `input_schema` (JSON Schema) instead of Zod schemas
+
 ## File Layout
 
 ```
 server/
-  mcp.ts    # MCP server definition, tool handlers, resource handlers
+  mcp.ts         # MCP server definition, tool handlers, resource handlers
+  chat-tools.ts  # Chat popover tool schemas and executor (Anthropic tool_use format)
 ```

@@ -223,11 +223,12 @@ export async function executeTool(
       }
 
       case 'update_ticket': {
-        const { ticketId, ...updates } = input;
-        const cleanUpdates = Object.fromEntries(
-          Object.entries(updates).filter(([, v]) => v !== undefined),
-        );
-        const ticket = await updateTicket(ticketId, cleanUpdates);
+        const ALLOWED_UPDATE_FIELDS = ['status', 'subject', 'instructions', 'yolo', 'autoMerge', 'queued'] as const;
+        const cleanUpdates: Record<string, unknown> = {};
+        for (const key of ALLOWED_UPDATE_FIELDS) {
+          if (input[key] !== undefined) cleanUpdates[key] = input[key];
+        }
+        const ticket = await updateTicket(input.ticketId, cleanUpdates);
         if (!ticket) return { result: 'Ticket not found', isError: true };
         return { result: JSON.stringify(ticket, null, 2) };
       }
