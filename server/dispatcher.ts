@@ -13,8 +13,8 @@ import { envWithNvmNode } from './nvm.ts';
 import { ensurePrTemplate } from './pr-template.ts';
 
 const MAX_CONCURRENT = 5;
-const MAX_AUTO_RETRIES = 3;
-const RETRY_WAIT_MS = 30_000; // 30s cooldown between auto-retries
+export const MAX_AUTO_RETRIES = 3;
+export const RETRY_WAIT_MS = 30_000; // 30s cooldown between auto-retries
 const MAX_AUTOMATION_ITERATIONS = 5;
 const MAX_ACTIVITY_ENTRIES = 20;
 const MAX_AGENT_TURNS = 75;
@@ -1586,7 +1586,7 @@ function isProcessAlive(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
-function countOrphanRecoveries(ticket: Ticket): number {
+export function countOrphanRecoveries(ticket: Ticket): number {
   if (!ticket.stateLog) return 0;
   return ticket.stateLog.filter(
     e => e.reason === 'orphan_recovery' || e.reason === 'auto_retry',
@@ -1851,7 +1851,7 @@ export async function healthCheckTick(): Promise<void> {
           running.delete(ticketId);
           lastStreamActivity.delete(ticketId);
           const retryFields = await prepareRetryFields(t);
-          const updated = await updateTicket(ticketId, retryFields, 'health_check_zombie');
+          const updated = await updateTicket(ticketId, { ...retryFields, retryAfter: Date.now() + RETRY_WAIT_MS }, 'health_check_zombie');
           if (updated) broadcastTicket(updated);
         }
       }, 5000);
