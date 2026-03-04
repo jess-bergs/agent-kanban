@@ -6,4 +6,5 @@ data/
 *.tmp.*
 tsconfig.tsbuildinfo
 .playwright-mcp
+.mcp.json
 .claude

@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "agent-kanban": {
-      "command": "npm",
-      "args": ["run", "mcp"],
-      "cwd": "/Users/jess/development/agent-kanban"
-    }
-  }
-}
