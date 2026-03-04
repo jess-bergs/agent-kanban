@@ -231,6 +231,8 @@ export interface Ticket {
   failureReason?: FailureReason;
   /** Unix timestamp (ms) when a held ticket should be automatically resumed */
   holdUntil?: number;
+  /** Unix timestamp (ms) before which an auto-retried ticket should not be dispatched */
+  retryAfter?: number;
   lastOutput?: string;
   /** Recent agent activity stream for live oversight */
   agentActivity?: AgentActivity[];

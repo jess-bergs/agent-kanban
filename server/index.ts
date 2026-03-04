@@ -365,9 +365,19 @@ app.post('/api/tickets/:id/retry', async (req, res) => {
     }
   }
 
+  // Allow optional field edits submitted with the retry request
+  const editableKeys = ['subject', 'instructions', 'yolo', 'autoMerge', 'queued', 'useRalph', 'useTeam', 'planOnly'] as const;
+  const userEdits: Record<string, unknown> = {};
+  if (req.body && typeof req.body === 'object') {
+    for (const key of editableKeys) {
+      if (key in req.body) userEdits[key] = req.body[key];
+    }
+  }
+
   const retryFields = await prepareRetryFields(existing);
   const ticket = await updateTicket(req.params.id, {
     ...retryFields,
+    ...userEdits,
     // Manual retry also clears automation-specific fields
     teamName: undefined,
     automationIteration: undefined,

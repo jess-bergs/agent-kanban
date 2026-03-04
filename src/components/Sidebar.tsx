@@ -15,6 +15,7 @@ import {
 import type { TeamWithData, Project, Ticket, SoloAgent } from '../types';
 import { formatTimestamp } from '../types';
 import { AgentBadge } from './AgentBadge';
+import { CountBadge } from './CountBadge';
 import { AddProjectModal } from './AddProjectModal';
 import type { ViewMode } from '../hooks/useWebSocket';
 
@@ -101,7 +102,9 @@ export function Sidebar({
         >
           Agents
           {soloAgents.length > 0 && viewMode !== 'agents' && (
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" />
+            <span className="absolute -top-0.5 -right-0.5">
+              <CountBadge count={soloAgents.length} bg="bg-accent-green" pulse size="sm" />
+            </span>
           )}
         </button>
         <button
@@ -245,7 +248,7 @@ export function Sidebar({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           {activeCount > 0 && (
-                            <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse shrink-0" />
+                            <CountBadge count={activeCount} bg="bg-accent-green" pulse size="sm" />
                           )}
                           <p className="font-medium text-sm text-primary truncate">
                             {projectName}

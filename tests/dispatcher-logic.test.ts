@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { detectUsageLimit } from '../server/dispatcher.ts';
+import { detectUsageLimit, MAX_AUTO_RETRIES, RETRY_WAIT_MS, countOrphanRecoveries } from '../server/dispatcher.ts';
+import type { Ticket } from '../src/types.ts';
 
 describe('detectUsageLimit', () => {
   it('returns null for empty text', () => {
@@ -102,5 +103,113 @@ Done!
     `;
     const match = output.match(prUrlRegex);
     expect(match![1]).toBe('99');
+  });
+});
+
+describe('retry cooldown constants', () => {
+  it('MAX_AUTO_RETRIES is 3', () => {
+    expect(MAX_AUTO_RETRIES).toBe(3);
+  });
+
+  it('RETRY_WAIT_MS is 30 seconds', () => {
+    expect(RETRY_WAIT_MS).toBe(30_000);
+  });
+});
+
+describe('countOrphanRecoveries', () => {
+  const baseTicket: Ticket = {
+    id: 'test-1',
+    projectId: 'proj-1',
+    subject: 'Test ticket',
+    body: '',
+    status: 'todo',
+    createdAt: Date.now(),
+  };
+
+  it('returns 0 for ticket with no stateLog', () => {
+    expect(countOrphanRecoveries(baseTicket)).toBe(0);
+  });
+
+  it('returns 0 for ticket with unrelated state log entries', () => {
+    expect(countOrphanRecoveries({
+      ...baseTicket,
+      stateLog: [
+        { status: 'in_progress', timestamp: 1, reason: 'agent_started' },
+        { status: 'failed', timestamp: 2, reason: 'agent_exit' },
+      ],
+    })).toBe(0);
+  });
+
+  it('counts orphan_recovery entries', () => {
+    expect(countOrphanRecoveries({
+      ...baseTicket,
+      stateLog: [
+        { status: 'todo', timestamp: 1, reason: 'orphan_recovery' },
+        { status: 'in_progress', timestamp: 2, reason: 'agent_started' },
+        { status: 'todo', timestamp: 3, reason: 'orphan_recovery' },
+      ],
+    })).toBe(2);
+  });
+
+  it('counts auto_retry entries', () => {
+    expect(countOrphanRecoveries({
+      ...baseTicket,
+      stateLog: [
+        { status: 'todo', timestamp: 1, reason: 'auto_retry' },
+        { status: 'in_progress', timestamp: 2, reason: 'agent_started' },
+      ],
+    })).toBe(1);
+  });
+
+  it('counts both orphan_recovery and auto_retry', () => {
+    expect(countOrphanRecoveries({
+      ...baseTicket,
+      stateLog: [
+        { status: 'todo', timestamp: 1, reason: 'orphan_recovery' },
+        { status: 'todo', timestamp: 2, reason: 'auto_retry' },
+        { status: 'todo', timestamp: 3, reason: 'auto_retry' },
+      ],
+    })).toBe(3);
+  });
+});
+
+describe('retryAfter dispatch filtering', () => {
+  // Tests the filtering logic used in dispatcherTick:
+  // tickets.filter(t => t.status === 'todo' && (!t.retryAfter || t.retryAfter <= now))
+  const dispatchFilter = (ticket: Ticket, now: number) =>
+    ticket.status === 'todo' && (!ticket.retryAfter || ticket.retryAfter <= now);
+
+  const baseTicket: Ticket = {
+    id: 'test-1',
+    projectId: 'proj-1',
+    subject: 'Test ticket',
+    body: '',
+    status: 'todo',
+    createdAt: Date.now(),
+  };
+
+  it('includes todo ticket with no retryAfter', () => {
+    expect(dispatchFilter(baseTicket, Date.now())).toBe(true);
+  });
+
+  it('excludes ticket with future retryAfter', () => {
+    const ticket = { ...baseTicket, retryAfter: Date.now() + 30_000 };
+    expect(dispatchFilter(ticket, Date.now())).toBe(false);
+  });
+
+  it('includes ticket with expired retryAfter', () => {
+    const ticket = { ...baseTicket, retryAfter: Date.now() - 1000 };
+    expect(dispatchFilter(ticket, Date.now())).toBe(true);
+  });
+
+  it('includes ticket with retryAfter exactly equal to now', () => {
+    const now = Date.now();
+    const ticket = { ...baseTicket, retryAfter: now };
+    expect(dispatchFilter(ticket, now)).toBe(true);
+  });
+
+  it('excludes non-todo tickets regardless of retryAfter', () => {
+    const ticket = { ...baseTicket, status: 'in_progress' as const };
+    expect(dispatchFilter(ticket, Date.now())).toBe(false);
   });
 });

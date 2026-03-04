@@ -67,7 +67,7 @@
 - PR status polling every 3 seconds
 - Auto-merge with CI check-pass requirements
 - Exponential backoff on merge polling
-- Conflict detection & resolution dispatch (auto-retry up to 2x)
+- Conflict detection & resolution dispatch (auto-retry up to 3x with 30s cooldown)
 - PR screenshot capture (dev server spin-up + Playwright)
 - Ticket ID injection via HTML comment in PR body
 
@@ -216,7 +216,7 @@
 - Dispatcher stats: tickets by status, cost, tokens, failures
 - Auditor stats: watched PRs, reviews, verdicts
 - Scheduler stats: audit runs, severity breakdown
-- Reports sub-tab with run batch grouping and stats summary
+- Reports sub-tab with per-schedule grouping, line charts, and 7-day window
 - Trend indicators (up/down/stable)
 
 ### J. Chat Popover

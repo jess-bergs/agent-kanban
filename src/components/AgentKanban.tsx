@@ -1,4 +1,5 @@
 import { Bot, Monitor, Code2, Terminal, GitBranch, Clock, MessageSquare, Rocket, ExternalLink } from 'lucide-react';
+import { CountBadge } from './CountBadge';
 import type { SoloAgent, Ticket } from '../types';
 import { formatTimestamp, shortenUuids } from '../types';
 
@@ -201,14 +202,14 @@ export function AgentKanban({ agents, tickets, onNavigateToTicket }: AgentKanban
         </span>
         {activeCount > 0 && (
           <span className="flex items-center gap-1.5 text-accent-green">
-            <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse" />
-            {activeCount} working
+            <CountBadge count={activeCount} bg="bg-accent-green" pulse size="sm" />
+            working
           </span>
         )}
         {idleCount > 0 && (
           <span className="flex items-center gap-1.5 text-tertiary">
-            <span className="w-2 h-2 rounded-full bg-surface-500" />
-            {idleCount} idle
+            <CountBadge count={idleCount} bg="bg-surface-500" text="text-secondary" size="sm" />
+            idle
           </span>
         )}
       </div>
@@ -236,7 +237,7 @@ export function AgentKanban({ agents, tickets, onNavigateToTicket }: AgentKanban
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
                       {hasActive && (
-                        <span className="w-2 h-2 rounded-full bg-accent-green animate-pulse shrink-0" />
+                        <CountBadge count={projectAgents.filter(a => a.status === 'active').length} bg="bg-accent-green" pulse size="sm" />
                       )}
                       <h3 className="font-semibold text-sm text-primary truncate">
                         {projectName}

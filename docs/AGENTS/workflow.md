@@ -64,7 +64,7 @@ See [Dispatcher Architecture](../architecture/dispatcher.md) for worktree creati
 
 The dispatcher runs a continuous health check (every 30s) that detects and recovers from three failure modes:
 
-1. **Orphan PID detection** — If an agent process dies (server restart, crash) while a ticket is `in_progress`, the health check detects the dead PID and auto-retries up to `MAX_AUTO_RETRIES` (2). Tickets exceeding the retry budget are marked `failed` with `needsAttention: true`.
+1. **Orphan PID detection** — If an agent process dies (server restart, crash) while a ticket is `in_progress`, the health check detects the dead PID and auto-retries up to `MAX_AUTO_RETRIES` (3). Each retry has a 30-second cooldown (`RETRY_WAIT_MS`) before the ticket is eligible for re-dispatch. Tickets exceeding the retry budget are marked `failed` with `needsAttention: true`.
 
 2. **Stuck audit detection** — If `auditStatus` stays `running` for >10 minutes, the health check resets it and re-triggers the audit. Also resets stuck watchlist entries.
 

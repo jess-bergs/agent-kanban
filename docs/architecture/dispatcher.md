@@ -191,7 +191,7 @@ When a ticket enters `failed` or `error`, a structured `failureReason` is attach
 | `user_abort` | User explicitly aborted the agent |
 | `project_not_found` | Referenced project doesn't exist |
 | `worktree_setup_failed` | Git worktree creation failed |
-| `retry_budget_exhausted` | Exceeded MAX_AUTO_RETRIES (2) orphan recoveries |
+| `retry_budget_exhausted` | Exceeded MAX_AUTO_RETRIES (3) orphan recoveries |
 | `automation_budget_exhausted` | Exceeded max automation iterations (5) for review fixes |
 | `usage_limit` | API rate/usage limit hit (see [Usage Limits](usage-limits-and-holds.md)) |
 | `other` | Unclassified failure |
