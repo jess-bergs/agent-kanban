@@ -277,7 +277,7 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
               {messages.length === 0 && (
                 <div className="text-center text-xs text-muted mt-8 space-y-2">
                   <MessageCircle className="w-8 h-8 mx-auto text-faint" />
-                  <p>Ask me about your projects, code, or agents.</p>
+                  <p>Ask questions or take actions on your projects and tickets.</p>
                   <div className="space-y-1 text-[11px]">
                     <p className="text-faint">Try:</p>
                     <button
@@ -287,10 +287,10 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
                       "What tickets are in progress?"
                     </button>
                     <button
-                      onClick={() => setInput('What dependencies does this project use?')}
+                      onClick={() => setInput('Retry all failed tickets')}
                       className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
                     >
-                      "What dependencies does this project use?"
+                      "Retry all failed tickets"
                     </button>
                     <button
                       onClick={() => setInput('Show me the project structure')}
@@ -299,10 +299,10 @@ export function ChatPopover({ projects }: ChatPopoverProps) {
                       "Show me the project structure"
                     </button>
                     <button
-                      onClick={() => setInput('What\'s in the CLAUDE.md config?')}
+                      onClick={() => setInput('Are there any tickets that need attention?')}
                       className="block mx-auto text-accent-blue/70 hover:text-accent-blue transition-colors"
                     >
-                      "What&apos;s in the CLAUDE.md config?"
+                      "Are there any tickets that need attention?"
                     </button>
                   </div>
                 </div>

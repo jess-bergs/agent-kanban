@@ -76,6 +76,7 @@ import {
   setAuthMonitorBroadcast,
   getAuthStatus,
 } from './auth-monitor.ts';
+import { chatTools, executeTool } from './chat-tools.ts';
 import type { TeamWithData, WSEvent, AuditTemplateId, ChatMessage } from '../src/types.ts';
 
 const PORT = 3003;
@@ -986,6 +987,13 @@ app.get('/api/chat/file', async (req, res) => {
 
 // ─── Chat Bot API ────────────────────────────────────────────────
 
+/** Anthropic API content block types */
+interface TextBlock { type: 'text'; text: string }
+interface ToolUseBlock { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+type ContentBlock = TextBlock | ToolUseBlock;
+interface AnthropicResponse { content: ContentBlock[]; stop_reason: string }
+interface ToolResultBlock { type: 'tool_result'; tool_use_id: string; content: string; is_error?: boolean }
+
 app.post('/api/chat', async (req, res) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -1060,16 +1068,18 @@ app.post('/api/chat', async (req, res) => {
     const systemPrompt = `You are a helpful assistant embedded in the Agent Kanban dashboard — a real-time monitoring tool for Claude Code agents.
 
 You have access to the current state of projects, tickets, teams, and agents, as well as key files from each project's codebase. You can answer questions about project configuration, code structure, dependencies, and setup.
+
+You also have tools to take actions: create tickets, retry failed tickets, update tickets, trigger audits, and more. When the user asks you to do something actionable, use the appropriate tool. Always confirm what you did after using a tool.
 ${focusNote ? `\n${focusNote}\n` : ''}
 # Dashboard State
 
 ## Projects (${projectsData.projects.length})
-${projectsData.projects.map(p => `- **${p.name}** (${p.repoPath}) — branch: ${p.defaultBranch}${p.remoteUrl ? `, remote: ${p.remoteUrl}` : ''}`).join('\n') || 'None'}
+${projectsData.projects.map(p => `- **${p.name}** (id: ${p.id}, ${p.repoPath}) — branch: ${p.defaultBranch}${p.remoteUrl ? `, remote: ${p.remoteUrl}` : ''}`).join('\n') || 'None'}
 
 ## Tickets (${projectsData.tickets.length})
 ${projectsData.tickets.map(t => {
   const project = projectsData.projects.find(p => p.id === t.projectId);
-  return `- [${t.status}] **${t.subject}** (project: ${project?.name ?? t.projectId})${t.prUrl ? ` — PR: ${t.prUrl}` : ''}${t.error ? ` — error: ${t.error}` : ''}${t.branchName ? ` — branch: ${t.branchName}` : ''}`;
+  return `- [${t.status}] **${t.subject}** (id: ${t.id}, project: ${project?.name ?? t.projectId})${t.prUrl ? ` — PR: ${t.prUrl}` : ''}${t.error ? ` — error: ${t.error}` : ''}${t.branchName ? ` — branch: ${t.branchName}` : ''}`;
 }).join('\n') || 'None'}
 
 ## Teams (${teams.length})
@@ -1084,40 +1094,75 @@ ${codebaseSection || 'No project codebases available.'}
 
 Keep responses short and focused. Use markdown formatting. When asked about configuration, dependencies, or project structure, refer to the codebase context above.`;
 
-    const anthropicMessages = messages.map(m => ({
-      role: m.role,
-      content: m.content,
-    }));
+    // Build messages for the Anthropic API, then run a tool_use loop
+    const apiMessages: { role: string; content: string | (ContentBlock | ToolResultBlock)[] }[] =
+      messages.map(m => ({ role: m.role, content: m.content }));
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2048,
-        system: systemPrompt,
-        messages: anthropicMessages,
-      }),
-    });
+    const MAX_TOOL_ROUNDS = 5;
+    let finalText = '';
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('[chat] Anthropic API error:', response.status, errText);
-      res.status(502).json({ error: 'Failed to get response from AI' });
-      return;
+    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 2048,
+          system: systemPrompt,
+          messages: apiMessages,
+          tools: chatTools,
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('[chat] Anthropic API error:', response.status, errText);
+        res.status(502).json({ error: 'Failed to get response from AI' });
+        return;
+      }
+
+      const result = await response.json() as AnthropicResponse;
+
+      // Collect any text blocks from this response
+      const textParts = result.content
+        .filter((c): c is TextBlock => c.type === 'text')
+        .map(c => c.text);
+      if (textParts.length > 0) {
+        finalText += textParts.join('');
+      }
+
+      // If no tool use, we're done
+      const toolUses = result.content.filter((c): c is ToolUseBlock => c.type === 'tool_use');
+      if (toolUses.length === 0 || result.stop_reason !== 'tool_use') {
+        break;
+      }
+
+      // Execute each tool call and build tool_result messages
+      const toolResults: ToolResultBlock[] = [];
+      for (const toolUse of toolUses) {
+        console.log(`[chat] Executing tool: ${toolUse.name}`, toolUse.input);
+        const { result: toolResult, isError } = await executeTool(
+          toolUse.name,
+          toolUse.input as Record<string, unknown>,
+        );
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: toolUse.id,
+          content: toolResult,
+          ...(isError ? { is_error: true } : {}),
+        });
+      }
+
+      // Append the assistant response and tool results to the conversation
+      apiMessages.push({ role: 'assistant', content: result.content });
+      apiMessages.push({ role: 'user', content: toolResults });
     }
 
-    const result = await response.json() as { content: { type: string; text: string }[] };
-    const text = result.content
-      .filter((c: { type: string }) => c.type === 'text')
-      .map((c: { text: string }) => c.text)
-      .join('');
-
-    res.json({ content: text });
+    res.json({ content: finalText || 'Action completed.' });
   } catch (err) {
     console.error('[chat] Error:', err);
     res.status(500).json({ error: 'Chat request failed' });
