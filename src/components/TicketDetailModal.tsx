@@ -79,6 +79,7 @@ interface TicketDetailModalProps {
   ticket: Ticket;
   project: Project | null;
   onClose: () => void;
+  onNavigateToTeam?: (teamName: string) => void;
 }
 
 function ActivityIcon({ type }: { type: AgentActivity['type'] }) {
@@ -107,7 +108,7 @@ function ActivityLabel({ entry }: { entry: AgentActivity }) {
   }
 }
 
-export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModalProps) {
+export function TicketDetailModal({ ticket, project, onClose, onNavigateToTeam }: TicketDetailModalProps) {
   const style = STATUS_STYLE[safeStatus(ticket.status)];
   const StatusIcon = style.icon;
   const compat = analyzeTicketCompat(ticket);
@@ -285,10 +286,20 @@ export function TicketDetailModal({ ticket, project, onClose }: TicketDetailModa
                 </span>
               )}
               {ticket.useTeam && (
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-accent-blue/10 text-accent-blue">
+                <button
+                  onClick={() => {
+                    if (ticket.teamName && onNavigateToTeam) {
+                      onClose();
+                      onNavigateToTeam(ticket.teamName);
+                    }
+                  }}
+                  className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-accent-blue/10 text-accent-blue ${ticket.teamName && onNavigateToTeam ? 'hover:bg-accent-blue/20 cursor-pointer' : 'cursor-default'}`}
+                  title={ticket.teamName ? `Go to team "${ticket.teamName}" dashboard` : 'Team mode'}
+                  aria-label={ticket.teamName ? `Navigate to team ${ticket.teamName}` : 'Team mode'}
+                >
                   <Users className="w-3 h-3" />
-                  Team
-                </span>
+                  {ticket.teamName || 'Team'}
+                </button>
               )}
             </div>
             <h2 className="text-lg font-bold text-primary">{ticket.subject}</h2>

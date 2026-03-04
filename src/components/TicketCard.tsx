@@ -55,9 +55,10 @@ function EffortBadge({ effort }: { effort: TicketEffort }) {
 interface TicketCardProps {
   ticket: Ticket;
   onClick?: (ticket: Ticket) => void;
+  onNavigateToTeam?: (teamName: string) => void;
 }
 
-export function TicketCard({ ticket, onClick }: TicketCardProps) {
+export function TicketCard({ ticket, onClick, onNavigateToTeam }: TicketCardProps) {
   const borderColor = BORDER_COLORS[safeStatus(ticket.status)];
   const compat = analyzeTicketCompat(ticket);
   const [aborting, setAborting] = useState(false);
@@ -114,10 +115,18 @@ export function TicketCard({ ticket, onClick }: TicketCardProps) {
           </span>
         )}
         {ticket.useTeam && (
-          <span className="flex items-center gap-1 text-[10px] font-medium text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded" title={`Team mode: Agent will spawn sub-agents${ticket.teamName ? ` in team "${ticket.teamName}"` : ''}`}>
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              if (ticket.teamName && onNavigateToTeam) onNavigateToTeam(ticket.teamName);
+            }}
+            className={`flex items-center gap-1 text-[10px] font-medium text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded ${ticket.teamName && onNavigateToTeam ? 'hover:bg-accent-blue/20 cursor-pointer' : 'cursor-default'}`}
+            title={ticket.teamName && onNavigateToTeam ? `Go to team "${ticket.teamName}" dashboard` : `Team mode: Agent will spawn sub-agents${ticket.teamName ? ` in team "${ticket.teamName}"` : ''}`}
+            aria-label={ticket.teamName ? `Navigate to team ${ticket.teamName}` : 'Team mode'}
+          >
             <Users className="w-3 h-3" aria-hidden="true" />
             {ticket.teamName || 'TEAM'}
-          </span>
+          </button>
         )}
         {ticket.planOnly && (
           <span className="flex items-center gap-1 text-[10px] font-medium text-accent-cyan bg-accent-cyan/10 px-1.5 py-0.5 rounded" title="Plan only: Agent will investigate and create a plan-report.md instead of making code changes">

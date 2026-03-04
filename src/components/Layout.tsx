@@ -61,6 +61,11 @@ export function Layout({
     setOpenTicketId(ticketId);
   }, [setViewMode, onSelectProject]);
 
+  const handleNavigateToTeam = useCallback((teamName: string) => {
+    setViewMode('teams');
+    onSelectTeam(teamName);
+  }, [setViewMode, onSelectTeam]);
+
   const showAnalyticsView = viewMode === 'analytics';
   const showAgentsView = viewMode === 'agents';
   const showTeamView = viewMode === 'teams' && selectedTeam;
@@ -195,6 +200,7 @@ export function Layout({
                   project={selectedProject}
                   openTicketId={openTicketId}
                   onTicketOpened={() => setOpenTicketId(null)}
+                  onNavigateToTeam={handleNavigateToTeam}
                 />
               </div>
             </>
