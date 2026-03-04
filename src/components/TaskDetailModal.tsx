@@ -105,7 +105,7 @@ export function TaskDetailModal({ task, members, onClose }: TaskDetailModalProps
           )}
 
           {/* Blockers */}
-          {task.blockedBy.length > 0 && (
+          {task.blockedBy?.length > 0 && (
             <div className="flex items-start gap-3">
               <GitBranch className="w-4 h-4 text-accent-red mt-0.5 shrink-0" />
               <div>
@@ -125,7 +125,7 @@ export function TaskDetailModal({ task, members, onClose }: TaskDetailModalProps
             </div>
           )}
 
-          {task.blocks.length > 0 && (
+          {task.blocks?.length > 0 && (
             <div className="flex items-start gap-3">
               <GitBranch className="w-4 h-4 text-accent-amber mt-0.5 shrink-0" />
               <div>
@@ -171,7 +171,7 @@ export function TaskDetailModal({ task, members, onClose }: TaskDetailModalProps
           )}
 
           {/* Metadata */}
-          {Object.keys(task.metadata).filter(k => k !== '_internal').length > 0 && (
+          {task.metadata && Object.keys(task.metadata).filter(k => k !== '_internal').length > 0 && (
             <div className="flex items-start gap-3">
               <Hash className="w-4 h-4 text-muted mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
