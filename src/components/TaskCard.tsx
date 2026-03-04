@@ -46,7 +46,7 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
         <div>
           {task.owner && <AgentBadge name={task.owner} size="sm" />}
         </div>
-        {task.blockedBy.length > 0 && (
+        {task.blockedBy?.length > 0 && (
           <div className="flex items-center gap-1 text-accent-red">
             <AlertCircle className="w-3.5 h-3.5" />
             <span className="text-[10px] font-medium">
