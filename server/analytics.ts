@@ -330,7 +330,7 @@ function buildSchedulerStats(runs: AuditRun[]): SchedulerStats {
   };
 }
 
-function buildIssues(
+export function buildIssues(
   tickets: Ticket[],
   auditRuns: AuditRun[],
   watchlist: WatchlistEntry[],
