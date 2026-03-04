@@ -21,9 +21,10 @@ import {
   Eye,
   Target,
   BarChart3,
+  List,
 } from 'lucide-react';
 import { formatDuration, formatTokenCount } from '../types';
-import type { AuditReport, SeverityCounts as SeverityCountsType } from '../types';
+import type { AuditReport, AuditFinding, SeverityCounts as SeverityCountsType } from '../types';
 
 // ─── Types (mirroring server/analytics.ts) ─────────────────────
 
@@ -545,6 +546,14 @@ function ReportsView() {
     <div className="space-y-4">
       <div className="text-[10px] text-faint">Showing reports from the last 7 days</div>
 
+      {/* Critical & High findings list */}
+      {(() => {
+        const globalStats = computeReportStats(runs);
+        return (globalStats.criticalFindings > 0 || globalStats.highFindings > 0) ? (
+          <FindingsList runs={runs} scheduleMap={scheduleMap} />
+        ) : null;
+      })()}
+
       {/* Per-schedule sections */}
       {scheduleGroups.map(group => {
         const stats = computeReportStats(group.runs);
@@ -961,6 +970,144 @@ function RubricTrendsChart({ runs }: { runs: AuditRunEntry[] }) {
         <div className="flex-1 border-t border-surface-700" />
         <span>{formatRelativeTime(chronological[chronological.length - 1]?.startedAt ?? 0)}</span>
       </div>
+    </div>
+  );
+}
+
+// ─── Critical & High Findings List ──────────────────────────────
+
+interface FlatFinding {
+  finding: AuditFinding;
+  runId: string;
+  scheduleName: string;
+  reportScore: number;
+  reportTimestamp: number;
+}
+
+function FindingsList({
+  runs,
+  scheduleMap,
+}: {
+  runs: AuditRunEntry[];
+  scheduleMap: Map<string, AuditScheduleEntry>;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Collect all critical and high findings across all runs
+  const flatFindings: FlatFinding[] = [];
+  for (const run of runs) {
+    const report = run.structuredReport!;
+    const name = scheduleMap.get(run.scheduleId)?.name || run.scheduleId.slice(0, 8);
+    for (const finding of report.findings) {
+      if (finding.severity === 'critical' || finding.severity === 'high') {
+        flatFindings.push({
+          finding,
+          runId: run.id,
+          scheduleName: name,
+          reportScore: report.overallScore,
+          reportTimestamp: run.startedAt,
+        });
+      }
+    }
+  }
+
+  // Sort: critical first, then high; within each severity, newest first
+  flatFindings.sort((a, b) => {
+    if (a.finding.severity !== b.finding.severity) {
+      return a.finding.severity === 'critical' ? -1 : 1;
+    }
+    return b.reportTimestamp - a.reportTimestamp;
+  });
+
+  const critCount = flatFindings.filter(f => f.finding.severity === 'critical').length;
+  const highCount = flatFindings.filter(f => f.finding.severity === 'high').length;
+
+  if (flatFindings.length === 0) return null;
+
+  return (
+    <div className="bg-surface-800 rounded-xl border border-accent-red/30 p-5">
+      <h2
+        className="text-sm font-semibold text-secondary flex items-center gap-2 cursor-pointer select-none"
+        onClick={() => setCollapsed(c => !c)}
+      >
+        <List className="w-4 h-4 text-accent-red" />
+        Critical & High Findings
+        <span className="text-xs font-normal text-muted ml-1">
+          {critCount > 0 && <span className="text-accent-red font-medium">{critCount}C</span>}
+          {critCount > 0 && highCount > 0 && ' '}
+          {highCount > 0 && <span className="text-accent-orange font-medium">{highCount}H</span>}
+        </span>
+        <span className="flex-1" />
+        {collapsed && (
+          <span className="text-xs font-normal text-muted">
+            {flatFindings.length} finding{flatFindings.length !== 1 ? 's' : ''} across reports
+          </span>
+        )}
+        {collapsed
+          ? <ChevronDown className="w-4 h-4 text-muted" />
+          : <ChevronUp className="w-4 h-4 text-muted" />}
+      </h2>
+      {!collapsed && (
+        <div className="mt-4 space-y-2">
+          {flatFindings.map((item, i) => {
+            const { finding } = item;
+            const isCritical = finding.severity === 'critical';
+            return (
+              <div
+                key={`${item.runId}-${finding.id}-${i}`}
+                className={`p-3 rounded-lg border ${
+                  isCritical
+                    ? 'border-accent-red/30 bg-accent-red/5'
+                    : 'border-accent-orange/30 bg-accent-orange/5'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <span className={`shrink-0 px-1 py-0.5 rounded text-[10px] font-bold mt-0.5 ${
+                    isCritical
+                      ? 'bg-accent-red/20 text-accent-red'
+                      : 'bg-accent-orange/20 text-accent-orange'
+                  }`}>
+                    {isCritical ? 'C' : 'H'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-secondary">
+                        {finding.title}
+                      </span>
+                      <span className="text-[10px] text-muted">
+                        {item.scheduleName}
+                      </span>
+                      <span className={`text-[10px] ${
+                        item.reportScore >= 8 ? 'text-accent-green' :
+                        item.reportScore >= 5 ? 'text-accent-amber' :
+                        'text-accent-red'
+                      }`}>
+                        {item.reportScore.toFixed(1)}
+                      </span>
+                    </div>
+                    {finding.location && (
+                      <div className="text-[10px] text-muted font-mono mt-0.5">
+                        {finding.location}
+                      </div>
+                    )}
+                    <p className="text-[11px] text-tertiary mt-1">
+                      {finding.description}
+                    </p>
+                    {finding.recommendation && (
+                      <p className="text-[11px] text-accent-cyan mt-1">
+                        {finding.recommendation}
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-faint shrink-0 mt-0.5">
+                    {formatRelativeTime(item.reportTimestamp)}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
