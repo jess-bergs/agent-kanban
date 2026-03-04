@@ -118,7 +118,17 @@ export interface IssueEntry {
   detail?: string;
   severity: 'error' | 'warning' | 'info';
   timestamp: number;
+  /** For dispatcher extreme-usage issues, links to a specific run */
+  linkedRunTicketId?: string;
 }
+
+// Usage thresholds for flagging extreme runs (mirrored in frontend)
+const USAGE_THRESHOLDS = {
+  turns: 40,
+  toolCalls: 60,
+  inputTokens: 3_000_000,
+  durationMs: 10 * 60_000, // 10 min
+};
 
 // ─── Combined Response ──────────────────────────────────────────
 
@@ -320,7 +330,7 @@ function buildSchedulerStats(runs: AuditRun[]): SchedulerStats {
   };
 }
 
-function buildIssues(
+export function buildIssues(
   tickets: Ticket[],
   auditRuns: AuditRun[],
   watchlist: WatchlistEntry[],
@@ -358,6 +368,31 @@ function buildIssues(
         severity: 'warning',
         timestamp: t.conflictDetectedAt || Date.now(),
       });
+    }
+
+    // Extreme usage detection
+    if (t.startedAt && t.effort) {
+      const exceeded: string[] = [];
+      if ((t.effort.turns ?? 0) >= USAGE_THRESHOLDS.turns)
+        exceeded.push(`${t.effort.turns} turns`);
+      if ((t.effort.toolCalls ?? 0) >= USAGE_THRESHOLDS.toolCalls)
+        exceeded.push(`${t.effort.toolCalls} tool calls`);
+      if ((t.effort.inputTokens ?? 0) >= USAGE_THRESHOLDS.inputTokens)
+        exceeded.push(`${Math.round((t.effort.inputTokens ?? 0) / 1_000_000)}M input tokens`);
+      if ((t.effort.durationMs ?? 0) >= USAGE_THRESHOLDS.durationMs)
+        exceeded.push(`${Math.round((t.effort.durationMs ?? 0) / 60_000)}min duration`);
+
+      if (exceeded.length > 0) {
+        issues.push({
+          source: 'dispatcher',
+          id: `extreme-${t.id}`,
+          summary: `Extreme usage on "${t.subject}"`,
+          detail: exceeded.join(', '),
+          severity: 'warning',
+          timestamp: t.completedAt || t.startedAt,
+          linkedRunTicketId: t.id,
+        });
+      }
     }
   }
 
