@@ -160,7 +160,7 @@ export async function buildAnalytics(): Promise<AnalyticsPayload> {
   const dispatcher = buildDispatcherStats(tickets);
   const auditor = buildAuditorStats(watchlist);
   const scheduler = buildSchedulerStats(auditRuns);
-  const issues = buildIssues(tickets, auditRuns, watchlist);
+  const issues = buildIssues(tickets, auditRuns);
   const coverageGaps = detectCoverageGaps(tickets, auditRuns, watchlist);
 
   return {
@@ -363,7 +363,6 @@ function buildSchedulerStats(runs: AuditRun[]): SchedulerStats {
 export function buildIssues(
   tickets: Ticket[],
   auditRuns: AuditRun[],
-  watchlist: WatchlistEntry[],
 ): IssueEntry[] {
   const issues: IssueEntry[] = [];
 
@@ -389,17 +388,6 @@ export function buildIssues(
         timestamp: t.completedAt || t.createdAt,
       });
     }
-    if (t.hasConflict) {
-      issues.push({
-        source: 'dispatcher',
-        id: t.id,
-        summary: `PR conflict on "${t.subject}"`,
-        detail: t.prUrl,
-        severity: 'warning',
-        timestamp: t.conflictDetectedAt || Date.now(),
-      });
-    }
-
     // Extreme usage detection
     if (t.startedAt && t.effort) {
       const exceeded: string[] = [];
@@ -436,20 +424,6 @@ export function buildIssues(
         detail: r.error,
         severity: 'error',
         timestamp: r.completedAt || r.startedAt,
-      });
-    }
-  }
-
-  // Auditor entries with request_changes verdict
-  for (const w of watchlist) {
-    if (w.lastResult?.overallVerdict === 'request_changes') {
-      issues.push({
-        source: 'auditor',
-        id: `${w.repo}#${w.prNumber}`,
-        summary: `PR #${w.prNumber} needs changes (${w.repo})`,
-        detail: w.lastResult.summary,
-        severity: 'warning',
-        timestamp: w.lastResult.reviewedAt,
       });
     }
   }
