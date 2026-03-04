@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -117,6 +117,7 @@ interface IssueEntry {
   detail?: string;
   severity: string;
   timestamp: number;
+  linkedRunTicketId?: string;
 }
 
 interface AnalyticsPayload {
@@ -168,6 +169,27 @@ export function AnalyticsDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview');
+  const [highlightedTicketId, setHighlightedTicketId] = useState<string | null>(null);
+  const [dispatcherExpanded, setDispatcherExpanded] = useState(false);
+  const dispatcherSectionRef = useRef<HTMLDivElement>(null);
+
+  const handleIssueClick = useCallback((issue: IssueEntry) => {
+    if (!issue.linkedRunTicketId) return;
+    // Expand the dispatcher section
+    setDispatcherExpanded(true);
+    setHighlightedTicketId(issue.linkedRunTicketId);
+    // Scroll after a tick to allow expansion to render
+    setTimeout(() => {
+      const row = document.querySelector(`[data-ticket-id="${issue.linkedRunTicketId}"]`);
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        dispatcherSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+    // Clear highlight after animation
+    setTimeout(() => setHighlightedTicketId(null), 3000);
+  }, []);
 
   async function fetchAnalytics() {
     setLoading(true);
@@ -294,7 +316,7 @@ export function AnalyticsDashboard() {
       {/* Issues — pulled above the fold so errors are immediately visible */}
       <Section title="Issues & Errors" icon={<AlertCircle className="w-4 h-4 text-accent-red" />}>
         {data.issues.length > 0 ? (
-          <IssuesTable issues={data.issues} />
+          <IssuesTable issues={data.issues} onIssueClick={handleIssueClick} />
         ) : (
           <div className="text-center py-6 text-sm text-accent-green flex items-center justify-center gap-2">
             <CheckCircle2 className="w-4 h-4" />
@@ -318,10 +340,13 @@ export function AnalyticsDashboard() {
       )}
 
       {/* Dispatcher Runs */}
+      <div ref={dispatcherSectionRef}>
       <Section
         title="Dispatcher Runs"
         icon={<Zap className="w-4 h-4 text-accent-blue" />}
         collapsible
+        expanded={dispatcherExpanded}
+        onToggle={setDispatcherExpanded}
         summary={`${data.dispatcher.totalDispatched} dispatched, ${data.dispatcher.currentlyRunning} running`}
       >
         <div className="grid grid-cols-9 gap-2 mb-4">
@@ -350,11 +375,12 @@ export function AnalyticsDashboard() {
           </div>
         )}
         {data.dispatcher.recentRuns.length > 0 ? (
-          <RunTable runs={data.dispatcher.recentRuns} />
+          <RunTable runs={data.dispatcher.recentRuns} highlightedTicketId={highlightedTicketId} />
         ) : (
           <EmptySection message="No dispatcher runs yet" />
         )}
       </Section>
+      </div>
 
       {/* PR Review Activity */}
       <Section
@@ -1053,6 +1079,8 @@ function Section({
   children,
   collapsible = false,
   defaultCollapsed = false,
+  expanded: controlledExpanded,
+  onToggle,
   summary,
 }: {
   title: string;
@@ -1060,9 +1088,24 @@ function Section({
   children: React.ReactNode;
   collapsible?: boolean;
   defaultCollapsed?: boolean;
+  /** When provided, Section is controlled (expanded = true means content is shown) */
+  expanded?: boolean;
+  onToggle?: (expanded: boolean) => void;
   summary?: React.ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed);
+
+  // Support both controlled and uncontrolled modes
+  const isControlled = controlledExpanded !== undefined;
+  const collapsed = isControlled ? !controlledExpanded : internalCollapsed;
+
+  const handleToggle = () => {
+    if (isControlled && onToggle) {
+      onToggle(!controlledExpanded);
+    } else {
+      setInternalCollapsed(c => !c);
+    }
+  };
 
   return (
     <div className="bg-surface-800 rounded-xl border border-surface-600 p-5">
@@ -1070,7 +1113,7 @@ function Section({
         className={`text-sm font-semibold text-secondary flex items-center gap-2 ${
           collapsible ? 'cursor-pointer select-none' : 'mb-4'
         } ${collapsible && !collapsed ? 'mb-4' : ''}`}
-        onClick={collapsible ? () => setCollapsed(c => !c) : undefined}
+        onClick={collapsible ? handleToggle : undefined}
       >
         {icon}
         {title}
@@ -1142,7 +1185,7 @@ function UsageCell({ value, threshold, format }: { value?: number; threshold: nu
   );
 }
 
-function RunTable({ runs }: { runs: DispatcherRunSummary[] }) {
+function RunTable({ runs, highlightedTicketId }: { runs: DispatcherRunSummary[]; highlightedTicketId?: string | null }) {
   const extremeRuns = runs.filter(isExtremeUsage);
 
   return (
@@ -1175,8 +1218,13 @@ function RunTable({ runs }: { runs: DispatcherRunSummary[] }) {
           <tbody>
             {runs.map(run => {
               const extreme = isExtremeUsage(run);
+              const highlighted = highlightedTicketId === run.ticketId;
               return (
-                <tr key={run.ticketId} className={`border-b border-surface-700/50 hover:bg-surface-700/30 ${extreme ? 'bg-accent-red/5' : ''}`}>
+                <tr
+                  key={run.ticketId}
+                  data-ticket-id={run.ticketId}
+                  className={`border-b border-surface-700/50 hover:bg-surface-700/30 ${extreme ? 'bg-accent-red/5' : ''} ${highlighted ? 'animate-highlight-pulse ring-1 ring-accent-amber' : ''}`}
+                >
                   <td className="py-2 pr-3 text-secondary max-w-[200px] truncate" title={run.subject}>
                     {extreme && <AlertTriangle className="w-3 h-3 text-accent-red inline mr-1" />}
                     {run.subject}
@@ -1403,51 +1451,58 @@ function SchedulerTable({ runs }: { runs: SchedulerRunSummary[] }) {
 
 // ─── Issues Table ────────────────────────────────────────────────
 
-function IssuesTable({ issues }: { issues: IssueEntry[] }) {
+function IssuesTable({ issues, onIssueClick }: { issues: IssueEntry[]; onIssueClick?: (issue: IssueEntry) => void }) {
   return (
     <div className="space-y-2">
-      {issues.map((issue, i) => (
-        <div
-          key={`${issue.id}-${i}`}
-          className={`flex items-start gap-3 p-3 rounded-lg border ${
-            issue.severity === 'error'
-              ? 'border-accent-red/30 bg-accent-red/5'
-              : issue.severity === 'warning'
-              ? 'border-accent-amber/30 bg-accent-amber/5'
-              : 'border-surface-600 bg-surface-700/30'
-          }`}
-        >
-          <div className="shrink-0 mt-0.5">
-            {issue.severity === 'error' ? (
-              <XCircle className="w-4 h-4 text-accent-red" />
-            ) : issue.severity === 'warning' ? (
-              <AlertTriangle className="w-4 h-4 text-accent-amber" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-accent-blue" />
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-secondary">{issue.summary}</span>
-              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                issue.source === 'dispatcher'
-                  ? 'bg-accent-blue/20 text-accent-blue'
-                  : issue.source === 'auditor'
-                  ? 'bg-accent-cyan/20 text-accent-cyan'
-                  : 'bg-accent-purple/20 text-accent-purple'
-              }`}>
-                {issue.source}
-              </span>
+      {issues.map((issue, i) => {
+        const isClickable = !!issue.linkedRunTicketId && !!onIssueClick;
+        return (
+          <div
+            key={`${issue.id}-${i}`}
+            onClick={isClickable ? () => onIssueClick(issue) : undefined}
+            className={`flex items-start gap-3 p-3 rounded-lg border ${
+              issue.severity === 'error'
+                ? 'border-accent-red/30 bg-accent-red/5'
+                : issue.severity === 'warning'
+                ? 'border-accent-amber/30 bg-accent-amber/5'
+                : 'border-surface-600 bg-surface-700/30'
+            } ${isClickable ? 'cursor-pointer hover:brightness-110 transition-all' : ''}`}
+          >
+            <div className="shrink-0 mt-0.5">
+              {issue.severity === 'error' ? (
+                <XCircle className="w-4 h-4 text-accent-red" />
+              ) : issue.severity === 'warning' ? (
+                <AlertTriangle className="w-4 h-4 text-accent-amber" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-accent-blue" />
+              )}
             </div>
-            {issue.detail && (
-              <p className="text-[11px] text-muted mt-1 truncate">{issue.detail}</p>
-            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-secondary">{issue.summary}</span>
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                  issue.source === 'dispatcher'
+                    ? 'bg-accent-blue/20 text-accent-blue'
+                    : issue.source === 'auditor'
+                    ? 'bg-accent-cyan/20 text-accent-cyan'
+                    : 'bg-accent-purple/20 text-accent-purple'
+                }`}>
+                  {issue.source}
+                </span>
+                {isClickable && (
+                  <span className="text-[10px] text-muted">click to view run</span>
+                )}
+              </div>
+              {issue.detail && (
+                <p className="text-[11px] text-muted mt-1 truncate">{issue.detail}</p>
+              )}
+            </div>
+            <span className="text-[10px] text-faint shrink-0">
+              {formatRelativeTime(issue.timestamp)}
+            </span>
           </div>
-          <span className="text-[10px] text-faint shrink-0">
-            {formatRelativeTime(issue.timestamp)}
-          </span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

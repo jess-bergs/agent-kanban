@@ -38,6 +38,13 @@ export default {
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'highlight-pulse': 'highlight-pulse 2s ease-out',
+      },
+      keyframes: {
+        'highlight-pulse': {
+          '0%': { backgroundColor: 'rgba(245, 158, 11, 0.25)' },
+          '100%': { backgroundColor: 'transparent' },
+        },
       }
     },
   },
