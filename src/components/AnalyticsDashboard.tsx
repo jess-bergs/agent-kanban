@@ -9,7 +9,6 @@ import {
   DollarSign,
   FileText,
   GitPullRequest,
-  Layers,
   PlayCircle,
   RefreshCw,
   Shield,
@@ -24,7 +23,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { formatDuration, formatTokenCount } from '../types';
-import type { AuditReport, AuditRubricScore, AuditFinding, SeverityCounts as SeverityCountsType } from '../types';
+import type { AuditReport, SeverityCounts as SeverityCountsType } from '../types';
 
 // ─── Types (mirroring server/analytics.ts) ─────────────────────
 
@@ -417,45 +416,37 @@ export function AnalyticsDashboard() {
 
 // ─── Reports View ───────────────────────────────────────────────
 
-interface RunBatch {
-  startedAt: number;
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+interface ScheduleGroup {
+  scheduleId: string;
+  scheduleName: string;
   runs: AuditRunEntry[];
 }
 
-/** Group runs into batches by time proximity (runs started within 5 minutes of each other). */
-function groupRunsByBatch(runs: AuditRunEntry[]): RunBatch[] {
-  if (runs.length === 0) return [];
-  // runs are already sorted newest-first by the API
-  const batches: RunBatch[] = [];
-  let currentBatch: RunBatch = { startedAt: runs[0].startedAt, runs: [runs[0]] };
-
-  for (let i = 1; i < runs.length; i++) {
-    const gap = currentBatch.runs[currentBatch.runs.length - 1].startedAt - runs[i].startedAt;
-    if (gap <= 5 * 60 * 1000) {
-      currentBatch.runs.push(runs[i]);
-    } else {
-      batches.push(currentBatch);
-      currentBatch = { startedAt: runs[i].startedAt, runs: [runs[i]] };
-    }
+/** Group runs by schedule, sorted by most recent run within each group. */
+function groupRunsBySchedule(
+  runs: AuditRunEntry[],
+  scheduleMap: Map<string, AuditScheduleEntry>,
+): ScheduleGroup[] {
+  const map = new Map<string, AuditRunEntry[]>();
+  for (const run of runs) {
+    const existing = map.get(run.scheduleId) || [];
+    existing.push(run);
+    map.set(run.scheduleId, existing);
   }
-  batches.push(currentBatch);
-  return batches;
-}
 
-function formatBatchTime(ts: number): string {
-  const now = Date.now();
-  const diff = now - ts;
-  const date = new Date(ts);
-
-  if (diff < 86_400_000) {
-    // Today — show time only
-    return `Today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  }
-  if (diff < 2 * 86_400_000) {
-    return `Yesterday at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  }
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) +
-    ` at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  return [...map.entries()]
+    .map(([scheduleId, groupRuns]) => ({
+      scheduleId,
+      scheduleName: scheduleMap.get(scheduleId)?.name || scheduleId.slice(0, 8),
+      runs: groupRuns, // already newest-first from API
+    }))
+    .sort((a, b) => {
+      const aLatest = a.runs[0]?.startedAt ?? 0;
+      const bLatest = b.runs[0]?.startedAt ?? 0;
+      return bLatest - aLatest;
+    });
 }
 
 function ReportsView() {
@@ -478,7 +469,10 @@ function ReportsView() {
         if (!schedulesRes.ok) throw new Error(`Schedules: HTTP ${schedulesRes.status}`);
         const runsData: AuditRunEntry[] = await runsRes.json();
         const schedulesData: AuditScheduleEntry[] = await schedulesRes.json();
-        setRuns(runsData.filter(r => r.status === 'completed' && r.structuredReport));
+        const cutoff = Date.now() - SEVEN_DAYS_MS;
+        setRuns(runsData.filter(r =>
+          r.status === 'completed' && r.structuredReport && r.startedAt >= cutoff
+        ));
         setSchedules(schedulesData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch');
@@ -513,316 +507,287 @@ function ReportsView() {
     return (
       <div className="text-center py-12 text-muted">
         <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        <p className="text-sm">No completed reports yet</p>
+        <p className="text-sm">No completed reports in the last 7 days</p>
         <p className="text-xs mt-1">Reports appear here when scheduled audits complete</p>
       </div>
     );
   }
 
-  // ── Aggregate stats across all completed reports ──
-  const stats = computeReportStats(runs);
+  const scheduleGroups = groupRunsBySchedule(runs, scheduleMap);
 
   return (
     <div className="space-y-4">
-      {/* Summary stat cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard
-          label="Avg Score"
-          value={stats.avgScore.toFixed(1)}
-          sub={`${runs.length} report${runs.length !== 1 ? 's' : ''}`}
-          icon={<Target className="w-4 h-4" />}
-          color={stats.avgScore >= 8 ? 'green' : stats.avgScore >= 5 ? 'amber' : 'red'}
-        />
-        <StatCard
-          label="Needs Attention"
-          value={stats.needsAttention}
-          sub={stats.needsAttention > 0 ? `${stats.criticalFindings}C ${stats.highFindings}H findings` : 'All clear'}
-          icon={<AlertTriangle className="w-4 h-4" />}
-          color={stats.needsAttention > 0 ? 'red' : 'green'}
-        />
-        <StatCard
-          label="Total Findings"
-          value={stats.totalFindings}
-          sub={`${stats.criticalFindings + stats.highFindings} critical/high`}
-          icon={<BarChart3 className="w-4 h-4" />}
-          color={stats.criticalFindings > 0 ? 'red' : stats.highFindings > 0 ? 'amber' : 'cyan'}
-        />
-        <StatCard
-          label="Trend"
-          value={stats.improvingCount > stats.decliningCount ? 'Improving' : stats.decliningCount > stats.improvingCount ? 'Declining' : 'Stable'}
-          sub={`${stats.improvingCount}↑ ${stats.decliningCount}↓ ${stats.stableCount}→`}
-          icon={stats.improvingCount > stats.decliningCount
-            ? <TrendingUp className="w-4 h-4" />
-            : stats.decliningCount > stats.improvingCount
-            ? <TrendingDown className="w-4 h-4" />
-            : <Minus className="w-4 h-4" />}
-          color={stats.improvingCount > stats.decliningCount ? 'green' : stats.decliningCount > stats.improvingCount ? 'red' : 'cyan'}
-        />
-      </div>
+      <div className="text-[10px] text-faint">Showing reports from the last 7 days</div>
 
-      {/* Rubric aspect trends */}
-      {runs.length > 1 && <RubricTrendsChart runs={runs} />}
-
-      {/* Score distribution bar */}
-      {runs.length > 1 && (
-        <div className="bg-surface-800 rounded-xl border border-surface-600 p-4">
-          <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3">Score Distribution</h3>
-          <div className="flex items-end gap-1 h-16">
-            {stats.scoreBuckets.map((count, i) => {
-              const maxCount = Math.max(...stats.scoreBuckets, 1);
-              const height = count > 0 ? Math.max((count / maxCount) * 100, 8) : 0;
-              const bucketColor = i >= 8 ? 'bg-accent-green' : i >= 5 ? 'bg-accent-amber' : 'bg-accent-red';
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full flex flex-col items-center justify-end" style={{ height: '48px' }}>
-                    {count > 0 && (
-                      <span className="text-[9px] text-muted mb-0.5">{count}</span>
-                    )}
-                    <div
-                      className={`w-full rounded-sm ${bucketColor} ${count === 0 ? 'opacity-10' : 'opacity-70'}`}
-                      style={{ height: `${height}%`, minHeight: count > 0 ? '4px' : '2px' }}
-                    />
-                  </div>
-                  <span className="text-[9px] text-faint">{i}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Report cards grouped by batch */}
-      <div className="space-y-6">
-      {groupRunsByBatch(runs).map((batch, batchIdx) => {
-        const batchScores = batch.runs.map(r => r.structuredReport!.overallScore);
-        const batchAvg = batchScores.reduce((a, b) => a + b, 0) / batchScores.length;
-        const batchAvgColor = batchAvg >= 8 ? 'text-accent-green' : batchAvg >= 5 ? 'text-accent-amber' : 'text-accent-red';
+      {/* Per-schedule sections */}
+      {scheduleGroups.map(group => {
+        const stats = computeReportStats(group.runs);
 
         return (
-          <div key={batchIdx}>
-            {/* Batch header */}
-            <div className="flex items-center gap-3 mb-2">
-              <Layers className="w-3.5 h-3.5 text-muted" />
-              <span className="text-xs font-medium text-tertiary">
-                {formatBatchTime(batch.startedAt)}
-              </span>
+          <div key={group.scheduleId} className="space-y-3">
+            {/* Schedule header */}
+            <div className="flex items-center gap-3">
+              <Shield className="w-4 h-4 text-accent-cyan" />
+              <h3 className="text-sm font-semibold text-secondary">{group.scheduleName}</h3>
               <span className="text-[10px] text-faint">
-                {batch.runs.length} report{batch.runs.length !== 1 ? 's' : ''}
-              </span>
-              <span className={`text-[10px] font-medium ${batchAvgColor}`}>
-                avg {batchAvg.toFixed(1)}
+                {group.runs.length} report{group.runs.length !== 1 ? 's' : ''}
               </span>
               <div className="flex-1 border-t border-surface-700" />
-              <span className="text-[10px] text-faint">
-                {formatRelativeTime(batch.startedAt)}
-              </span>
             </div>
 
-            {/* Runs in this batch */}
+            {/* Per-schedule stat cards */}
+            <div className="grid grid-cols-4 gap-3">
+              <StatCard
+                label="Avg Score"
+                value={stats.avgScore.toFixed(1)}
+                sub={`${group.runs.length} report${group.runs.length !== 1 ? 's' : ''}`}
+                icon={<Target className="w-4 h-4" />}
+                color={stats.avgScore >= 8 ? 'green' : stats.avgScore >= 5 ? 'amber' : 'red'}
+              />
+              <StatCard
+                label="Needs Attention"
+                value={stats.needsAttention}
+                sub={stats.needsAttention > 0 ? `${stats.criticalFindings}C ${stats.highFindings}H findings` : 'All clear'}
+                icon={<AlertTriangle className="w-4 h-4" />}
+                color={stats.needsAttention > 0 ? 'red' : 'green'}
+              />
+              <StatCard
+                label="Total Findings"
+                value={stats.totalFindings}
+                sub={`${stats.criticalFindings + stats.highFindings} critical/high`}
+                icon={<BarChart3 className="w-4 h-4" />}
+                color={stats.criticalFindings > 0 ? 'red' : stats.highFindings > 0 ? 'amber' : 'cyan'}
+              />
+              <StatCard
+                label="Trend"
+                value={stats.improvingCount > stats.decliningCount ? 'Improving' : stats.decliningCount > stats.improvingCount ? 'Declining' : 'Stable'}
+                sub={`${stats.improvingCount}↑ ${stats.decliningCount}↓ ${stats.stableCount}→`}
+                icon={stats.improvingCount > stats.decliningCount
+                  ? <TrendingUp className="w-4 h-4" />
+                  : stats.decliningCount > stats.improvingCount
+                  ? <TrendingDown className="w-4 h-4" />
+                  : <Minus className="w-4 h-4" />}
+                color={stats.improvingCount > stats.decliningCount ? 'green' : stats.decliningCount > stats.improvingCount ? 'red' : 'cyan'}
+              />
+            </div>
+
+            {/* Rubric aspect trends (line chart) */}
+            {group.runs.length > 1 && <RubricTrendsChart runs={group.runs} />}
+
+            {/* Individual run cards */}
             <div className="space-y-3">
-            {batch.runs.map(run => {
-              const report = run.structuredReport!;
-              const schedule = scheduleMap.get(run.scheduleId);
-              const isExpanded = expandedRunId === run.id;
-              const isAttention = stats.attentionRunIds.has(run.id);
+              {group.runs.map(run => {
+                const report = run.structuredReport!;
+                const isExpanded = expandedRunId === run.id;
+                const isAttention = stats.attentionRunIds.has(run.id);
 
-              return (
-                <div
-                  key={run.id}
-                  className={`bg-surface-800 rounded-xl border overflow-hidden ${
-                    isAttention ? 'border-accent-red/40' : 'border-surface-600'
-                  }`}
-                >
-                  {/* Report header row — clickable */}
-                  <button
-                    onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
-                    className="w-full flex items-center gap-3 p-4 text-left hover:bg-surface-700/30 transition-colors"
+                return (
+                  <div
+                    key={run.id}
+                    className={`bg-surface-800 rounded-xl border overflow-hidden ${
+                      isAttention ? 'border-accent-red/40' : 'border-surface-600'
+                    }`}
                   >
-                    <div className="shrink-0">
-                      <ScoreRing score={report.overallScore} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-secondary truncate">
-                          {schedule?.name || run.scheduleId.slice(0, 8)}
-                        </span>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                          run.mode === 'fix'
-                            ? 'bg-accent-purple/20 text-accent-purple'
-                            : 'bg-accent-cyan/20 text-accent-cyan'
-                        }`}>
-                          {run.mode}
-                        </span>
-                        {run.trend && (
-                          <span className="flex items-center gap-0.5">
-                            <TrendIcon direction={run.trend.direction} />
-                            <span className={`text-[10px] ${
-                              run.trend.direction === 'improving' ? 'text-accent-green' :
-                              run.trend.direction === 'declining' ? 'text-accent-red' :
-                              'text-muted'
-                            }`}>
-                              {run.trend.delta > 0 ? '+' : ''}{run.trend.delta.toFixed(1)}
-                            </span>
+                    {/* Report header row — clickable */}
+                    <button
+                      onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
+                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-surface-700/30 transition-colors"
+                    >
+                      <div className="shrink-0">
+                        <ScoreRing score={report.overallScore} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted">
+                            {formatRelativeTime(run.startedAt)}
                           </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted mt-0.5 truncate">
-                        {report.overallVerdict}
-                      </p>
-                    </div>
-                    <div className="shrink-0 flex items-center gap-3">
-                      {run.severityCounts && <SeverityBadges counts={run.severityCounts} />}
-                      {isExpanded
-                        ? <ChevronUp className="w-4 h-4 text-muted" />
-                        : <ChevronDown className="w-4 h-4 text-muted" />}
-                    </div>
-                  </button>
-
-                  {/* Expanded report detail */}
-                  {isExpanded && (
-                    <div className="border-t border-surface-600 p-5 space-y-5">
-                      {/* Summary */}
-                      <div>
-                        <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Summary</h3>
-                        <p className="text-sm text-tertiary leading-relaxed">{report.summary}</p>
-                      </div>
-
-                      {/* Rubric scores */}
-                      {report.rubric.length > 0 && (
-                        <div>
-                          <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Rubric Scores</h3>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="text-left text-muted border-b border-surface-600">
-                                  <th className="pb-2 pr-3 font-medium">Aspect</th>
-                                  <th className="pb-2 pr-3 font-medium">Score</th>
-                                  <th className="pb-2 pr-3 font-medium">Rating</th>
-                                  <th className="pb-2 pr-3 font-medium">Findings</th>
-                                  <th className="pb-2 font-medium">Notes</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {report.rubric.map((item, i) => (
-                                  <tr key={i} className="border-b border-surface-700/50">
-                                    <td className="py-2 pr-3 text-secondary">{item.aspect}</td>
-                                    <td className="py-2 pr-3">
-                                      <span className={
-                                        item.score >= 8 ? 'text-accent-green' :
-                                        item.score >= 4 ? 'text-accent-amber' :
-                                        'text-accent-red'
-                                      }>
-                                        {item.score.toFixed(1)}
-                                      </span>
-                                    </td>
-                                    <td className="py-2 pr-3">
-                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                        item.rating === 'pass' ? 'bg-accent-green/20 text-accent-green' :
-                                        item.rating === 'concern' ? 'bg-accent-amber/20 text-accent-amber' :
-                                        'bg-accent-red/20 text-accent-red'
-                                      }`}>
-                                        {item.rating}
-                                      </span>
-                                    </td>
-                                    <td className="py-2 pr-3 text-tertiary">{item.findingCount}</td>
-                                    <td className="py-2 text-muted max-w-[300px] truncate" title={item.summary}>
-                                      {item.summary}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            run.mode === 'fix'
+                              ? 'bg-accent-purple/20 text-accent-purple'
+                              : 'bg-accent-cyan/20 text-accent-cyan'
+                          }`}>
+                            {run.mode}
+                          </span>
+                          {run.trend && (
+                            <span className="flex items-center gap-0.5">
+                              <TrendIcon direction={run.trend.direction} />
+                              <span className={`text-[10px] ${
+                                run.trend.direction === 'improving' ? 'text-accent-green' :
+                                run.trend.direction === 'declining' ? 'text-accent-red' :
+                                'text-muted'
+                              }`}>
+                                {run.trend.delta > 0 ? '+' : ''}{run.trend.delta.toFixed(1)}
+                              </span>
+                            </span>
+                          )}
                         </div>
-                      )}
+                        <p className="text-xs text-muted mt-0.5 truncate">
+                          {report.overallVerdict}
+                        </p>
+                      </div>
+                      <div className="shrink-0 flex items-center gap-3">
+                        {run.severityCounts && <SeverityBadges counts={run.severityCounts} />}
+                        {isExpanded
+                          ? <ChevronUp className="w-4 h-4 text-muted" />
+                          : <ChevronDown className="w-4 h-4 text-muted" />}
+                      </div>
+                    </button>
 
-                      {/* Findings */}
-                      {report.findings.length > 0 && (
+                    {/* Expanded report detail */}
+                    {isExpanded && (
+                      <div className="border-t border-surface-600 p-5 space-y-5">
+                        {/* Summary */}
                         <div>
-                          <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
-                            Findings ({report.findings.length})
-                          </h3>
-                          <div className="space-y-2">
-                            {(['critical', 'high', 'medium', 'low', 'info'] as const).map(sev => {
-                              const items = report.findings.filter(f => f.severity === sev);
-                              if (items.length === 0) return null;
-                              return (
-                                <div key={sev}>
-                                  <div className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{
-                                    color: sev === 'critical' ? 'var(--color-accent-red)' :
-                                           sev === 'high' ? 'var(--color-accent-orange)' :
-                                           sev === 'medium' ? 'var(--color-accent-amber)' :
-                                           'rgb(var(--text-muted))',
-                                  }}>
-                                    {sev} ({items.length})
-                                  </div>
-                                  {items.map(finding => (
-                                    <div
-                                      key={finding.id}
-                                      className={`p-3 rounded-lg border mb-1.5 ${
-                                        sev === 'critical' ? 'border-accent-red/30 bg-accent-red/5' :
-                                        sev === 'high' ? 'border-accent-orange/30 bg-accent-orange/5' :
-                                        sev === 'medium' ? 'border-accent-amber/30 bg-accent-amber/5' :
-                                        'border-surface-600 bg-surface-700/30'
-                                      }`}
-                                    >
-                                      <div className="flex items-start gap-2">
-                                        <div className="flex-1 min-w-0">
-                                          <div className="text-xs font-medium text-secondary">
-                                            {finding.title}
-                                          </div>
-                                          {finding.location && (
-                                            <div className="text-[10px] text-muted font-mono mt-0.5">
-                                              {finding.location}
+                          <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Summary</h3>
+                          <p className="text-sm text-tertiary leading-relaxed">{report.summary}</p>
+                        </div>
+
+                        {/* Rubric scores */}
+                        {report.rubric.length > 0 && (
+                          <div>
+                            <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Rubric Scores</h3>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="text-left text-muted border-b border-surface-600">
+                                    <th className="pb-2 pr-3 font-medium">Aspect</th>
+                                    <th className="pb-2 pr-3 font-medium">Score</th>
+                                    <th className="pb-2 pr-3 font-medium">Rating</th>
+                                    <th className="pb-2 pr-3 font-medium">Findings</th>
+                                    <th className="pb-2 font-medium">Notes</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {report.rubric.map((item, i) => (
+                                    <tr key={i} className="border-b border-surface-700/50">
+                                      <td className="py-2 pr-3 text-secondary">{item.aspect}</td>
+                                      <td className="py-2 pr-3">
+                                        <span className={
+                                          item.score >= 8 ? 'text-accent-green' :
+                                          item.score >= 4 ? 'text-accent-amber' :
+                                          'text-accent-red'
+                                        }>
+                                          {item.score.toFixed(1)}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 pr-3">
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                          item.rating === 'pass' ? 'bg-accent-green/20 text-accent-green' :
+                                          item.rating === 'concern' ? 'bg-accent-amber/20 text-accent-amber' :
+                                          'bg-accent-red/20 text-accent-red'
+                                        }`}>
+                                          {item.rating}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 pr-3 text-tertiary">{item.findingCount}</td>
+                                      <td className="py-2 text-muted max-w-[300px] truncate" title={item.summary}>
+                                        {item.summary}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Findings */}
+                        {report.findings.length > 0 && (
+                          <div>
+                            <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
+                              Findings ({report.findings.length})
+                            </h3>
+                            <div className="space-y-2">
+                              {(['critical', 'high', 'medium', 'low', 'info'] as const).map(sev => {
+                                const items = report.findings.filter(f => f.severity === sev);
+                                if (items.length === 0) return null;
+                                return (
+                                  <div key={sev}>
+                                    <div className="text-[10px] font-medium uppercase tracking-wider mb-1" style={{
+                                      color: sev === 'critical' ? 'var(--color-accent-red)' :
+                                             sev === 'high' ? 'var(--color-accent-orange)' :
+                                             sev === 'medium' ? 'var(--color-accent-amber)' :
+                                             'rgb(var(--text-muted))',
+                                    }}>
+                                      {sev} ({items.length})
+                                    </div>
+                                    {items.map(finding => (
+                                      <div
+                                        key={finding.id}
+                                        className={`p-3 rounded-lg border mb-1.5 ${
+                                          sev === 'critical' ? 'border-accent-red/30 bg-accent-red/5' :
+                                          sev === 'high' ? 'border-accent-orange/30 bg-accent-orange/5' :
+                                          sev === 'medium' ? 'border-accent-amber/30 bg-accent-amber/5' :
+                                          'border-surface-600 bg-surface-700/30'
+                                        }`}
+                                      >
+                                        <div className="flex items-start gap-2">
+                                          <div className="flex-1 min-w-0">
+                                            <div className="text-xs font-medium text-secondary">
+                                              {finding.title}
                                             </div>
-                                          )}
-                                          <p className="text-[11px] text-tertiary mt-1">
-                                            {finding.description}
-                                          </p>
-                                          {finding.recommendation && (
-                                            <p className="text-[11px] text-accent-cyan mt-1">
-                                              {finding.recommendation}
+                                            {finding.location && (
+                                              <div className="text-[10px] text-muted font-mono mt-0.5">
+                                                {finding.location}
+                                              </div>
+                                            )}
+                                            <p className="text-[11px] text-tertiary mt-1">
+                                              {finding.description}
                                             </p>
-                                          )}
+                                            {finding.recommendation && (
+                                              <p className="text-[11px] text-accent-cyan mt-1">
+                                                {finding.recommendation}
+                                              </p>
+                                            )}
+                                          </div>
                                         </div>
                                       </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              );
-                            })}
+                                    ))}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {/* Trend details */}
-                      {run.trend && (
-                        <div className="flex items-center gap-4 text-xs text-muted">
-                          <span>Previous score: {run.trend.previousScore.toFixed(1)}</span>
-                          <span>Current: {run.trend.currentScore.toFixed(1)}</span>
-                          {run.trend.newFindings.length > 0 && (
-                            <span className="text-accent-red">+{run.trend.newFindings.length} new</span>
-                          )}
-                          {run.trend.resolvedFindings.length > 0 && (
-                            <span className="text-accent-green">{run.trend.resolvedFindings.length} resolved</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                        {/* Trend details */}
+                        {run.trend && (
+                          <div className="flex items-center gap-4 text-xs text-muted">
+                            <span>Previous score: {run.trend.previousScore.toFixed(1)}</span>
+                            <span>Current: {run.trend.currentScore.toFixed(1)}</span>
+                            {run.trend.newFindings.length > 0 && (
+                              <span className="text-accent-red">+{run.trend.newFindings.length} new</span>
+                            )}
+                            {run.trend.resolvedFindings.length > 0 && (
+                              <span className="text-accent-green">{run.trend.resolvedFindings.length} resolved</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
       })}
-      </div>
     </div>
   );
 }
 
-// ─── Rubric Trends Chart ─────────────────────────────────────────
+// ─── Rubric Trends Chart (Line Chart) ────────────────────────────
+
+// Stroke colors for each aspect line — cycles through a palette
+const LINE_COLORS = [
+  'var(--color-accent-blue)',
+  'var(--color-accent-green)',
+  'var(--color-accent-amber)',
+  'var(--color-accent-purple)',
+  'var(--color-accent-cyan)',
+  'var(--color-accent-red)',
+  'var(--color-accent-orange)',
+];
 
 interface AspectDataPoint {
   runIndex: number;
@@ -831,9 +796,7 @@ interface AspectDataPoint {
 }
 
 function RubricTrendsChart({ runs }: { runs: AuditRunEntry[] }) {
-  // Build time series per aspect from oldest → newest
-  // We reverse the runs array (newest-first from API → oldest-first) so that
-  // each aspect's data points are indexed chronologically for sparkline rendering
+  // Build time series per aspect from oldest to newest
   const chronological = [...runs].reverse();
   const aspectMap = new Map<string, AspectDataPoint[]>();
 
@@ -852,7 +815,6 @@ function RubricTrendsChart({ runs }: { runs: AuditRunEntry[] }) {
   });
 
   const aspects = [...aspectMap.entries()].sort((a, b) => {
-    // Sort by latest score descending so worst aspects surface at bottom
     const aLast = a[1][a[1].length - 1].score;
     const bLast = b[1][b[1].length - 1].score;
     return bLast - aLast;
@@ -861,87 +823,117 @@ function RubricTrendsChart({ runs }: { runs: AuditRunEntry[] }) {
   if (aspects.length === 0) return null;
 
   const totalRuns = chronological.length;
+  // SVG viewBox dimensions
+  const svgW = 300;
+  const svgH = 80;
+  const padX = 4;
+  const padY = 4;
+
+  function toX(runIndex: number): number {
+    if (totalRuns <= 1) return svgW / 2;
+    return padX + (runIndex / (totalRuns - 1)) * (svgW - 2 * padX);
+  }
+
+  function toY(score: number): number {
+    // score 0 → bottom, score 10 → top
+    return padY + ((10 - score) / 10) * (svgH - 2 * padY);
+  }
 
   return (
     <div className="bg-surface-800 rounded-xl border border-surface-600 p-4">
       <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3">
         Rubric Trends
       </h3>
-      <div className="space-y-2">
-        {aspects.map(([aspect, points]) => {
+
+      {/* SVG line chart */}
+      <svg
+        viewBox={`0 0 ${svgW} ${svgH}`}
+        className="w-full"
+        style={{ height: '120px' }}
+        preserveAspectRatio="none"
+      >
+        {/* Horizontal grid lines at score 2, 5, 8 */}
+        {[2, 5, 8].map(s => (
+          <line
+            key={s}
+            x1={padX} y1={toY(s)} x2={svgW - padX} y2={toY(s)}
+            stroke="rgb(var(--surface-600))"
+            strokeWidth="0.5"
+            strokeDasharray="2,2"
+          />
+        ))}
+
+        {/* One polyline per aspect */}
+        {aspects.map(([aspect, points], i) => {
+          const color = LINE_COLORS[i % LINE_COLORS.length];
+          const polyPoints = points
+            .map(p => `${toX(p.runIndex)},${toY(p.score)}`)
+            .join(' ');
+
+          return (
+            <g key={aspect}>
+              <polyline
+                points={polyPoints}
+                fill="none"
+                stroke={color}
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {/* Dots at each data point */}
+              {points.map(p => (
+                <circle
+                  key={p.runIndex}
+                  cx={toX(p.runIndex)}
+                  cy={toY(p.score)}
+                  r="2"
+                  fill={color}
+                >
+                  <title>{`${aspect}: ${p.score.toFixed(1)} (${formatRelativeTime(p.timestamp)})`}</title>
+                </circle>
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3">
+        {aspects.map(([aspect, points], i) => {
           const latest = points[points.length - 1];
           const first = points[0];
           const delta = points.length > 1 ? latest.score - first.score : 0;
+          const color = LINE_COLORS[i % LINE_COLORS.length];
 
           return (
-            <div key={aspect} className="flex items-center gap-3">
-              {/* Aspect label */}
-              <div className="w-36 shrink-0 text-xs text-tertiary truncate" title={aspect}>
-                {aspect}
-              </div>
-
-              {/* Sparkline */}
-              <div className="flex-1 flex items-end gap-px h-6">
-                {Array.from({ length: totalRuns }, (_, i) => {
-                  const point = points.find(p => p.runIndex === i);
-                  if (!point) {
-                    // No data for this run — show empty placeholder
-                    return (
-                      <div
-                        key={i}
-                        className="flex-1 bg-surface-700 rounded-sm"
-                        style={{ height: '2px' }}
-                      />
-                    );
-                  }
-                  const height = Math.max((point.score / 10) * 100, 8);
-                  const barColor =
-                    point.score >= 8 ? 'bg-accent-green' :
-                    point.score >= 5 ? 'bg-accent-amber' :
-                    'bg-accent-red';
-                  return (
-                    <div
-                      key={i}
-                      className={`flex-1 ${barColor} rounded-sm opacity-80 hover:opacity-100 transition-opacity`}
-                      style={{ height: `${height}%` }}
-                      title={`${aspect}: ${point.score.toFixed(1)} (${formatRelativeTime(point.timestamp)})`}
-                    />
-                  );
-                })}
-              </div>
-
-              {/* Current score */}
-              <div className={`w-8 text-right text-xs font-medium ${
-                latest.score >= 8 ? 'text-accent-green' :
-                latest.score >= 5 ? 'text-accent-amber' :
-                'text-accent-red'
-              }`}>
+            <div key={aspect} className="flex items-center gap-1.5 text-[10px]">
+              <span
+                className="w-2.5 h-0.5 rounded-full inline-block"
+                style={{ backgroundColor: color }}
+              />
+              <span className="text-tertiary">{aspect}</span>
+              <span className="font-medium" style={{ color }}>
                 {latest.score.toFixed(1)}
-              </div>
-
-              {/* Delta indicator */}
-              <div className="w-10 text-right">
-                {points.length > 1 ? (
-                  <span className={`text-[10px] ${
-                    delta > 0.5 ? 'text-accent-green' :
-                    delta < -0.5 ? 'text-accent-red' :
-                    'text-faint'
-                  }`}>
-                    {delta > 0 ? '+' : ''}{delta.toFixed(1)}
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-faint">—</span>
-                )}
-              </div>
+              </span>
+              {points.length > 1 && (
+                <span className={
+                  delta > 0.5 ? 'text-accent-green' :
+                  delta < -0.5 ? 'text-accent-red' :
+                  'text-faint'
+                }>
+                  {delta > 0 ? '+' : ''}{delta.toFixed(1)}
+                </span>
+              )}
             </div>
           );
         })}
       </div>
-      {/* Legend */}
-      <div className="flex items-center gap-4 mt-3 text-[10px] text-faint">
-        <span>← oldest</span>
+
+      {/* Time axis hint */}
+      <div className="flex items-center gap-4 mt-1 text-[10px] text-faint">
+        <span>{formatRelativeTime(chronological[0]?.startedAt ?? 0)}</span>
         <div className="flex-1 border-t border-surface-700" />
-        <span>newest →</span>
+        <span>{formatRelativeTime(chronological[chronological.length - 1]?.startedAt ?? 0)}</span>
       </div>
     </div>
   );
@@ -956,8 +948,6 @@ function computeReportStats(runs: AuditRunEntry[]) {
   let improvingCount = 0;
   let decliningCount = 0;
   let stableCount = 0;
-  // Score buckets 0-10 (index = integer score)
-  const scoreBuckets = new Array(11).fill(0);
   const attentionRunIds = new Set<string>();
 
   for (const run of runs) {
@@ -977,9 +967,6 @@ function computeReportStats(runs: AuditRunEntry[]) {
       else stableCount++;
     }
 
-    const bucketIdx = Math.min(10, Math.max(0, Math.floor(report.overallScore)));
-    scoreBuckets[bucketIdx]++;
-
     // Flag for attention: score < 5, or has critical/high findings
     const hasCriticalOrHigh = (sev?.critical || 0) > 0 || (sev?.high || 0) > 0;
     if (report.overallScore < 5 || hasCriticalOrHigh) {
@@ -996,7 +983,6 @@ function computeReportStats(runs: AuditRunEntry[]) {
     improvingCount,
     decliningCount,
     stableCount,
-    scoreBuckets,
     attentionRunIds,
   };
 }
