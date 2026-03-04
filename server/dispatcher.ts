@@ -728,7 +728,6 @@ async function startAgent(ticket: Ticket) {
 
   // Enable or disable agent teams based on ticket option
   cleanEnv.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = ticket.useTeam ? '1' : '0';
-  // Disable remote MCP servers (Gmail, Calendar, etc.) — they hang agent startup
   cleanEnv.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = '1';
 
   const proc = spawn('claude', args, {
@@ -736,6 +735,11 @@ async function startAgent(ticket: Ticket) {
     env: envWithNvmNode(cleanEnv),
     stdio: ['pipe', 'pipe', 'pipe'],
   });
+
+  // Close stdin immediately — Claude Code blocks on startup when stdin is an open
+  // pipe (it tries to read piped input). Sending EOF lets it proceed with the -p prompt.
+  // Note: this disables sendSteeringMessage(); use --resume for mid-flight intervention.
+  proc.stdin.end();
 
   running.set(ticket.id, proc);
   lastStreamActivity.set(ticket.id, Date.now());
