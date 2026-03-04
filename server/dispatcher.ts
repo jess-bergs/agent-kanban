@@ -3,7 +3,7 @@ import { execSync, execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { readFile, appendFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, realpathSync, statSync } from 'node:fs';
 import { getProject, getTicket, updateTicket, listTickets, getImagesDir } from './store.ts';
 import { captureAndUploadScreenshots } from './screenshots.ts';
 import { runAudit, resetStuckReviews } from './auditor.ts';
@@ -2078,6 +2078,32 @@ export function stopDispatcher() {
   if (intervalId) clearInterval(intervalId);
   if (conflictIntervalId) clearInterval(conflictIntervalId);
   if (healthCheckIntervalId) clearInterval(healthCheckIntervalId);
+
+  // Persist ticket status synchronously before killing agents so tickets
+  // are correctly listed as failed (rather than stuck in_progress).
+  const ticketsDir = join(import.meta.dirname, '..', 'data', 'tickets');
+  const now = Date.now();
+  for (const [id] of running) {
+    try {
+      const ticketPath = join(ticketsDir, `${id}.json`);
+      const raw = readFileSync(ticketPath, 'utf-8');
+      const ticket = JSON.parse(raw) as Ticket;
+      ticket.status = 'failed';
+      ticket.error = 'Agent was stopped (SIGTERM) — server shutdown';
+      ticket.failureReason = { type: 'signal_exit', code: 143, signal: 'SIGTERM' };
+      ticket.completedAt = now;
+      ticket.agentPid = undefined;
+      ticket.needsAttention = true;
+      const log = ticket.stateLog ?? [];
+      log.push({ status: 'failed', timestamp: now, reason: 'server_shutdown' });
+      ticket.stateLog = log;
+      writeFileSync(ticketPath, JSON.stringify(ticket, null, 2));
+      console.log(`[dispatcher] Marked ticket #${id} as failed (server shutdown)`);
+    } catch (err) {
+      console.error(`[dispatcher] Failed to persist shutdown status for ticket #${id}:`, err);
+    }
+  }
+
   // Kill running agents — SIGTERM first, then detach so Node can exit
   for (const [id, proc] of running) {
     console.log(`[dispatcher] Killing agent for ticket #${id}`);
