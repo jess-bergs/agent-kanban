@@ -1,461 +1,444 @@
-# Plan Report: Optimizing Context Management for Agents
+# Plan Report: Severity-Ordered Issue Triage for Agent Kanban
 
 ## Summary
 
-Agent Kanban dispatches Claude Code agents into git worktrees with a 50-turn budget. These agents currently spend 3-7 turns navigating a multi-hop documentation chain (CLAUDE.md → AGENTS.md → docs/AGENTS/\* → docs/architecture/\*) before they can write a single line of code. The total documentation surface is ~1,157 lines (~12K tokens) spread across 14 Markdown files with significant redundancy, a 2-4 hop navigation chain, and no comprehensive file index. This report evaluates strategies from industry best practices — including skills-style file headers, table-of-contents indexes, progressive disclosure, and CLAUDE.md restructuring — and proposes a concrete optimization plan that reduces agent investigation turns from 5-7 to 1-2 while keeping documentation maintainable.
+A comprehensive audit of the Agent Kanban codebase — spanning the Express/WebSocket server, React frontend, documentation, and configuration — identified **35 issues** across security, reliability, correctness, UX, and documentation categories. Issues are organized by severity (Critical → Low) to enable targeted ticket creation for each fix. The most urgent issues involve a dead steering-message API (code path impossible due to closed stdin), silent error swallowing across the frontend, race conditions in watchlist persistence, and significant documentation drift from the actual codebase. Each issue below is scoped as a discrete, independently-fixable ticket.
 
 ---
 
 ## Relevant Files
 
-### Documentation Files (14 total, ~12K tokens)
+### Server
+| File | Role |
+|------|------|
+| `server/index.ts` | Express HTTP server, WebSocket setup, REST API endpoints |
+| `server/dispatcher.ts` | Agent lifecycle: spawn, stream parsing, retry, merge, conflict resolution |
+| `server/auditor.ts` | PR review watchlist, Claude-based code review, polling loop |
+| `server/store.ts` | JSON-file persistence with atomic writes and per-file locking |
+| `server/solo-agents.ts` | Detects running Claude Code sessions via JSONL + process scanning |
+| `server/screenshots.ts` | Post-PR screenshot capture via Playwright |
+| `server/audit-scheduler.ts` | Cron-like scheduled audit execution |
+| `server/audit-store.ts` | Persistence for audit schedules and runs |
+| `server/audit-templates.ts` | Built-in audit prompt templates |
+| `server/analytics.ts` | Aggregated metrics (dispatcher, auditor, scheduler) |
+| `server/external-pr-scanner.ts` | Scans projects for external PRs (Dependabot, etc.) |
+| `server/auth-monitor.ts` | OAuth token monitoring and proactive refresh |
+| `server/mcp.ts` | MCP server for tool-based access to kanban data |
+| `server/nvm.ts` | NVM-aware PATH resolution for spawned processes |
 
-| File | Lines | Tokens | Role |
-|------|-------|--------|------|
-| `CLAUDE.md` | 34 | ~350 | Project overview, Quick Start, links to AGENTS.md |
-| `AGENTS.md` | 10 | ~120 | Index page linking to 4 docs in `docs/AGENTS/` |
-| `docs/AGENTS/conventions.md` | 46 | ~480 | Build commands, project structure, coding standards |
-| `docs/AGENTS/workflow.md` | 87 | ~1,300 | PR rules, ticket lifecycle, investigation approach |
-| `docs/AGENTS/security.md` | 18 | ~260 | Security checklist for server code |
-| `docs/AGENTS/architecture.md` | 22 | ~260 | How to add architecture docs, index of existing docs |
-| `docs/architecture/dispatcher.md` | 189 | ~2,060 | Dispatcher internals |
-| `docs/architecture/auditor.md` | 168 | ~1,490 | PR auditor internals |
-| `docs/architecture/scheduler.md` | 136 | ~1,300 | Audit scheduler internals |
-| `docs/architecture/pr-lifecycle.md` | 124 | ~1,120 | Post-PR pipeline |
-| `docs/architecture/mcp-server.md` | 108 | ~930 | MCP protocol integration |
-| `docs/architecture/agent-observability.md` | 146 | ~1,390 | Activity tracking, effort metrics |
-| `docs/architecture/security.md` | 39 | ~710 | Threat model, shell safety |
-| `docs/futureDevelopmentOpportunities.md` | 30 | ~630 | Future work notes |
+### Client
+| File | Role |
+|------|------|
+| `src/App.tsx` | Root component, routing |
+| `src/types.ts` | Shared TypeScript types and utility functions |
+| `src/hooks/useWebSocket.ts` | WebSocket connection, reconnection, message dispatch |
+| `src/components/TicketDetailModal.tsx` | Ticket detail view with activity feed |
+| `src/components/CreateTicketModal.tsx` | Ticket creation form |
+| `src/components/ChatPopover.tsx` | Chat interface for ticket conversations |
+| `src/components/AnalyticsDashboard.tsx` | Analytics dashboard with charts |
+| `src/components/Sidebar.tsx` | Project navigation sidebar |
+| `src/components/Layout.tsx` | Main layout shell |
+| `src/components/TicketKanban.tsx` | Kanban board view |
+| `src/components/AgentKanban.tsx` | Solo agent monitoring view |
+| `src/hooks/useTheme.ts` | Theme persistence hook |
 
-### Source Files (key context consumers)
-
-| File | Lines | Role |
-|------|-------|------|
-| `server/dispatcher.ts` | 1,820 | Core agent lifecycle — **builds the prompt injected into agents** |
-| `server/auditor.ts` | 793 | PR review agent — reads AGENTS.md/CLAUDE.md for review context |
-| `server/index.ts` | 1,197 | Express server, REST API, WebSocket |
-| `server/store.ts` | 313 | JSON file persistence |
-| `server/mcp.ts` | 421 | MCP server |
-| `server/audit-scheduler.ts` | 446 | Scheduled audit system |
-| `server/screenshots.ts` | 330 | Playwright screenshot pipeline |
-| `server/solo-agents.ts` | 289 | Standalone Claude session detection |
-| `server/analytics.ts` | 447 | Analytics endpoints |
-| `src/types.ts` | 501 | Shared TypeScript types |
+### Documentation
+| File | Role |
+|------|------|
+| `CLAUDE.md` | Project overview and quick-start guide |
+| `AGENTS.md` | Agent conventions, workflow rules, security checklist |
+| `docs/architecture/dispatcher.md` | Dispatcher architecture documentation |
+| `docs/architecture/auditor.md` | Auditor architecture documentation |
+| `docs/architecture/scheduler.md` | Scheduler architecture documentation |
+| `docs/architecture/mcp-server.md` | MCP server documentation |
+| `docs/architecture/agent-observability.md` | Agent observability documentation |
+| `package.json` | Project configuration and scripts |
 
 ---
 
 ## Current Architecture
 
-### How Agents Get Context Today
+Agent Kanban is a Node.js/React application that manages Claude Code agent lifecycles:
 
-#### 1. Dispatcher-Injected Context (automatic)
+1. **Server** (`server/index.ts`): Express server on port 3003 with WebSocket for real-time updates. REST API for CRUD on projects, tickets, audit schedules.
 
-When `dispatcher.ts:startAgent()` builds the agent prompt (lines 545-680), it injects:
+2. **Dispatcher** (`server/dispatcher.ts`): Core orchestrator. Creates git worktrees, spawns Claude Code agents with `--output-format stream-json`, parses live output, manages state transitions (todo → in_progress → in_review → merged/failed), handles retries, usage-limit holds, and conflict resolution.
 
-- **Ticket instructions** — the user's task description
-- **Budget warning** — "You have a strict budget of 50 turns"
-- **Phase guidance** — "Read CLAUDE.md/AGENTS.md for conventions"
-- **Worktree/branch info** — branch name, repo URL
-- **PR template instructions** — how to create a compliant PR
-- **Team mode instructions** — if applicable
+3. **Auditor** (`server/auditor.ts`): Watches PRs, spawns review agents, parses structured JSON results, triggers re-dispatches on `request_changes`, auto-merges on `approve`.
 
-Critically, agents are told *to read* CLAUDE.md and AGENTS.md but given **no map of what's in the codebase or which files implement which features**.
+4. **Store** (`server/store.ts`): File-based JSON persistence with atomic writes (write-to-temp + rename) and per-file write locks to prevent concurrent corruption.
 
-#### 2. Self-Discovered Context (agent must navigate)
-
-Agents must follow this multi-hop link chain:
-
-```
-Turn 1: Read CLAUDE.md (34 lines)
-  → "See AGENTS.md for all agent guidance"
-
-Turn 2: Read AGENTS.md (10 lines)
-  → Links to 4 docs in docs/AGENTS/
-
-Turn 3: Read docs/AGENTS/conventions.md (46 lines)
-  → Project structure overview (covers ~10 of 40+ files)
-
-Turn 4: Read docs/AGENTS/workflow.md (87 lines)
-  → Investigation approach, PR rules
-
-Turn 5: Read docs/AGENTS/architecture.md (22 lines)
-  → Links to 7 docs in docs/architecture/
-
-Turns 6-7: Read specific architecture doc(s)
-  → Detailed subsystem documentation
-```
-
-**Result**: 5-7 turns spent navigating documentation before agents can start coding. With a 50-turn budget, that's 10-14% consumed by navigation alone.
-
-#### 3. Auditor Context Loading
-
-The auditor (`auditor.ts:reviewPr()`, line 497-499) reads `AGENTS.md` and `CLAUDE.md` from the repo and injects them verbatim into the review prompt. This is ~470 tokens of conventions context.
-
-### Specific Problems Identified
-
-#### Problem 1: Redundant Content (~350 wasted tokens)
-
-The Quick Start section (npm commands, port numbers) is duplicated verbatim between `CLAUDE.md` (lines 5-14) and `docs/AGENTS/conventions.md` (lines 3-13). Every agent reads both files, wasting ~350 tokens on duplicate content.
-
-#### Problem 2: Sparse File Index
-
-`docs/AGENTS/conventions.md` has a "Project Structure" section listing ~10 entries, but the codebase has 40+ TypeScript source files and 20+ components. Agents must `grep`/`glob` to discover what files exist and what they do.
-
-#### Problem 3: No File-Level Headers
-
-Only 2 of 42+ TypeScript files have file-level documentation:
-- `server/nvm.ts` — 10-line JSDoc explaining strategy
-- `server/screenshots.ts` — 10-line JSDoc listing pipeline steps
-
-The remaining 40+ files start immediately with `import` statements. When an agent reads a file, it gets no quick summary of what the module does or how it fits the system.
-
-#### Problem 4: Deep Link Chain
-
-AGENTS.md is a pure index page (10 lines) with 4 links. Each linked doc may link further. This forces serial reading — agents can't parallelize navigation because each step reveals the next.
-
-#### Problem 5: Architecture Docs Are Siloed
-
-Each architecture doc is self-contained and excellent, but an agent working on a cross-cutting feature (e.g., "add a new ticket field") has no single document that says "ticket fields are defined in `src/types.ts`, persisted in `server/store.ts`, rendered in `src/components/TicketCard.tsx` and `TicketDetailModal.tsx`, and exposed via `server/index.ts` REST API and `server/mcp.ts` MCP tools."
+5. **Frontend** (`src/`): React SPA with WebSocket-driven state, Kanban board, ticket detail modals, analytics dashboard, and agent monitoring views.
 
 ---
 
-## Proposed Approach
+## Issues by Severity
 
-### Strategy: Flat-and-Rich CLAUDE.md + File Headers
+### CRITICAL (Tickets 1–5)
 
-Based on research into best practices ([HumanLayer](https://www.humanlayer.dev/blog/writing-a-good-claude-md), [GitHub Blog](https://github.blog/ai-and-ml/github-copilot/how-to-write-a-great-agents-md-lessons-from-over-2500-repositories/), [Anthropic subagents docs](https://code.claude.com/docs/en/sub-agents)), the recommended approach combines:
+These issues involve broken functionality, dead code paths, or data integrity risks.
 
-1. **Enriched CLAUDE.md** — A single file an agent reads first that gives enough context to start working without chasing links
-2. **Comprehensive file index** — Every source file and its purpose, in one place
-3. **File-level JSDoc headers** — Standardized module descriptions in each `.ts` file
-4. **Slimmed AGENTS.md** — Focused on agent-specific rules, not duplicating CLAUDE.md
-5. **Progressive disclosure** — Architecture docs remain as deep-dives, but agents can find the right one via the index
+---
 
-### Step 1: Restructure CLAUDE.md (~100-150 lines target)
+#### Issue 1: Steering message API is dead code — stdin is closed at spawn
 
-**Current**: 34 lines — project overview, Quick Start, link to AGENTS.md.
+- **File**: `server/dispatcher.ts:742, 1553–1561`
+- **Category**: Bug / Dead Code
+- **Description**: `sendSteeringMessage()` at line 1553 tries to write to `proc.stdin`, but `proc.stdin.end()` is called at line 742 immediately after spawning the agent. The comment at line 739 even acknowledges this: *"Note: this disables sendSteeringMessage(); use --resume for mid-flight intervention."* Yet the function is still exposed and the `/api/tickets/:id/steer` REST endpoint (in `index.ts`) calls it, returning success even though the message is silently discarded.
+- **Impact**: Users (or automation) calling the steering API believe their message was delivered. It never is.
+- **Fix**: Either remove `sendSteeringMessage()` and the REST endpoint, or implement stdin as a kept-open pipe with explicit EOF management. Given the comment suggests `--resume` is the intended mechanism, removal is the simpler fix.
 
-**Proposed**: Expand to ~100-150 lines following the WHAT/WHY/HOW framework:
+---
 
-```markdown
-# Agent Kanban
+#### Issue 2: Race condition in auditor watchlist persistence
 
-[1-2 line description]
+- **File**: `server/auditor.ts:69, 87–90, 266–267, 329`
+- **Category**: Race Condition / Data Integrity
+- **Description**: The watchlist is an in-memory array mutated by multiple async paths (`addToWatchlist`, `removeFromWatchlist`, `resetStuckReviews`, `pollPr`, review callbacks). While each path calls `saveWatchlist()`, there is no locking — unlike `store.ts` which uses `withLock()`. Two concurrent saves can interleave: one reads the array, another mutates and saves, then the first overwrites with stale data.
+- **Impact**: Watchlist entries can be silently lost or duplicated after concurrent mutations (e.g., a PR finishes review while a new PR is being added).
+- **Fix**: Use the same `withLock()` pattern from `store.ts` for all watchlist mutations, or switch to a single-writer queue.
 
-## Quick Start
-[build commands — single source of truth, remove from conventions.md]
+---
 
-## Architecture at a Glance
-[3-4 line description: "Express+React dashboard with 3 autonomous subsystems:
-dispatcher (agent lifecycle), auditor (PR review), scheduler (recurring audits).
-Shared types in src/types.ts. JSON file persistence in data/."]
+#### Issue 3: Silent error swallowing in frontend API calls
 
-## File Index
-[Complete file-to-purpose mapping — see Step 2]
+- **Files**: `src/components/TicketDetailModal.tsx:127–179`, `src/components/CreateTicketModal.tsx:100`, `src/components/ChatPopover.tsx:54`
+- **Category**: Error Handling / UX
+- **Description**: Multiple critical user actions (retry, delete, abort, create ticket, image upload) catch errors and either `console.error()` them or silently `return` without any user-facing feedback. For example, `CreateTicketModal` line 100: `if (!res.ok) return;` — no toast, no error message, no indication that ticket creation failed.
+- **Impact**: Users perform actions that fail silently. They may believe a ticket was created, an agent was aborted, or an image was uploaded when none of these actually happened.
+- **Fix**: Add a toast/notification system and surface errors from all API calls.
 
-## Agent Documentation
-See AGENTS.md for: workflow rules, PR guidelines, security checklist.
-See docs/architecture/ for deep-dives on: [list with 1-line summaries]
-```
+---
 
-**Rationale**: Research shows CLAUDE.md should be under 200 lines (HumanLayer recommends under 300; their own standard is under 60). By including the file index directly, agents get a complete codebase map in a single read. The ~150 line target is well within the effective range.
+#### Issue 4: Unbounded stderr accumulation in dispatcher and auditor
 
-### Step 2: Add Comprehensive File Index to CLAUDE.md
+- **Files**: `server/dispatcher.ts:913–915`, `server/auditor.ts:573–575`
+- **Category**: Resource Leak / Memory
+- **Description**: Both the dispatcher and auditor concatenate all stderr output into a single string (`stderr += chunk.toString()`) with no size limit. A long-running agent or one that produces excessive warnings can cause unbounded memory growth.
+- **Impact**: Server process memory grows without bound for long-running agents. Could cause OOM crashes during multi-hour runs.
+- **Fix**: Cap stderr accumulation (e.g., ring buffer or keep only last 10KB), similar to how stdout's `lineBuffer` is capped at 1MB (line 902).
 
-Add a structured file index that maps every source file to its purpose. This is the "table of contents" the ticket asks about.
+---
 
-**Format** (compact, scannable):
+#### Issue 5: `execSync` used for PR operations with string interpolation
 
-```markdown
-## File Index
+- **Files**: `server/dispatcher.ts:209–212, 256–258, 1037, 1229–1231, 1272–1274, 1322–1324, 1363–1365, 1609–1611`
+- **Category**: Security / Code Quality
+- **Description**: Several `execSync` calls construct shell commands with `ticket.prUrl` interpolated via template strings (e.g., `` `gh pr view "${ticket.prUrl}" --json ...` ``). While prUrl is typically set by the agent's own output and passes through a regex filter, the pattern is fragile. Some calls already use `execFileSync` (safe), but others use `execSync` with string interpolation.
+- **Impact**: If a malformed PR URL containing shell metacharacters is ever stored (e.g., via a corrupted JSON file or MCP tool), it could lead to command injection.
+- **Fix**: Convert all `execSync` calls to `execFileSync` with array arguments, matching the pattern already used for git operations elsewhere in the file.
 
-### Server (`server/`)
-| File | Purpose |
-|------|---------|
-| `index.ts` | Express server, REST API endpoints, WebSocket broadcast |
-| `dispatcher.ts` | Agent lifecycle: spawn, monitor, PR detection, auto-merge |
-| `auditor.ts` | PR review agent: watchlist, rubric, verdict posting |
-| `store.ts` | JSON file persistence for projects and tickets |
-| ... | ... |
+---
 
-### Frontend (`src/`)
-| File | Purpose |
-|------|---------|
-| `App.tsx` | Root component, route switching |
-| `types.ts` | Shared TypeScript types (used by client AND server) |
-| `components/KanbanBoard.tsx` | Main kanban board layout |
-| ... | ... |
+### HIGH (Tickets 6–14)
 
-### Configuration
-| File | Purpose |
-|------|---------|
-| `vite.config.ts` | Vite config with dev proxy |
-| `tsconfig.json` | Client TypeScript config |
-| ... | ... |
-```
+These issues cause incorrect behavior, data loss risks, or significant UX degradation.
 
-**Estimated size**: ~50-60 lines for 42+ files. This replaces the sparse 10-entry list in `conventions.md`.
+---
 
-**Maintenance**: When a new file is added, add a line to the index. This is low-cost and can be checked by the PR auditor.
+#### Issue 6: Documentation port mismatch — CLAUDE.md says 3002, actual is 3003
 
-### Step 3: Add File-Level JSDoc Headers
+- **File**: `CLAUDE.md:14`
+- **Category**: Documentation / Onboarding
+- **Description**: CLAUDE.md states "Server: http://localhost:3002" but `server/index.ts` line 81 sets `const PORT = 3003`. New users and agents following the docs will fail to connect.
+- **Fix**: Update CLAUDE.md line 14 to say port 3003.
 
-Standardize a file-level documentation convention. Each `.ts` file gets a brief JSDoc header:
+---
 
-```typescript
-/**
- * @file Ticket dispatcher — agent lifecycle management
- *
- * Spawns Claude Code agents in git worktrees, monitors their output via
- * stream-JSON parsing, detects PR creation, and manages the post-PR pipeline
- * (screenshots, audit, auto-merge). Runs a 3s polling loop.
- *
- * Key exports: startDispatcher(), dispatcherTick(), killAgent(), abortAgent()
- */
-```
+#### Issue 7: Image upload race condition — no await, no cancellation
 
-**Guidelines**:
-- 3-6 lines maximum
-- First line: what the module IS (noun phrase)
-- Body: what it DOES (1-2 sentences of behavior)
-- Key exports line (optional, for large modules)
+- **File**: `src/components/TicketDetailModal.tsx:181–195`
+- **Category**: Race Condition
+- **Description**: `uploadImageFiles()` loops through files and fires fetch calls without awaiting them. If the user closes the modal, requests complete after unmount.
+- **Fix**: Await all uploads (e.g., `Promise.all`), add AbortController cleanup on unmount.
 
-**Why this helps agents**: When an agent reads a file to understand it, the header gives immediate context without reading 100+ lines. When grepping for functionality, headers are searchable.
+---
 
-**Estimated effort**: ~30 minutes to add headers to all 42+ files.
+#### Issue 8: MCP `update_ticket` allows arbitrary status transitions
 
-### Step 4: Slim Down AGENTS.md
+- **File**: `server/mcp.ts:131–152`
+- **Category**: Data Integrity
+- **Description**: The MCP `update_ticket` tool accepts any valid `TicketStatus` value and passes it directly to `updateTicket()` without checking whether the transition is valid. The REST API has some guards but the MCP tool bypasses them.
+- **Impact**: External MCP clients can put tickets into inconsistent states that confuse the dispatcher.
+- **Fix**: Share validation logic between REST and MCP paths.
 
-**Current**: 10-line pure index page.
+---
 
-**Proposed**: Expand slightly to include the key workflow rules inline (so agents don't need to follow another link), while keeping architecture docs as separate deep-dives:
+#### Issue 9: No test coverage
 
-```markdown
-# Agent Guidance
+- **Files**: Project-wide
+- **Category**: Quality / Reliability
+- **Description**: Despite having `vitest` configured, there are no test files in the project. The duplicate `"test"` scripts in `package.json` suggest tests were intended but never written.
+- **Fix**: Add tests for critical paths: store CRUD operations, dispatcher state machine transitions, auditor result parsing.
 
-## Core Rules
-- Always raise a PR — never push directly to main
-- Read CLAUDE.md first for the file index and architecture overview
-- Investigate before coding (see Workflow below)
-- Follow the PR template at .github/pull_request_template.md
+---
 
-## Quick Reference
-- [Conventions](./docs/AGENTS/conventions.md) — coding standards
-- [Workflow](./docs/AGENTS/workflow.md) — investigation approach, ticket lifecycle
-- [Security](./docs/AGENTS/security.md) — checklist for server code
-- [Architecture Docs](./docs/AGENTS/architecture.md) — deep-dives by subsystem
-```
+#### Issue 10: Screenshots module uses hardcoded port 5174
 
-The key insight: agents should be able to get the critical rules from AGENTS.md + CLAUDE.md alone, without needing to read `workflow.md` for basic guidance.
+- **File**: `server/screenshots.ts:301`
+- **Category**: Bug / Hardcoded Config
+- **Description**: `const appUrl = 'http://localhost:5174'` is hardcoded. If the dev server runs on a different port, screenshot capture silently fails.
+- **Fix**: Read port from vite.config.ts or accept it as a parameter.
 
-### Step 5: Deduplicate Content
+---
 
-Remove the duplicated Quick Start from `docs/AGENTS/conventions.md` (lines 3-13) since it will be the single source of truth in CLAUDE.md. Conventions.md should focus on coding standards and patterns only.
+#### Issue 11: WebSocket reconnection can fire stale handlers
 
-### Step 6: Update Dispatcher Prompt
+- **File**: `src/hooks/useWebSocket.ts:174`
+- **Category**: React Anti-pattern / Bug
+- **Description**: The `connect` function captures `handleMessage` in closure. When the WebSocket reconnects, it may use a stale `handleMessage` reference.
+- **Fix**: Use a ref for the message handler to ensure the latest version is always used.
 
-Modify `dispatcher.ts:startAgent()` to reference the file index directly:
+---
 
-**Current** (line 601):
-```
-1. Read CLAUDE.md/AGENTS.md for conventions and architecture.
-```
+#### Issue 12: Array-index keys in dynamic lists
 
-**Proposed**:
-```
-1. Read CLAUDE.md for the file index, architecture overview, and build commands.
-   Then read AGENTS.md for workflow rules. Use parallel reads.
-```
+- **Files**: `src/components/TicketDetailModal.tsx:689, 862`, `src/components/ChatPopover.tsx:323`
+- **Category**: React Anti-pattern
+- **Description**: `agentActivity`, `stateLog`, and chat messages use array index as React keys despite being dynamically appended.
+- **Fix**: Use timestamp-based or content-hash keys.
 
-This tells agents exactly what they'll find and enables them to read both files in a single turn.
+---
 
-### Step 7: Add Cross-Cutting Feature Maps (Optional Enhancement)
+#### Issue 13: Auditor's initial `auditorTick()` not awaited
 
-For common cross-cutting operations, add a "Common Patterns" section to CLAUDE.md:
+- **File**: `server/auditor.ts:801`
+- **Category**: Error Handling
+- **Description**: `startAuditor()` calls `auditorTick()` without `await`. If the initial tick throws, the error is unhandled.
+- **Fix**: `await auditorTick()` or add `.catch()`.
 
-```markdown
-## Common Patterns
+---
 
-**Adding a new ticket field**:
-  1. Add to `Ticket` interface in `src/types.ts`
-  2. Set/update in `server/dispatcher.ts` or relevant subsystem
-  3. Expose via REST in `server/index.ts` and MCP in `server/mcp.ts`
-  4. Display in `src/components/TicketCard.tsx` and `TicketDetailModal.tsx`
+#### Issue 14: `parseInline()` regex with global flag has stateful bug
 
-**Adding a new API endpoint**:
-  1. Add route in `server/index.ts`
-  2. Add MCP tool in `server/mcp.ts`
-  3. Add architecture doc if it's a new subsystem
-```
+- **File**: `src/components/ChatPopover.tsx:369–397`
+- **Category**: Bug
+- **Description**: Global regex retains `lastIndex` state across calls, causing alternating matches to be skipped on consecutive invocations.
+- **Fix**: Create new regex instances inside each call, or reset `lastIndex = 0`.
 
-This directly addresses Problem 5 (siloed architecture docs) by showing agents the cross-file relationships for the most common task types.
+---
+
+### MEDIUM (Tickets 15–26)
+
+---
+
+#### Issue 15: Duplicate npm scripts in package.json
+
+- **File**: `package.json:17–18, 22–23`
+- **Category**: Config / Code Quality
+- **Description**: `"test"` and `"test:watch"` are defined twice.
+- **Fix**: Remove the duplicates.
+
+---
+
+#### Issue 16: Five implemented features missing from architecture docs
+
+- **Files**: `docs/architecture/` (missing entries)
+- **Category**: Documentation
+- **Description**: These fully-implemented features have no architecture docs: External PR Scanner, Auth Monitor, Team Agent Mode, Plan-Only Mode, Analytics system.
+- **Fix**: Create architecture docs for each feature.
+
+---
+
+#### Issue 17: MCP docs list `remoteUrl` parameter that doesn't exist
+
+- **File**: `docs/architecture/mcp-server.md:32`
+- **Category**: Documentation
+- **Fix**: Remove `remoteUrl` from the MCP parameter table.
+
+---
+
+#### Issue 18: Broken cross-reference in scheduler docs
+
+- **File**: `docs/architecture/scheduler.md:131`
+- **Category**: Documentation
+- **Fix**: Fix or remove the dead link to `CLAUDE.md#api-endpoints-2`.
+
+---
+
+#### Issue 19: Auto-scroll jitter in activity feed
+
+- **File**: `src/components/TicketDetailModal.tsx:638–642`
+- **Category**: UX
+- **Description**: Ref callback runs on every render, causing constant scroll jumps even when user is reading earlier entries.
+- **Fix**: Only auto-scroll if user is already at bottom.
+
+---
+
+#### Issue 20: AnalyticsDashboard polling lacks unmount cleanup
+
+- **File**: `src/components/AnalyticsDashboard.tsx:187–191`
+- **Category**: Resource Leak
+- **Fix**: Add AbortController and clear interval in useEffect cleanup.
+
+---
+
+#### Issue 21: Unsafe `as` type casts on API responses
+
+- **Files**: `src/components/TicketDetailModal.tsx:212`, `src/hooks/useTheme.ts:15`, `server/auditor.ts:77`
+- **Category**: Type Safety
+- **Fix**: Add runtime validation at system boundaries.
+
+---
+
+#### Issue 22: Sidebar project deletion shows generic alert
+
+- **File**: `src/components/Sidebar.tsx:49–68`
+- **Category**: Error Handling / UX
+- **Fix**: Show specific error from response body.
+
+---
+
+#### Issue 23: ChatPopover shows "Empty directory" on API failure
+
+- **File**: `src/components/ChatPopover.tsx:48–58`
+- **Category**: UX
+- **Fix**: Track error state separately and display error indicator.
+
+---
+
+#### Issue 24: `localStorage` theme value not validated
+
+- **File**: `src/hooks/useTheme.ts:15`
+- **Category**: Type Safety
+- **Fix**: Validate against known theme values, fallback to default.
+
+---
+
+#### Issue 25: `groupRunsByBatch` doesn't handle out-of-order timestamps
+
+- **File**: `src/components/AnalyticsDashboard.tsx:433–442`
+- **Category**: Logic Bug
+- **Fix**: Sort runs by `startedAt` before grouping.
+
+---
+
+#### Issue 26: `StatusBadge` uses `replace('_', ' ')` — only replaces first underscore
+
+- **File**: `src/components/AnalyticsDashboard.tsx:1473`
+- **Category**: Bug (minor)
+- **Fix**: Use `replaceAll('_', ' ')` or regex with `/g`.
+
+---
+
+### LOW (Tickets 27–35)
+
+---
+
+#### Issue 27: Module-level counter for image IDs not reset across HMR
+- **File**: `src/components/CreateTicketModal.tsx:17`
+- **Fix**: Use `useRef` or `crypto.randomUUID()`.
+
+#### Issue 28: `EffortBadge` recomputes parts array on every render
+- **File**: `src/components/TicketCard.tsx:42–53`
+- **Fix**: Wrap in `useMemo`.
+
+#### Issue 29: Agent cards re-render due to non-memoized map creation
+- **File**: `src/components/AgentKanban.tsx:160–178`
+- **Fix**: Wrap in `useMemo`.
+
+#### Issue 30: `isIdleNotification()` does unsafe JSON parse
+- **File**: `src/types.ts:512–518`
+- **Fix**: Add explicit type check after parse.
+
+#### Issue 31: Complex nested ternaries in Layout.tsx
+- **File**: `src/components/Layout.tsx:202`
+- **Fix**: Extract to named function.
+
+#### Issue 32: ActivityFeed uses composite key with array index
+- **File**: `src/components/ActivityFeed.tsx:57`
+- **Fix**: Use hash without index.
+
+#### Issue 33: Sidebar ticket stats don't validate `ticket.status`
+- **File**: `src/components/Sidebar.tsx:149`
+- **Fix**: Add fallback for unknown statuses.
+
+#### Issue 34: `sendSteeringMessage` returns true on destroyed stdin
+- **File**: `server/dispatcher.ts:1553–1561`
+- **Fix**: Part of Issue 1 — remove or properly implement.
+
+#### Issue 35: Non-critical missing interactive tools documentation
+- **File**: `docs/architecture/agent-observability.md`
+- **Fix**: Document which tools are classified as "interactive" for approval detection.
+
+---
+
+## Proposed Approach — Ticket Creation Order
+
+### Phase 1: Critical (Tickets 1–5)
+1. Remove dead `sendSteeringMessage()` API and endpoint
+2. Add write locking to auditor watchlist persistence
+3. Implement toast/notification system for frontend error feedback
+4. Cap stderr accumulation in dispatcher and auditor
+5. Convert remaining `execSync` to `execFileSync` with array arguments
+
+### Phase 2: High (Tickets 6–14)
+6. Fix CLAUDE.md port number (3002 → 3003)
+7. Fix image upload race condition with await + AbortController
+8. Add status transition validation to MCP `update_ticket`
+9. Bootstrap test infrastructure with initial test suite
+10. Make screenshot port configurable
+11. Fix WebSocket reconnection stale handler closure
+12. Replace array-index keys in dynamic lists
+13. Await or catch `auditorTick()` initial call
+14. Fix `parseInline()` global regex statefulness
+
+### Phase 3: Medium (Tickets 15–26)
+15–26. Documentation fixes, UX improvements, type safety, and minor bug fixes.
+
+### Phase 4: Low (Tickets 27–35)
+27–35. Performance optimizations, code quality, and minor improvements.
 
 ---
 
 ## Files to Modify
 
-| File | Change Description |
-|------|-------------------|
-| `CLAUDE.md` | **Major restructure**: Add Architecture at a Glance, comprehensive File Index, Common Patterns section. Keep Quick Start as single source of truth. ~100-150 lines total. |
-| `AGENTS.md` | **Minor expansion**: Inline the 3-4 most critical workflow rules so agents don't need to follow a link for basics. Keep links to detailed docs. |
-| `docs/AGENTS/conventions.md` | **Remove duplication**: Delete the Quick Start section (lines 3-13) — now lives only in CLAUDE.md. Keep Key Conventions and Project Structure (or remove Project Structure since File Index supersedes it). |
-| `docs/AGENTS/architecture.md` | **No change** — still serves as the deep-dive index. |
-| `docs/AGENTS/workflow.md` | **No change** — detailed workflow stays here, AGENTS.md gets a summary. |
-| `docs/AGENTS/security.md` | **No change**. |
-| `server/dispatcher.ts` | **Update prompt** (lines 601-602): Direct agents to read CLAUDE.md for the file index, suggest parallel reads. |
-| `server/*.ts` (all 16 files) | **Add file-level JSDoc headers**: 3-6 line module description per file. |
-| `src/types.ts` | **Add file-level JSDoc header**. |
-| `src/App.tsx` | **Add file-level JSDoc header**. |
-| `src/components/*.tsx` (15 files) | **Add file-level JSDoc headers**. |
-| `src/hooks/useWebSocket.ts` | **Add file-level JSDoc header**. |
-| `src/lib/ticketCompat.ts` | **Add file-level JSDoc header**. |
-| `docs/architecture/*.md` (7 files) | **No change** — deep-dive docs are already well-structured. |
-
-### Files NOT to Modify
-
-- `docs/architecture/*.md` — These are excellent as-is. They serve as deep-dive references that agents read when they need detailed understanding of a subsystem.
-- `docs/futureDevelopmentOpportunities.md` — Not agent-facing documentation.
-- `server/auditor.ts` context loading (line 497-499) — Already reads AGENTS.md and CLAUDE.md; enriching those files automatically enriches auditor context.
-
----
-
-## Expected Impact
-
-### Turn Savings
-
-| Phase | Current Turns | Proposed Turns | Savings |
-|-------|--------------|----------------|---------|
-| Initial context discovery | 5-7 | 1-2 | 3-5 turns |
-| Finding relevant source files | 2-3 (grep/glob) | 0-1 (file index) | 1-2 turns |
-| Understanding a file's purpose | 1 per file (read 50+ lines) | Instant (header) | 0.5 per file |
-| **Total per agent run** | **~10 turns** | **~3 turns** | **~7 turns saved** |
-
-With a 50-turn budget, this reclaims ~14% of the budget for actual implementation work.
-
-### Token Savings
-
-| Metric | Current | Proposed |
-|--------|---------|----------|
-| Redundant Quick Start reads | ~350 tokens wasted | 0 (deduplicated) |
-| CLAUDE.md (auto-loaded) | ~350 tokens | ~600 tokens (richer but single-read) |
-| AGENTS.md (agent reads) | ~120 tokens + must follow 4 links | ~250 tokens (key rules inline) |
-| Net context for basic understanding | ~2,500 tokens across 5+ reads | ~850 tokens across 2 reads |
-
-### Qualitative Improvements
-
-- **Agents can start coding faster** — file index gives them a map without exploring
-- **Cross-cutting tasks become easier** — Common Patterns section shows the multi-file chains
-- **New contributors benefit** — file headers serve humans too
-- **Auditor gets richer context** — enriched CLAUDE.md is automatically injected into reviews
-- **Maintenance is low** — file index is a simple table, headers are one-time work
+| File | Changes Needed |
+|------|---------------|
+| `server/dispatcher.ts` | Remove `sendSteeringMessage()`, cap stderr, convert `execSync` → `execFileSync` |
+| `server/index.ts` | Remove `/api/tickets/:id/steer` endpoint |
+| `server/auditor.ts` | Add `withLock()` to watchlist mutations, cap stderr, await initial tick |
+| `CLAUDE.md` | Fix port 3002 → 3003 |
+| `package.json` | Remove duplicate test scripts |
+| `src/components/TicketDetailModal.tsx` | Add error toasts, fix image upload race, fix array-index keys, fix auto-scroll |
+| `src/components/CreateTicketModal.tsx` | Add error feedback, fix image ID generation |
+| `src/components/ChatPopover.tsx` | Fix `parseInline()` regex, add error state, fix message keys |
+| `src/hooks/useWebSocket.ts` | Fix stale closure in reconnection handler |
+| `src/components/AnalyticsDashboard.tsx` | Add polling cleanup, fix `groupRunsByBatch`, fix `StatusBadge` replace |
+| `src/hooks/useTheme.ts` | Validate localStorage theme value |
+| `src/components/Sidebar.tsx` | Improve error messages, validate ticket stats |
+| `server/mcp.ts` | Add status transition validation |
+| `server/screenshots.ts` | Make port configurable |
+| `docs/architecture/mcp-server.md` | Remove `remoteUrl` from parameter table |
+| `docs/architecture/scheduler.md` | Fix broken cross-reference |
+| `docs/architecture/` (new files) | Add docs for external-pr-scanner, auth-monitor, team-mode, plan-only, analytics |
 
 ---
 
 ## Risks & Edge Cases
 
-### 1. CLAUDE.md Size Creep
+1. **Removing `sendSteeringMessage()`**: Any external automation relying on `/api/tickets/:id/steer` will break. Verify no MCP tools or scripts use it before removal.
 
-**Risk**: A 150-line CLAUDE.md is within best practices (HumanLayer recommends <300 lines) but could grow over time.
+2. **Adding locking to auditor watchlist**: The lock must be non-blocking for the polling loop. Use `withLock()` keyed on the watchlist file path.
 
-**Mitigation**: Add a comment at the top: `<!-- Target: <200 lines. Move detailed content to docs/AGENTS/ or docs/architecture/ -->`. The PR auditor can flag violations.
+3. **Toast system for errors**: Requires a new shared UI component. Consider a centralized `apiFetch()` wrapper that handles all error display.
 
-### 2. File Index Goes Stale
+4. **Test infrastructure**: Prioritize the dispatcher state machine and store CRUD since those have the most subtle edge cases.
 
-**Risk**: When files are added or renamed, the index must be updated manually.
+5. **Converting `execSync` to `execFileSync`**: Verify that splitting computed values (e.g., `ownerRepo`) into array arguments handles all edge cases.
 
-**Mitigation**:
-- The PR auditor rubric already checks "Project Conventions" — update it to include file index freshness.
-- A scheduled audit template could validate the index against actual files.
-- Alternatively, consider a script that generates the index from file headers (if headers are adopted), though this adds build complexity.
-
-### 3. File Headers Add Noise for Human Readers
-
-**Risk**: Developers may find JSDoc headers redundant for files with obvious names.
-
-**Mitigation**: Keep headers to 3-6 lines. For small/obvious files (e.g., `nvm.ts`), 2 lines is fine. The format should be descriptive, not ceremonial.
-
-### 4. Two Sources of File Descriptions
-
-**Risk**: File index in CLAUDE.md and file-level headers could diverge.
-
-**Mitigation**: The index should be a compact summary (5-10 words), while headers provide more detail (2-3 sentences). They serve different purposes: the index is for discovery, headers are for understanding. Divergence is acceptable as long as neither is wrong.
-
-### 5. Breaking Existing Agent Expectations
-
-**Risk**: If agents already have learned patterns like "always read AGENTS.md first", restructuring could confuse cached behaviors.
-
-**Mitigation**: The dispatcher prompt explicitly tells agents what to read. Updating the prompt (Step 6) ensures agents follow the new structure. There's no cached state to worry about — each agent session starts fresh.
-
-### 6. Over-Loading CLAUDE.md
-
-**Risk**: Research warns that LLMs can reliably follow ~150-200 instructions. The Claude Code system prompt already uses ~50 of that budget. An overly prescriptive CLAUDE.md could degrade performance.
-
-**Mitigation**: The file index is data (a reference table), not instructions. Instructions should be limited to 5-10 rules. The bulk of CLAUDE.md should be informational, not imperative.
+6. **WebSocket reconnection fix**: Changing to refs alters closure semantics. Verify initial connection and unmount cleanup still work.
 
 ---
 
 ## Open Questions
 
-### 1. Should the file index be auto-generated or manually maintained?
+1. **Steering message removal vs. reimplementation**: Remove entirely (simpler) or reimplement with kept-open stdin (more capability)? The existing comment suggests `--resume` is preferred.
 
-**Options**:
-- **(a) Manual** — Simple, requires discipline during PRs. The auditor can check freshness.
-- **(b) Auto-generated from file headers** — Requires a build script that parses JSDoc headers and writes to CLAUDE.md. More complex but stays in sync. Could be a pre-commit hook or CI step.
-- **(c) Separate file linked from CLAUDE.md** — e.g., `FILE_INDEX.md`. Keeps CLAUDE.md lean but adds one more hop.
+2. **Toast library choice**: Use a library (react-hot-toast, sonner) or build minimal custom toast? The project has no UI library dependencies beyond React + Lucide icons.
 
-**Recommendation**: Start with (a) manual maintenance. If it drifts, consider (b). Avoid (c) since it reintroduces the hop problem.
+3. **Test scope for initial ticket**: Framework + smoke tests, or comprehensive suite? A minimal set covering store.ts and dispatcher transitions is practical as a first pass.
 
-### 2. How detailed should file headers be?
+4. **Documentation tickets**: One large ticket for all 5 missing docs, or 5 separate tickets? Separate tickets allow parallel work.
 
-**Options**:
-- **(a) Minimal** — Just the module name and one-line purpose (`@file Ticket dispatcher`)
-- **(b) Medium** — Purpose + key behavior (3-4 lines, as proposed)
-- **(c) Full** — Purpose + exports + dependencies + data flow (6-10 lines)
-
-**Recommendation**: (b) Medium. It gives agents enough to decide whether to read the full file without being noisy.
-
-### 3. Should Common Patterns go in CLAUDE.md or a separate file?
-
-**Options**:
-- **(a) In CLAUDE.md** — Zero-hop access, but adds ~20-30 lines.
-- **(b) In `docs/AGENTS/patterns.md`** — Keeps CLAUDE.md lean but adds a hop.
-
-**Recommendation**: (a) In CLAUDE.md, limited to 3-5 most common patterns. If it grows beyond that, move to a separate file.
-
-### 4. Should we add a CLAUDE.md validation to CI/PR checks?
-
-A simple script could verify that every `.ts` file in `server/` and `src/` has a corresponding entry in the File Index section of CLAUDE.md. This would catch drift automatically.
-
-**Recommendation**: Nice to have, not essential. The auditor already reviews for convention compliance. A dedicated CI check is a future enhancement.
-
-### 5. Should architecture docs get frontmatter metadata?
-
-Adding YAML frontmatter to architecture docs (e.g., `files: [dispatcher.ts, nvm.ts]`) would enable tooling to cross-reference docs with source files. This is a forward-looking consideration, not essential for the initial optimization.
-
----
-
-## Alternative Approaches Considered
-
-### A. Skills-Style File Headers (Pull-into-TOC)
-
-The original ticket suggested a pattern where every file/folder has a description header that gets "pulled into" a table-of-contents summary. This is essentially the auto-generated approach in Open Question #1(b).
-
-**Why not recommended as the primary approach**: It requires build tooling (a script to parse headers and assemble the TOC), which adds complexity. The manual file index is simpler and achieves the same goal. However, this could be a Phase 2 enhancement if maintenance proves difficult.
-
-### B. Subagent-Based Context Loading
-
-Claude Code's subagent system supports `skills` preloading in frontmatter. The dispatcher could define project-specific skills that get injected into the agent's context at startup.
-
-**Why not recommended now**: The dispatcher currently spawns `claude` CLI directly, not through the subagent framework. Migrating to subagent-based dispatch would be a larger refactor. However, this is worth considering for the future (see `docs/futureDevelopmentOpportunities.md`).
-
-### C. Hierarchical CLAUDE.md Files
-
-Claude Code supports `.claude/` directory with per-directory CLAUDE.md files. We could add `server/CLAUDE.md` and `src/CLAUDE.md` for directory-specific context.
-
-**Why not recommended**: Agent Kanban is a relatively small codebase (~6K lines of TypeScript). Hierarchical docs add overhead without proportional benefit. This strategy is better suited for large monorepos.
-
-### D. Embedding Architecture Summaries in CLAUDE.md
-
-Instead of linking to `docs/architecture/*.md`, embed 2-3 line summaries of each subsystem directly in CLAUDE.md.
-
-**Why partially adopted**: The "Architecture at a Glance" section provides high-level summaries. Full architecture details remain in their dedicated files, accessible via the index. This balances depth with CLAUDE.md size.
+5. **MCP status validation**: What transitions should be allowed? Should MCP match REST API restrictions exactly?
