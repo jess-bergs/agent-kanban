@@ -55,9 +55,10 @@ interface TicketKanbanProps {
   project: Project;
   openTicketId?: string | null;
   onTicketOpened?: () => void;
+  onNavigateToTeam?: (teamName: string) => void;
 }
 
-export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }: TicketKanbanProps) {
+export function TicketKanban({ tickets, project, openTicketId, onTicketOpened, onNavigateToTeam }: TicketKanbanProps) {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -256,6 +257,7 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
                         key={ticket.id}
                         ticket={ticket}
                         onClick={setSelectedTicket}
+                        onNavigateToTeam={onNavigateToTeam}
                       />
                     ))}
                     {hiddenCount > 0 && (
@@ -283,6 +285,7 @@ export function TicketKanban({ tickets, project, openTicketId, onTicketOpened }:
           ticket={selectedTicket}
           project={project}
           onClose={() => setSelectedTicket(null)}
+          onNavigateToTeam={onNavigateToTeam}
         />
       )}
 
