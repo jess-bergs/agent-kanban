@@ -216,7 +216,7 @@
 - Dispatcher stats: tickets by status, cost, tokens, failures
 - Auditor stats: watched PRs, reviews, verdicts
 - Scheduler stats: audit runs, severity breakdown
-- Reports sub-tab with run batch grouping and stats summary
+- Reports sub-tab with per-schedule grouping, line charts, and 7-day window
 - Trend indicators (up/down/stable)
 
 ### J. Chat Popover

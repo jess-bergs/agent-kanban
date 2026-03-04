@@ -948,8 +948,6 @@ function computeReportStats(runs: AuditRunEntry[]) {
   let improvingCount = 0;
   let decliningCount = 0;
   let stableCount = 0;
-  // Score buckets 0-10 (index = integer score)
-  const scoreBuckets = new Array(11).fill(0);
   const attentionRunIds = new Set<string>();
 
   for (const run of runs) {
@@ -969,9 +967,6 @@ function computeReportStats(runs: AuditRunEntry[]) {
       else stableCount++;
     }
 
-    const bucketIdx = Math.min(10, Math.max(0, Math.floor(report.overallScore)));
-    scoreBuckets[bucketIdx]++;
-
     // Flag for attention: score < 5, or has critical/high findings
     const hasCriticalOrHigh = (sev?.critical || 0) > 0 || (sev?.high || 0) > 0;
     if (report.overallScore < 5 || hasCriticalOrHigh) {
@@ -988,7 +983,6 @@ function computeReportStats(runs: AuditRunEntry[]) {
     improvingCount,
     decliningCount,
     stableCount,
-    scoreBuckets,
     attentionRunIds,
   };
 }
