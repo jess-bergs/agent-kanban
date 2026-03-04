@@ -22,7 +22,7 @@ the kanban API (at `http://localhost:3003`) to read and write data.
 
 ## Tools
 
-The server exposes 19 tools across four domains:
+The server exposes 20 tools across four domains:
 
 ### Project Management
 
@@ -41,7 +41,8 @@ The server exposes 19 tools across four domains:
 | `get_ticket` | `id` | Get a single ticket by ID |
 | `update_ticket` | `id`, `status?`, `subject?`, `instructions?` | Update ticket fields |
 | `delete_ticket` | `id` | Delete a ticket |
-| `retry_ticket` | `id` | Reset a failed ticket back to `todo` |
+| `retry_ticket` | `ticketId` | Reset a failed/error ticket back to `todo`, preserving resumable state (branch + session) when possible and checking PR merge status before retrying |
+| `status_check` | `projectId?`, `includeOnHold?`, `includeNeedsApproval?` | List tickets needing attention (failed, error, on_hold) with summary counts for monitoring and triage |
 
 The `create_ticket` tool supports all dispatch options: `yolo` (skip permissions),
 `autoMerge` (squash-merge when checks pass), `queued` (defer dispatch), and `useRalph`
