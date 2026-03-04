@@ -29,6 +29,8 @@ import {
   Images,
   Send,
   CornerDownLeft,
+  Pencil,
+  FileSearch,
 } from 'lucide-react';
 import type { Ticket, TicketStatus, Project, AgentActivity, StateChangeEntry } from '../types';
 import { TICKET_STATUS_LABELS, formatTimestamp, formatDuration, formatTokenCount, shortenUuids } from '../types';
@@ -124,6 +126,55 @@ export function TicketDetailModal({ ticket, project, onClose, onNavigateToTeam }
   const [steeringResult, setSteeringResult] = useState<{ mode: string; error?: string } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const steeringInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Edit-before-retry state
+  const canRetry = ticket.status === 'error' || ticket.status === 'failed' || ticket.status === 'on_hold';
+  const [editing, setEditing] = useState(false);
+  const [editSubject, setEditSubject] = useState(ticket.subject);
+  const [editInstructions, setEditInstructions] = useState(ticket.instructions);
+  const [editYolo, setEditYolo] = useState(ticket.yolo ?? true);
+  const [editAutoMerge, setEditAutoMerge] = useState(ticket.autoMerge ?? true);
+  const [editQueued, setEditQueued] = useState(ticket.queued ?? false);
+  const [editUseRalph, setEditUseRalph] = useState(ticket.useRalph ?? false);
+  const [editUseTeam, setEditUseTeam] = useState(ticket.useTeam ?? false);
+  const [editPlanOnly, setEditPlanOnly] = useState(ticket.planOnly ?? false);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  function enterEditMode() {
+    setEditSubject(ticket.subject);
+    setEditInstructions(ticket.instructions);
+    setEditYolo(ticket.yolo ?? true);
+    setEditAutoMerge(ticket.autoMerge ?? true);
+    setEditQueued(ticket.queued ?? false);
+    setEditUseRalph(ticket.useRalph ?? false);
+    setEditUseTeam(ticket.useTeam ?? false);
+    setEditPlanOnly(ticket.planOnly ?? false);
+    setEditing(true);
+  }
+
+  async function handleRetryWithEdits() {
+    setActing(true);
+    try {
+      const res = await fetch(`/api/tickets/${ticket.id}/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: editSubject.trim(),
+          instructions: editInstructions.trim(),
+          yolo: editYolo,
+          autoMerge: editAutoMerge,
+          queued: editQueued,
+          useRalph: editUseRalph,
+          useTeam: editUseTeam,
+          planOnly: editPlanOnly,
+        }),
+      });
+      if (!res.ok) console.warn(`[retry] ${res.status} ${res.statusText}`);
+      setEditing(false);
+    } finally {
+      setActing(false);
+    }
+  }
 
   async function handleRetry() {
     setActing(true);
@@ -522,8 +573,182 @@ export function TicketDetailModal({ ticket, project, onClose, onNavigateToTeam }
             </div>
           )}
 
-          {/* Instructions */}
-          {ticket.instructions && (
+          {/* Instructions (read-only) / Edit form */}
+          {editing ? (
+            <div className="space-y-4 bg-surface-900/50 rounded-lg p-4 border border-accent-amber/20">
+              <div className="flex items-center gap-2 mb-1">
+                <Pencil className="w-4 h-4 text-accent-amber" />
+                <p className="text-xs font-medium text-accent-amber">Edit before retry</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-tertiary mb-1.5">Title</label>
+                <input
+                  type="text"
+                  value={editSubject}
+                  onChange={e => setEditSubject(e.target.value)}
+                  className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-accent-blue transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-tertiary mb-1.5">Instructions</label>
+                <textarea
+                  value={editInstructions}
+                  onChange={e => setEditInstructions(e.target.value)}
+                  onPaste={e => {
+                    const items = e.clipboardData?.items;
+                    if (!items) return;
+                    for (const item of Array.from(items)) {
+                      if (item.type.startsWith('image/')) {
+                        const file = item.getAsFile();
+                        if (file) uploadImageFiles([file]);
+                      }
+                    }
+                  }}
+                  rows={6}
+                  className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm text-primary placeholder-muted focus:outline-none focus:border-accent-blue transition-colors font-mono leading-relaxed resize-y"
+                />
+                <p className="text-[10px] text-muted mt-1">
+                  Paste screenshots (Cmd+V) or use the image controls below.
+                </p>
+              </div>
+
+              {/* Options grid */}
+              <div>
+                <label className="block text-xs font-medium text-tertiary mb-1.5">Options</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditYolo(!editYolo)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
+                      editYolo
+                        ? 'bg-accent-amber/10 border-accent-amber/30'
+                        : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                    }`}
+                    title="Skip all permission prompts"
+                  >
+                    <Zap className={`w-4 h-4 shrink-0 ${editYolo ? 'fill-accent-amber text-accent-amber' : 'text-muted'}`} />
+                    <span className={`text-xs font-medium ${editYolo ? 'text-accent-amber' : 'text-secondary'}`}>YOLO</span>
+                    <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
+                      editYolo ? 'bg-accent-amber justify-end' : 'bg-surface-600 justify-start'
+                    }`}>
+                      <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { if (!editPlanOnly) setEditAutoMerge(!editAutoMerge); }}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
+                      editPlanOnly
+                        ? 'opacity-40 cursor-not-allowed bg-surface-900 border-surface-600'
+                        : editAutoMerge
+                          ? 'bg-accent-purple/10 border-accent-purple/30'
+                          : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                    }`}
+                    title={editPlanOnly ? 'Disabled — plan-only produces a report, not mergeable code.' : 'Automatically merge PR when approved'}
+                  >
+                    <GitMerge className={`w-4 h-4 shrink-0 ${editPlanOnly ? 'text-faint' : editAutoMerge ? 'text-accent-purple' : 'text-muted'}`} />
+                    <span className={`text-xs font-medium ${editPlanOnly ? 'text-faint' : editAutoMerge ? 'text-accent-purple' : 'text-secondary'}`}>Auto-Merge</span>
+                    <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
+                      editPlanOnly ? 'bg-surface-700 justify-start' : editAutoMerge ? 'bg-accent-purple justify-end' : 'bg-surface-600 justify-start'
+                    }`}>
+                      <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditQueued(!editQueued)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
+                      editQueued
+                        ? 'bg-accent-cyan/10 border-accent-cyan/30'
+                        : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                    }`}
+                    title="Don't start until all other non-queued tickets finish"
+                  >
+                    <Clock className={`w-4 h-4 shrink-0 ${editQueued ? 'text-accent-cyan' : 'text-muted'}`} />
+                    <span className={`text-xs font-medium ${editQueued ? 'text-accent-cyan' : 'text-secondary'}`}>Queue</span>
+                    <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
+                      editQueued ? 'bg-accent-cyan justify-end' : 'bg-surface-600 justify-start'
+                    }`}>
+                      <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { if (!editPlanOnly) setEditUseRalph(!editUseRalph); }}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
+                      editPlanOnly
+                        ? 'opacity-40 cursor-not-allowed bg-surface-900 border-surface-600'
+                        : editUseRalph
+                          ? 'bg-accent-green/10 border-accent-green/30'
+                          : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                    }`}
+                    title={editPlanOnly ? "Disabled — plan-only doesn't need iterative refinement." : 'Iterative self-improving loop'}
+                  >
+                    <RefreshCw className={`w-4 h-4 shrink-0 ${editPlanOnly ? 'text-faint' : editUseRalph ? 'text-accent-green' : 'text-muted'}`} />
+                    <span className={`text-xs font-medium ${editPlanOnly ? 'text-faint' : editUseRalph ? 'text-accent-green' : 'text-secondary'}`}>Ralph Loop</span>
+                    <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
+                      editPlanOnly ? 'bg-surface-700 justify-start' : editUseRalph ? 'bg-accent-green justify-end' : 'bg-surface-600 justify-start'
+                    }`}>
+                      <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { if (!editPlanOnly) setEditUseTeam(!editUseTeam); }}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
+                      editPlanOnly
+                        ? 'opacity-40 cursor-not-allowed bg-surface-900 border-surface-600'
+                        : editUseTeam
+                          ? 'bg-accent-blue/10 border-accent-blue/30'
+                          : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                    }`}
+                    title={editPlanOnly ? "Disabled — plan-only doesn't benefit from team mode." : 'Agent spawns sub-agents'}
+                  >
+                    <Users className={`w-4 h-4 shrink-0 ${editPlanOnly ? 'text-faint' : editUseTeam ? 'text-accent-blue' : 'text-muted'}`} />
+                    <span className={`text-xs font-medium ${editPlanOnly ? 'text-faint' : editUseTeam ? 'text-accent-blue' : 'text-secondary'}`}>Team</span>
+                    <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
+                      editPlanOnly ? 'bg-surface-700 justify-start' : editUseTeam ? 'bg-accent-blue justify-end' : 'bg-surface-600 justify-start'
+                    }`}>
+                      <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !editPlanOnly;
+                      setEditPlanOnly(next);
+                      if (next) {
+                        setEditAutoMerge(false);
+                        setEditUseTeam(false);
+                        setEditUseRalph(false);
+                      }
+                    }}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors text-left ${
+                      editPlanOnly
+                        ? 'bg-accent-cyan/10 border-accent-cyan/30'
+                        : 'bg-surface-900 border-surface-600 hover:border-surface-500'
+                    }`}
+                    title="Investigation only — agent produces a plan instead of code changes"
+                  >
+                    <FileSearch className={`w-4 h-4 shrink-0 ${editPlanOnly ? 'text-accent-cyan' : 'text-muted'}`} />
+                    <span className={`text-xs font-medium ${editPlanOnly ? 'text-accent-cyan' : 'text-secondary'}`}>Plan Only</span>
+                    <div className={`ml-auto w-7 h-4 rounded-full transition-colors flex items-center shrink-0 ${
+                      editPlanOnly ? 'bg-accent-cyan justify-end' : 'bg-surface-600 justify-start'
+                    }`}>
+                      <div className="w-3 h-3 bg-white rounded-full mx-0.5 shadow-sm" />
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : ticket.instructions ? (
             <div className="flex items-start gap-3">
               <FileText className="w-4 h-4 text-muted mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
@@ -533,10 +758,10 @@ export function TicketDetailModal({ ticket, project, onClose, onNavigateToTeam }
                 </pre>
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* Attached images */}
-          {(ticket.images?.length || ticket.status === 'todo') ? (
+          {(ticket.images?.length || ticket.status === 'todo' || editing) ? (
             <div className="flex items-start gap-3">
               <Images className="w-4 h-4 text-muted mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
@@ -544,10 +769,10 @@ export function TicketDetailModal({ ticket, project, onClose, onNavigateToTeam }
                   <p className="text-xs text-muted">
                     Images {ticket.images?.length ? `(${ticket.images.length})` : ''}
                   </p>
-                  {ticket.status === 'todo' && (
+                  {(ticket.status === 'todo' || editing) && (
                     <>
                       <button
-                        onClick={() => imageInputRef.current?.click()}
+                        onClick={() => (editing ? editFileInputRef : imageInputRef).current?.click()}
                         className="text-[10px] text-accent-blue hover:text-accent-blue/80 transition-colors flex items-center gap-1"
                         title="Add images to this ticket"
                         aria-label="Add images"
@@ -556,7 +781,7 @@ export function TicketDetailModal({ ticket, project, onClose, onNavigateToTeam }
                         Add
                       </button>
                       <input
-                        ref={imageInputRef}
+                        ref={editing ? editFileInputRef : imageInputRef}
                         type="file"
                         accept="image/*"
                         multiple
@@ -586,7 +811,7 @@ export function TicketDetailModal({ ticket, project, onClose, onNavigateToTeam }
                             className="w-24 h-24 object-cover rounded-lg border border-surface-600 hover:border-accent-blue/50 transition-colors cursor-pointer"
                           />
                         </button>
-                        {ticket.status === 'todo' && (
+                        {(ticket.status === 'todo' || editing) && (
                           <button
                             onClick={() => handleDeleteImage(img.filename)}
                             className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-accent-red text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -961,17 +1186,50 @@ export function TicketDetailModal({ ticket, project, onClose, onNavigateToTeam }
                 Abort
               </button>
             )}
-            {(ticket.status === 'error' || ticket.status === 'failed' || ticket.status === 'on_hold') && (
-              <button
-                onClick={handleRetry}
-                disabled={acting}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-amber/10 text-accent-amber rounded-lg hover:bg-accent-amber/20 disabled:opacity-50 transition-colors"
-                title="Retry this ticket from the beginning"
-                aria-label="Retry ticket"
-              >
-                <RotateCcw className="w-4 h-4" aria-hidden="true" />
-                Retry
-              </button>
+            {canRetry && !editing && (
+              <>
+                <button
+                  onClick={enterEditMode}
+                  disabled={acting}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-amber/10 text-accent-amber rounded-lg hover:bg-accent-amber/20 disabled:opacity-50 transition-colors"
+                  title="Edit ticket fields before retrying"
+                  aria-label="Edit and retry ticket"
+                >
+                  <Pencil className="w-4 h-4" aria-hidden="true" />
+                  Edit & Retry
+                </button>
+                <button
+                  onClick={handleRetry}
+                  disabled={acting}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-accent-amber hover:bg-accent-amber/10 rounded-lg disabled:opacity-50 transition-colors"
+                  title="Retry this ticket immediately without changes"
+                  aria-label="Retry ticket"
+                >
+                  <RotateCcw className="w-4 h-4" aria-hidden="true" />
+                  Retry
+                </button>
+              </>
+            )}
+            {editing && (
+              <>
+                <button
+                  onClick={handleRetryWithEdits}
+                  disabled={acting || !editSubject.trim() || !editInstructions.trim()}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-accent-amber text-black rounded-lg hover:bg-accent-amber/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Save changes and retry"
+                  aria-label="Confirm retry with edits"
+                >
+                  <RotateCcw className={`w-4 h-4 ${acting ? 'animate-spin' : ''}`} aria-hidden="true" />
+                  {acting ? 'Retrying...' : 'Confirm Retry'}
+                </button>
+                <button
+                  onClick={() => setEditing(false)}
+                  disabled={acting}
+                  className="px-4 py-2 text-sm text-tertiary hover:text-secondary transition-colors"
+                >
+                  Cancel
+                </button>
+              </>
             )}
             {ticket.status === 'in_review' && ticket.prUrl && (
               <button
