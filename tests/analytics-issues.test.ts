@@ -22,7 +22,7 @@ describe('buildIssues — extreme usage detection', () => {
       completedAt: Date.now(),
       effort: { turns: 10, toolCalls: 15, inputTokens: 500_000, durationMs: 120_000 },
     });
-    const issues = buildIssues([ticket], [], []);
+    const issues = buildIssues([ticket], []);
     const extreme = issues.filter(i => i.id.startsWith('extreme-'));
     expect(extreme).toHaveLength(0);
   });
@@ -33,7 +33,7 @@ describe('buildIssues — extreme usage detection', () => {
       completedAt: Date.now(),
       effort: { turns: 45, toolCalls: 10, inputTokens: 100_000, durationMs: 60_000 },
     });
-    const issues = buildIssues([ticket], [], []);
+    const issues = buildIssues([ticket], []);
     const extreme = issues.filter(i => i.id.startsWith('extreme-'));
     expect(extreme).toHaveLength(1);
     expect(extreme[0].summary).toContain('Extreme usage');
@@ -48,7 +48,7 @@ describe('buildIssues — extreme usage detection', () => {
       startedAt: Date.now() - 30_000,
       effort: { turns: 5, toolCalls: 75, inputTokens: 100_000, durationMs: 60_000 },
     });
-    const issues = buildIssues([ticket], [], []);
+    const issues = buildIssues([ticket], []);
     const extreme = issues.filter(i => i.id.startsWith('extreme-'));
     expect(extreme).toHaveLength(1);
     expect(extreme[0].detail).toContain('75 tool calls');
@@ -59,7 +59,7 @@ describe('buildIssues — extreme usage detection', () => {
       startedAt: Date.now() - 30_000,
       effort: { turns: 5, toolCalls: 10, inputTokens: 4_500_000, durationMs: 60_000 },
     });
-    const issues = buildIssues([ticket], [], []);
+    const issues = buildIssues([ticket], []);
     const extreme = issues.filter(i => i.id.startsWith('extreme-'));
     expect(extreme).toHaveLength(1);
     expect(extreme[0].detail).toContain('5M input tokens');
@@ -70,7 +70,7 @@ describe('buildIssues — extreme usage detection', () => {
       startedAt: Date.now() - 30_000,
       effort: { turns: 5, toolCalls: 10, inputTokens: 100_000, durationMs: 15 * 60_000 },
     });
-    const issues = buildIssues([ticket], [], []);
+    const issues = buildIssues([ticket], []);
     const extreme = issues.filter(i => i.id.startsWith('extreme-'));
     expect(extreme).toHaveLength(1);
     expect(extreme[0].detail).toContain('15min duration');
@@ -81,7 +81,7 @@ describe('buildIssues — extreme usage detection', () => {
       startedAt: Date.now() - 30_000,
       effort: { turns: 50, toolCalls: 80, inputTokens: 5_000_000, durationMs: 20 * 60_000 },
     });
-    const issues = buildIssues([ticket], [], []);
+    const issues = buildIssues([ticket], []);
     const extreme = issues.filter(i => i.id.startsWith('extreme-'));
     expect(extreme).toHaveLength(1);
     expect(extreme[0].detail).toContain('50 turns');
@@ -95,7 +95,7 @@ describe('buildIssues — extreme usage detection', () => {
       // no startedAt
       effort: { turns: 50, toolCalls: 80 },
     });
-    const issues = buildIssues([ticket], [], []);
+    const issues = buildIssues([ticket], []);
     const extreme = issues.filter(i => i.id.startsWith('extreme-'));
     expect(extreme).toHaveLength(0);
   });
@@ -105,7 +105,7 @@ describe('buildIssues — extreme usage detection', () => {
       startedAt: Date.now() - 30_000,
       // no effort
     });
-    const issues = buildIssues([ticket], [], []);
+    const issues = buildIssues([ticket], []);
     const extreme = issues.filter(i => i.id.startsWith('extreme-'));
     expect(extreme).toHaveLength(0);
   });
@@ -119,7 +119,7 @@ describe('buildIssues — extreme usage detection', () => {
       completedAt,
       effort: { turns: 50, toolCalls: 10 },
     });
-    const issuesA = buildIssues([withCompleted], [], []);
+    const issuesA = buildIssues([withCompleted], []);
     expect(issuesA.find(i => i.id.startsWith('extreme-'))!.timestamp).toBe(completedAt);
 
     const withoutCompleted = makeTicket({
@@ -127,7 +127,7 @@ describe('buildIssues — extreme usage detection', () => {
       // no completedAt
       effort: { turns: 50, toolCalls: 10 },
     });
-    const issuesB = buildIssues([withoutCompleted], [], []);
+    const issuesB = buildIssues([withoutCompleted], []);
     expect(issuesB.find(i => i.id.startsWith('extreme-'))!.timestamp).toBe(startedAt);
   });
 
@@ -136,7 +136,7 @@ describe('buildIssues — extreme usage detection', () => {
       startedAt: Date.now() - 30_000,
       effort: { turns: 40, toolCalls: 60, inputTokens: 3_000_000, durationMs: 10 * 60_000 },
     });
-    const issues = buildIssues([ticket], [], []);
+    const issues = buildIssues([ticket], []);
     const extreme = issues.filter(i => i.id.startsWith('extreme-'));
     expect(extreme).toHaveLength(1);
     // All four thresholds are at exact boundary
@@ -151,7 +151,7 @@ describe('buildIssues — extreme usage detection', () => {
       startedAt: Date.now() - 30_000,
       effort: { turns: 39, toolCalls: 59, inputTokens: 2_999_999, durationMs: 9 * 60_000 + 59_999 },
     });
-    const issues = buildIssues([ticket], [], []);
+    const issues = buildIssues([ticket], []);
     const extreme = issues.filter(i => i.id.startsWith('extreme-'));
     expect(extreme).toHaveLength(0);
   });
