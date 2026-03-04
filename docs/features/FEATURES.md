@@ -220,8 +220,10 @@
 - Trend indicators (up/down/stable)
 
 ### J. Chat Popover
-- **Files**: `src/components/ChatPopover.tsx`
-- AI chat interface
+- **Files**: `src/components/ChatPopover.tsx`, `server/chat-tools.ts`
+- AI chat interface with tool_use support (can take actions, not just answer questions)
+- Tools available: `list_projects`, `list_tickets`, `create_ticket`, `get_ticket`, `update_ticket`, `delete_ticket`, `retry_ticket`, `status_check`, `list_audit_schedules`, `trigger_audit`, `list_audit_templates`
+- Multi-round tool_use loop (max 5 rounds) for multi-step interactions
 - Per-project file browsing and attachment
 
 ### K. Project Management
@@ -293,7 +295,7 @@
 
 ### Analytics & Chat
 - `GET /api/analytics` — aggregated stats
-- `POST /api/chat` — send chat message
+- `POST /api/chat` — send chat message (supports Anthropic tool_use for actions)
 - `GET /api/chat/files` — browse project files
 
 ---
