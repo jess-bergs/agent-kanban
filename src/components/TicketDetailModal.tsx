@@ -1042,7 +1042,7 @@ export function TicketDetailModal({ ticket, project, onClose, onNavigateToTeam }
                 )}
                 <p className="text-[9px] text-faint mt-1">
                   {isAgentActive
-                    ? 'Pipes directly to the agent\'s stdin. Use to answer questions or redirect the agent.'
+                    ? 'Stops and resumes the agent session with your message. Use to redirect the agent.'
                     : 'Resumes the previous Claude session with your message as the prompt.'
                   }
                 </p>
