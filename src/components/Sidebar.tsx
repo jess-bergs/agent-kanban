@@ -11,6 +11,7 @@ import {
   Trash2,
   BarChart3,
   Loader2,
+  Package,
 } from 'lucide-react';
 import type { TeamWithData, Project, Ticket, SoloAgent } from '../types';
 import { formatTimestamp } from '../types';
@@ -117,10 +118,28 @@ export function Sidebar({
         >
           Stats
         </button>
+        <button
+          onClick={() => setViewMode('product')}
+          className={`flex-1 px-2 py-1.5 text-[11px] font-medium transition-colors ${
+            viewMode === 'product'
+              ? 'text-accent-green border-b-2 border-accent-green'
+              : 'text-muted hover:text-secondary'
+          }`}
+        >
+          Product
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {viewMode === 'analytics' ? (
+        {viewMode === 'product' ? (
+          <div className="px-3 py-4 text-center">
+            <Package className="w-8 h-8 text-accent-green mx-auto mb-2 opacity-50" />
+            <p className="text-sm text-tertiary">Product View</p>
+            <p className="text-xs text-muted mt-1">
+              Project overview, ticket status, and product health
+            </p>
+          </div>
+        ) : viewMode === 'analytics' ? (
           <div className="px-3 py-4 text-center">
             <BarChart3 className="w-8 h-8 text-accent-purple mx-auto mb-2 opacity-50" />
             <p className="text-sm text-tertiary">Analytics Dashboard</p>
