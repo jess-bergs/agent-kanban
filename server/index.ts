@@ -76,7 +76,7 @@ import {
   setAuthMonitorBroadcast,
   getAuthStatus,
 } from './auth-monitor.ts';
-import { chatTools, executeTool } from './chat-tools.ts';
+import { chatTools, executeTool, CHAT_MODEL } from './chat-tools.ts';
 import type { TeamWithData, WSEvent, AuditTemplateId, ChatMessage } from '../src/types.ts';
 
 const PORT = 3003;
@@ -1110,7 +1110,7 @@ Keep responses short and focused. Use markdown formatting. When asked about conf
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
+          model: CHAT_MODEL,
           max_tokens: 2048,
           system: systemPrompt,
           messages: apiMessages,
