@@ -40,10 +40,12 @@ When creating a PR, agents **must** use the repo's PR template at `.github/pull_
 
 ```
 todo → in_progress → in_review → done / merged
-                 ↓         ↓
-          needs_approval    failed / error
+                 ↓    ↓    ↓
+          needs_approval  failed / error
                  ↓
           on_hold (usage limit → auto-resume)
+
+          in_progress → done  (when agent skips PR creation)
 ```
 
 **Key statuses:**
