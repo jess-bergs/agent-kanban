@@ -25,6 +25,9 @@ import { listTemplates } from './audit-templates.ts';
 import { triggerAudit } from './audit-scheduler.ts';
 import type { TicketStatus } from '../src/types.ts';
 
+/** Model ID used by the chat endpoint */
+export const CHAT_MODEL = 'claude-haiku-4-5-20251001';
+
 const TICKET_STATUSES = [
   'todo', 'in_progress', 'needs_approval', 'in_review',
   'on_hold', 'done', 'merged', 'failed', 'error',
@@ -36,7 +39,6 @@ interface ToolParam {
   type: string;
   description: string;
   enum?: string[];
-  default?: unknown;
 }
 
 interface AnthropicTool {
@@ -79,8 +81,8 @@ export const chatTools: AnthropicTool[] = [
         projectId: { type: 'string', description: 'Project UUID' },
         subject: { type: 'string', description: 'Short title' },
         instructions: { type: 'string', description: 'Detailed instructions for the agent' },
-        yolo: { type: 'boolean', description: 'YOLO mode (default true)', default: true },
-        autoMerge: { type: 'boolean', description: 'Auto-merge (default true)', default: true },
+        yolo: { type: 'boolean', description: 'YOLO mode (default true)' },
+        autoMerge: { type: 'boolean', description: 'Auto-merge (default true)' },
         queued: { type: 'boolean', description: 'Queue instead of immediate dispatch' },
         useRalph: { type: 'boolean', description: 'Use Ralph mode' },
       },
@@ -144,8 +146,8 @@ export const chatTools: AnthropicTool[] = [
       type: 'object',
       properties: {
         projectId: { type: 'string', description: 'Filter by project UUID' },
-        includeOnHold: { type: 'boolean', description: 'Include on_hold (default true)', default: true },
-        includeNeedsApproval: { type: 'boolean', description: 'Include needs_approval (default false)', default: false },
+        includeOnHold: { type: 'boolean', description: 'Include on_hold (default true)' },
+        includeNeedsApproval: { type: 'boolean', description: 'Include needs_approval (default false)' },
       },
     },
   },

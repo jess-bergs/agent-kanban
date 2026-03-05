@@ -30,7 +30,7 @@ vi.mock('../server/audit-scheduler.ts', () => ({
   triggerAudit: vi.fn(),
 }));
 
-import { chatTools, executeTool } from '../server/chat-tools.ts';
+import { chatTools, executeTool, CHAT_MODEL } from '../server/chat-tools.ts';
 import { listProjects, listTicketsFiltered, resolveTicket, updateTicket, deleteTicket, getProject, createTicket } from '../server/store.ts';
 import { prepareRetryFields, checkAndReconcilePrState } from '../server/dispatcher.ts';
 import { listSchedules, getSchedule } from '../server/audit-store.ts';
@@ -64,6 +64,33 @@ describe('chatTools schema array', () => {
     expect(names).toContain('create_ticket');
     expect(names).toContain('update_ticket');
     expect(names).toContain('status_check');
+  });
+
+  it('tool property schemas only use Anthropic-supported keywords', () => {
+    // Anthropic tool input_schema supports a subset of JSON Schema.
+    // Unsupported keywords (default, minimum, maximum, minLength, maxLength,
+    // oneOf, allOf, anyOf, etc.) cause the API to return 400 errors.
+    const SUPPORTED_KEYS = new Set(['type', 'description', 'enum']);
+    for (const tool of chatTools) {
+      for (const [, propSchema] of Object.entries(tool.input_schema.properties)) {
+        const keys = Object.keys(propSchema);
+        for (const key of keys) {
+          expect(SUPPORTED_KEYS.has(key)).toBe(true);
+        }
+      }
+    }
+  });
+});
+
+// ─── Model ID validation ─────────────────────────────────────────
+
+describe('CHAT_MODEL', () => {
+  it('matches the Anthropic model ID format', () => {
+    expect(CHAT_MODEL).toMatch(/^claude-[a-z]+-\d+-\d+-\d{8}$/);
+  });
+
+  it('is claude-haiku-4-5-20251001', () => {
+    expect(CHAT_MODEL).toBe('claude-haiku-4-5-20251001');
   });
 });
 
