@@ -173,6 +173,26 @@ describe('countOrphanRecoveries', () => {
   });
 });
 
+describe('completion status routing', () => {
+  // Tests the logic used in the close handler:
+  // const completionStatus = prUrl ? 'in_review' : 'done';
+  const completionStatus = (prUrl: string | undefined) =>
+    prUrl ? 'in_review' : 'done';
+
+  it('routes to in_review when a PR URL is present', () => {
+    expect(completionStatus('https://github.com/user/repo/pull/42')).toBe('in_review');
+  });
+
+  it('routes to done when no PR URL is found', () => {
+    expect(completionStatus(undefined)).toBe('done');
+  });
+
+  it('routes to done for empty string PR URL', () => {
+    // Empty string is falsy — treat as no PR
+    expect(completionStatus('')).toBe('done');
+  });
+});
+
 describe('retryAfter dispatch filtering', () => {
   // Tests the filtering logic used in dispatcherTick:
   // tickets.filter(t => t.status === 'todo' && (!t.retryAfter || t.retryAfter <= now))
