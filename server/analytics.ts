@@ -132,7 +132,7 @@ export interface IssueEntry {
 const USAGE_THRESHOLDS = {
   turns: 40,
   toolCalls: 60,
-  inputTokens: 3_000_000,
+  inputTokens: 1_000_000,
   durationMs: 10 * 60_000, // 10 min
 };
 
