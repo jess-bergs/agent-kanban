@@ -54,15 +54,15 @@ describe('buildIssues — extreme usage detection', () => {
     expect(extreme[0].detail).toContain('75 tool calls');
   });
 
-  it('creates an issue when inputTokens exceed threshold (>=3M)', () => {
+  it('creates an issue when inputTokens exceed threshold (>=1M)', () => {
     const ticket = makeTicket({
       startedAt: Date.now() - 30_000,
-      effort: { turns: 5, toolCalls: 10, inputTokens: 4_500_000, durationMs: 60_000 },
+      effort: { turns: 5, toolCalls: 10, inputTokens: 1_500_000, durationMs: 60_000 },
     });
     const issues = buildIssues([ticket], []);
     const extreme = issues.filter(i => i.id.startsWith('extreme-'));
     expect(extreme).toHaveLength(1);
-    expect(extreme[0].detail).toContain('5M input tokens');
+    expect(extreme[0].detail).toContain('2M input tokens');
   });
 
   it('creates an issue when durationMs exceeds threshold (>=10min)', () => {
@@ -134,7 +134,7 @@ describe('buildIssues — extreme usage detection', () => {
   it('handles exact threshold values as extreme (boundary test)', () => {
     const ticket = makeTicket({
       startedAt: Date.now() - 30_000,
-      effort: { turns: 40, toolCalls: 60, inputTokens: 3_000_000, durationMs: 10 * 60_000 },
+      effort: { turns: 40, toolCalls: 60, inputTokens: 1_000_000, durationMs: 10 * 60_000 },
     });
     const issues = buildIssues([ticket], []);
     const extreme = issues.filter(i => i.id.startsWith('extreme-'));
@@ -142,14 +142,14 @@ describe('buildIssues — extreme usage detection', () => {
     // All four thresholds are at exact boundary
     expect(extreme[0].detail).toContain('40 turns');
     expect(extreme[0].detail).toContain('60 tool calls');
-    expect(extreme[0].detail).toContain('3M input tokens');
+    expect(extreme[0].detail).toContain('1M input tokens');
     expect(extreme[0].detail).toContain('10min duration');
   });
 
   it('does not create extreme issue for values just below thresholds', () => {
     const ticket = makeTicket({
       startedAt: Date.now() - 30_000,
-      effort: { turns: 39, toolCalls: 59, inputTokens: 2_999_999, durationMs: 9 * 60_000 + 59_999 },
+      effort: { turns: 39, toolCalls: 59, inputTokens: 999_999, durationMs: 9 * 60_000 + 59_999 },
     });
     const issues = buildIssues([ticket], []);
     const extreme = issues.filter(i => i.id.startsWith('extreme-'));
