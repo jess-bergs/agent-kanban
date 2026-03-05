@@ -1,9 +1,6 @@
 import {
   Package,
   GitBranch,
-  Ticket,
-  CheckCircle2,
-  Clock,
   AlertTriangle,
   FolderOpen,
   ExternalLink,
@@ -54,7 +51,6 @@ export function ProductView({ projects, tickets, onSelectProject }: ProductViewP
   const totalTickets = tickets.length;
   const activeTickets = tickets.filter(t => t.status === 'in_progress').length;
   const completedTickets = tickets.filter(t => t.status === 'done' || t.status === 'merged').length;
-  const failedTickets = tickets.filter(t => t.status === 'failed' || t.status === 'error').length;
 
   return (
     <div className="flex-1 overflow-auto p-6">
