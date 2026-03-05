@@ -439,6 +439,38 @@ server.tool(
   },
 );
 
+/** Extract completed audit runs into a filtered, sorted report summary array. */
+export function filterAuditReports(
+  runs: Awaited<ReturnType<typeof listAuditRuns>>,
+  opts: { projectId?: string; limit?: number },
+) {
+  let filtered = runs;
+  if (opts.projectId) {
+    filtered = filtered.filter(r => r.projectId === opts.projectId);
+  }
+
+  // Only completed runs with structured reports
+  const completed = filtered
+    .filter(r => r.status === 'completed' && r.structuredReport)
+    .sort((a, b) => b.startedAt - a.startedAt)
+    .slice(0, opts.limit || 10);
+
+  return completed.map(r => ({
+    runId: r.id,
+    scheduleId: r.scheduleId,
+    projectId: r.projectId,
+    overallScore: r.structuredReport!.overallScore,
+    overallVerdict: r.structuredReport!.overallVerdict,
+    summary: r.structuredReport!.summary,
+    severityCounts: r.severityCounts,
+    rubric: r.structuredReport!.rubric,
+    findings: r.structuredReport!.findings,
+    trend: r.trend,
+    startedAt: r.startedAt,
+    completedAt: r.completedAt,
+  }));
+}
+
 server.tool(
   'get_latest_audit_reports',
   'Get the most recent completed audit runs with their structured findings. Returns reports sorted newest-first with scores, verdicts, severity counts, and individual findings.',
@@ -448,35 +480,11 @@ server.tool(
     limit: z.number().optional().describe('Max reports to return (default 10)'),
   },
   async ({ projectId, scheduleId, limit }) => {
-    let runs = scheduleId
+    const runs = scheduleId
       ? await listRunsBySchedule(scheduleId)
       : await listAuditRuns();
 
-    if (projectId) {
-      runs = runs.filter(r => r.projectId === projectId);
-    }
-
-    // Only completed runs with structured reports
-    const completed = runs
-      .filter(r => r.status === 'completed' && r.structuredReport)
-      .sort((a, b) => b.startedAt - a.startedAt)
-      .slice(0, limit || 10);
-
-    const reports = completed.map(r => ({
-      runId: r.id,
-      scheduleId: r.scheduleId,
-      projectId: r.projectId,
-      overallScore: r.structuredReport!.overallScore,
-      overallVerdict: r.structuredReport!.overallVerdict,
-      summary: r.structuredReport!.summary,
-      severityCounts: r.severityCounts,
-      rubric: r.structuredReport!.rubric,
-      findings: r.structuredReport!.findings,
-      trend: r.trend,
-      startedAt: r.startedAt,
-      completedAt: r.completedAt,
-    }));
-
+    const reports = filterAuditReports(runs, { projectId, limit });
     return { content: [{ type: 'text', text: JSON.stringify(reports, null, 2) }] };
   },
 );
