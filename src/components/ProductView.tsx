@@ -21,7 +21,7 @@ interface StatusCount {
   color: string;
 }
 
-function getTicketStatusCounts(tickets: TicketType[]): StatusCount[] {
+export function getTicketStatusCounts(tickets: TicketType[]): StatusCount[] {
   const counts = new Map<string, number>();
   for (const t of tickets) {
     counts.set(t.status, (counts.get(t.status) || 0) + 1);
