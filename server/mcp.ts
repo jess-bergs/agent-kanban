@@ -27,6 +27,7 @@ import {
 import { listTemplates, getTemplate } from './audit-templates.ts';
 import { triggerAudit } from './audit-scheduler.ts';
 import { prepareRetryFields, checkAndReconcilePrState } from './dispatcher.ts';
+import { buildAnalytics } from './analytics.ts';
 import type { AuditTemplateId, TicketStatus } from '../src/types.ts';
 
 /** All valid ticket statuses, kept in sync with src/types.ts TicketStatus */
@@ -426,6 +427,60 @@ server.tool(
   },
 );
 
+// ─── Dashboard / Analytics ───────────────────────────────────────
+
+server.tool(
+  'get_dashboard',
+  'Get the full dashboard analytics: dispatcher stats (ticket status breakdown, costs, tokens, recent runs), auditor stats (watchlist, reviews, verdicts), scheduler stats (audit runs, severity counts, trends), issues, and coverage gaps. Same data the human sees in the UI.',
+  {},
+  async () => {
+    const analytics = await buildAnalytics();
+    return { content: [{ type: 'text', text: JSON.stringify(analytics, null, 2) }] };
+  },
+);
+
+server.tool(
+  'get_latest_audit_reports',
+  'Get the most recent completed audit runs with their structured findings. Returns reports sorted newest-first with scores, verdicts, severity counts, and individual findings.',
+  {
+    projectId: z.string().optional().describe('Filter by project UUID'),
+    scheduleId: z.string().optional().describe('Filter by schedule UUID'),
+    limit: z.number().optional().describe('Max reports to return (default 10)'),
+  },
+  async ({ projectId, scheduleId, limit }) => {
+    let runs = scheduleId
+      ? await listRunsBySchedule(scheduleId)
+      : await listAuditRuns();
+
+    if (projectId) {
+      runs = runs.filter(r => r.projectId === projectId);
+    }
+
+    // Only completed runs with structured reports
+    const completed = runs
+      .filter(r => r.status === 'completed' && r.structuredReport)
+      .sort((a, b) => b.startedAt - a.startedAt)
+      .slice(0, limit || 10);
+
+    const reports = completed.map(r => ({
+      runId: r.id,
+      scheduleId: r.scheduleId,
+      projectId: r.projectId,
+      overallScore: r.structuredReport!.overallScore,
+      overallVerdict: r.structuredReport!.overallVerdict,
+      summary: r.structuredReport!.summary,
+      severityCounts: r.severityCounts,
+      rubric: r.structuredReport!.rubric,
+      findings: r.structuredReport!.findings,
+      trend: r.trend,
+      startedAt: r.startedAt,
+      completedAt: r.completedAt,
+    }));
+
+    return { content: [{ type: 'text', text: JSON.stringify(reports, null, 2) }] };
+  },
+);
+
 // ─── Audit Resources (read-only views) ──────────────────────────
 
 server.resource(
@@ -455,6 +510,16 @@ server.resource(
   async () => {
     const runs = await listAuditRuns();
     return { contents: [{ uri: 'kanban://audit-runs', text: JSON.stringify(runs, null, 2), mimeType: 'application/json' }] };
+  },
+);
+
+server.resource(
+  'analytics',
+  'kanban://analytics',
+  { description: 'Dashboard analytics: dispatcher, auditor, scheduler stats, issues, and coverage gaps', mimeType: 'application/json' },
+  async () => {
+    const analytics = await buildAnalytics();
+    return { contents: [{ uri: 'kanban://analytics', text: JSON.stringify(analytics, null, 2), mimeType: 'application/json' }] };
   },
 );
 
