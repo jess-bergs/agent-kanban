@@ -30,6 +30,8 @@ const pendingUserInput = new Map<string, boolean>();
 const INTERACTIVE_TOOLS = new Set(['AskUserQuestion', 'EnterPlanMode']);
 /** Tracks ticket IDs that were explicitly aborted by the user (vs crashing) */
 const abortedTickets = new Set<string>();
+/** Tracks ticket IDs that were steered — SIGTERM'd to resume with a new prompt */
+const steeredTickets = new Map<string, string>();
 /** Tracks ticket IDs that were terminated for exceeding max turns */
 const maxTurnsExceeded = new Set<string>();
 /** Tracks the last auto-merge check time per ticket to throttle gh CLI calls */
@@ -933,14 +935,50 @@ async function startAgent(ticket: Ticket) {
     pendingToolApproval.delete(ticket.id);
     pendingUserInput.delete(ticket.id);
     const wasAborted = abortedTickets.delete(ticket.id);
+    const steeringMessage = steeredTickets.get(ticket.id);
+    const wasSteered = steeringMessage !== undefined;
+    if (wasSteered) steeredTickets.delete(ticket.id);
     const hitMaxTurns = maxTurnsExceeded.delete(ticket.id);
-    console.log(`[dispatcher] Agent for ticket #${ticket.id} exited with code ${code}${wasAborted ? ' (aborted by user)' : ''}${hitMaxTurns ? ` (max turns ${MAX_AGENT_TURNS})` : ''}`);
+    console.log(`[dispatcher] Agent for ticket #${ticket.id} exited with code ${code}${wasAborted ? ' (aborted by user)' : ''}${wasSteered ? ' (steered — will resume)' : ''}${hitMaxTurns ? ` (max turns ${MAX_AGENT_TURNS})` : ''}`);
 
     // Compute duration for effort
     const completedAt = Date.now();
     const currentTicket = await getTicket(ticket.id);
     if (currentTicket?.startedAt) {
       effort.durationMs = completedAt - currentTicket.startedAt;
+    }
+
+    // Steered: agent was stopped to resume with a new user prompt.
+    // Discover session ID, set resumePrompt, and re-queue as todo.
+    if (wasSteered) {
+      const sessionId = useWorktree ? discoverSessionId(worktreePath) : null;
+      if (sessionId) {
+        console.log(`[dispatcher] Steered ticket #${ticket.id} — resuming session ${sessionId}`);
+        const steeredTicket = await updateTicket(ticket.id, {
+          status: 'todo',
+          agentSessionId: sessionId,
+          resumePrompt: steeringMessage,
+          agentPid: undefined,
+          effort: { ...effort },
+          error: undefined,
+          failureReason: undefined,
+        }, 'steered_resume');
+        if (steeredTicket) await broadcastTicket(steeredTicket);
+        // Don't clean up worktree — startAgent will reuse it for resume
+      } else {
+        console.error(`[dispatcher] Steered ticket #${ticket.id} but no session ID found — marking failed`);
+        const failedTicket = await updateTicket(ticket.id, {
+          status: 'failed',
+          error: 'Steering failed: could not discover session ID for resume',
+          failureReason: { type: 'other', detail: 'No session ID found after steering' },
+          completedAt,
+          agentPid: undefined,
+          effort: { ...effort },
+        }, 'steer_failed');
+        if (failedTicket) await broadcastTicket(failedTicket);
+        if (useWorktree) cleanupWorktree(project.repoPath, worktreePath);
+      }
+      return;
     }
 
     if (code !== 0) {
@@ -1560,6 +1598,21 @@ export function sendSteeringMessage(ticketId: string, message: string): boolean 
   }
   console.log(`[dispatcher] Sending steering message to ticket #${ticketId}: ${message.slice(0, 100)}`);
   proc.stdin.write(message + '\n');
+  return true;
+}
+
+/**
+ * Steer a running agent by stopping it and re-queuing with --resume + the new prompt.
+ * The close handler will discover the session ID, set resumePrompt, and transition
+ * the ticket back to 'todo' so the dispatcher picks it up for a resumed session.
+ * Returns true if the agent was found and signalled.
+ */
+export function steerAgent(ticketId: string, message: string): boolean {
+  const proc = running.get(ticketId);
+  if (!proc) return false;
+  console.log(`[dispatcher] Steering agent for ticket #${ticketId} (will stop & resume): ${message.slice(0, 100)}`);
+  steeredTickets.set(ticketId, message);
+  proc.kill('SIGTERM');
   return true;
 }
 

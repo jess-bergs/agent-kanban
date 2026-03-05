@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sendSteeringMessage, isAgentRunning } from '../server/dispatcher.ts';
+import { sendSteeringMessage, steerAgent, isAgentRunning } from '../server/dispatcher.ts';
 
 describe('isAgentRunning', () => {
   it('returns false for unknown ticket IDs', () => {
@@ -18,6 +18,16 @@ describe('sendSteeringMessage', () => {
 
   it('returns false for empty ticket ID', () => {
     expect(sendSteeringMessage('', 'hello')).toBe(false);
+  });
+});
+
+describe('steerAgent', () => {
+  it('returns false when no agent process exists for the ticket', () => {
+    expect(steerAgent('nonexistent-ticket-id', 'redirect to this')).toBe(false);
+  });
+
+  it('returns false for empty ticket ID', () => {
+    expect(steerAgent('', 'redirect to this')).toBe(false);
   });
 });
 
@@ -41,17 +51,26 @@ describe('steer API request validation', () => {
     }
   });
 
-  it('determines mode based on agent state and session ID', () => {
-    // Simulates the endpoint's mode selection logic
-    function determineMode(isRunning: boolean, hasSessionId: boolean): string | null {
-      if (isRunning) return 'stdin';
+  it('determines mode based on agent state, stdin availability, and session ID', () => {
+    // Simulates the endpoint's updated mode selection logic:
+    // Running + stdin works → stdin mode
+    // Running + stdin closed → stop & resume (falls back to resume mode)
+    // Not running + session ID → resume mode
+    // Not running + no session → error
+    function determineMode(isRunning: boolean, stdinAvailable: boolean, hasSessionId: boolean): string | null {
+      if (isRunning) {
+        if (stdinAvailable) return 'stdin';
+        return 'resume'; // stop-and-resume fallback
+      }
       if (hasSessionId) return 'resume';
       return null; // no valid mode
     }
 
-    expect(determineMode(true, false)).toBe('stdin');
-    expect(determineMode(true, true)).toBe('stdin'); // running takes priority
-    expect(determineMode(false, true)).toBe('resume');
-    expect(determineMode(false, false)).toBeNull();
+    expect(determineMode(true, true, false)).toBe('stdin');
+    expect(determineMode(true, true, true)).toBe('stdin');
+    expect(determineMode(true, false, false)).toBe('resume'); // stdin closed → stop & resume
+    expect(determineMode(true, false, true)).toBe('resume');
+    expect(determineMode(false, false, true)).toBe('resume');
+    expect(determineMode(false, false, false)).toBeNull();
   });
 });

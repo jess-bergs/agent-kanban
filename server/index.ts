@@ -30,7 +30,7 @@ import {
   deleteTicketImage,
   getImagesDir,
 } from './store.ts';
-import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, sendSteeringMessage, isAgentRunning, checkPrStatus, conflictCheckTick, attemptMerge, checkAndReconcilePrState, prepareRetryFields } from './dispatcher.ts';
+import { startDispatcher, stopDispatcher, setDispatchBroadcast, killAgent, abortAgent, sendSteeringMessage, steerAgent, isAgentRunning, checkPrStatus, conflictCheckTick, attemptMerge, checkAndReconcilePrState, prepareRetryFields } from './dispatcher.ts';
 import { detectSoloAgents } from './solo-agents.ts';
 import { ensurePrTemplate } from './pr-template.ts';
 import {
@@ -430,13 +430,19 @@ app.post('/api/tickets/:id/steer', async (req, res) => {
     return;
   }
 
-  // Case 1: Agent is currently running — pipe message to stdin
+  // Case 1: Agent is currently running — try stdin, fall back to stop-and-resume
   if (isAgentRunning(req.params.id)) {
     const sent = sendSteeringMessage(req.params.id, message.trim());
     if (sent) {
       res.json({ success: true, mode: 'stdin' });
+      return;
+    }
+    // stdin is closed (Claude Code requires EOF on startup) — stop and resume with the message
+    const steered = steerAgent(req.params.id, message.trim());
+    if (steered) {
+      res.json({ success: true, mode: 'resume' });
     } else {
-      res.status(500).json({ error: 'Failed to write to agent stdin' });
+      res.status(500).json({ error: 'Failed to steer agent' });
     }
     return;
   }
