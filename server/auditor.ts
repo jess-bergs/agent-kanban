@@ -362,9 +362,16 @@ export async function runAudit(ticket: Ticket): Promise<void> {
 
 // ─── Review Engine ──────────────────────────────────────────────
 
+/** Max chars to include from convention files (AGENTS.md, CLAUDE.md) in review prompts */
+const MAX_CONVENTION_CHARS = 4000;
+
 async function readFileOrEmpty(path: string): Promise<string> {
   try {
-    return await readFile(path, 'utf-8');
+    const content = await readFile(path, 'utf-8');
+    if (content.length > MAX_CONVENTION_CHARS) {
+      return content.slice(0, MAX_CONVENTION_CHARS) + '\n... (truncated)';
+    }
+    return content;
   } catch {
     return '';
   }
