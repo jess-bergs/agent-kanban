@@ -22,7 +22,7 @@ the kanban API (at `http://localhost:3003`) to read and write data.
 
 ## Tools
 
-The server exposes 20 tools across four domains:
+The server exposes 22 tools across five domains:
 
 ### Project Management
 
@@ -73,9 +73,16 @@ The `create_ticket` tool supports all dispatch options: `yolo` (skip permissions
 | `list_audit_runs` | `scheduleId?` | List runs, optionally filtered by schedule |
 | `get_audit_run` | `runId` | Get a single run (includes report and structured results) |
 
+### Dashboard / Analytics
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `get_dashboard` | — | Get the full dashboard analytics (dispatcher, auditor, scheduler stats, issues, coverage gaps) |
+| `get_latest_audit_reports` | `projectId?`, `scheduleId?`, `limit?` | Get recent completed audit reports with structured findings, sorted newest-first |
+
 ## Resources
 
-Five read-only resources are exposed:
+Six read-only resources are exposed:
 
 | URI | Description |
 |-----|-------------|
@@ -84,6 +91,7 @@ Five read-only resources are exposed:
 | `kanban://audit-templates` | JSON array of all built-in audit templates |
 | `kanban://audit-schedules` | JSON array of all audit schedules |
 | `kanban://audit-runs` | JSON array of all audit runs |
+| `kanban://analytics` | Dashboard analytics (dispatcher, auditor, scheduler stats, issues, coverage gaps) |
 
 ## Usage
 
