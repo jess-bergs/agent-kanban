@@ -2,7 +2,7 @@
 
 ## Core Rules
 
-- **Always raise a PR** — never push directly to main.
+- **Raise a PR when appropriate** — never push directly to main. If the task doesn't warrant a PR (e.g., pure research, trivial config, no meaningful code changes), the agent may skip PR creation and the ticket will be marked done directly.
 - **File a ticket** — before starting work, ask the user if we should file a ticket on the kanban (`POST /api/tickets`). This keeps all work tracked and visible.
 - **Investigate before coding** — thoroughly understand the relevant codebase before making changes. See [Investigation-First Approach](#investigation-first-approach) below.
 

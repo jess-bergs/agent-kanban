@@ -643,6 +643,10 @@ async function startAgent(ticket: Ticket) {
       '3. Create a pull request using the repo\'s PR template (see below)',
       '4. Output the PR URL on its own line at the end',
       '',
+      '**If the task does not warrant a PR** (e.g., pure research, documentation-only,',
+      'trivial config, or tasks where no meaningful code changes were made), you may skip',
+      'steps 2-4. Just commit your changes locally and finish. Use your judgement.',
+      '',
       `Ticket-ID: ${ticket.id}`,
       '',
       '---',
@@ -1117,8 +1121,12 @@ async function startAgent(ticket: Ticket) {
     // Read postAgentAction before clearing it (one-shot field)
     const postAgentAction = preUpdateTicket?.postAgentAction;
 
+    // If the agent completed without creating a PR, mark as 'done' instead of
+    // 'in_review' — the agent decided no PR was needed for this task.
+    const completionStatus = prUrl ? 'in_review' : 'done';
+
     const reviewTicket = await updateTicket(ticket.id, {
-      status: 'in_review',
+      status: completionStatus,
       prUrl,
       prNumber,
       completedAt,
@@ -1135,7 +1143,7 @@ async function startAgent(ticket: Ticket) {
 
     console.log(
       `[dispatcher] Ticket #${ticket.id} completed` +
-        (prUrl ? ` — PR: ${prUrl}` : ' (no PR detected)') +
+        (prUrl ? ` — PR: ${prUrl}` : ' (no PR — marked done)') +
         (postAgentAction ? ` (postAgentAction: ${postAgentAction})` : ''),
     );
 
