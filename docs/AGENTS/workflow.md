@@ -68,7 +68,7 @@ The dispatcher runs a continuous health check (every 30s) that detects and recov
 
 2. **Stuck audit detection** — If `auditStatus` stays `running` for >10 minutes, the health check resets it and re-triggers the audit. Also resets stuck watchlist entries.
 
-3. **No-PR in-review** — If a ticket is `in_review` without a `prUrl` for >5 minutes, it's marked `failed` (agent exited before creating a PR).
+3. **No-PR in-review** — If a ticket is `in_review` without a `prUrl` for >5 minutes, it's marked `failed`. This is a safety net for cases where the agent intended to create a PR but the URL wasn't captured. Tickets where the agent intentionally skipped PR creation are routed to `done` instead of `in_review`, so they bypass this check entirely.
 
 All interventions are logged to `data/health-check-log.jsonl`.
 
