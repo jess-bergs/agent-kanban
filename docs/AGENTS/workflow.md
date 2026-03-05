@@ -2,7 +2,7 @@
 
 ## Core Rules
 
-- **Always raise a PR** — never push directly to main.
+- **Raise a PR when appropriate** — never push directly to main. If the task doesn't warrant a PR (e.g., pure research, trivial config, no meaningful code changes), the agent may skip PR creation and the ticket will be marked done directly.
 - **File a ticket** — before starting work, ask the user if we should file a ticket on the kanban (`POST /api/tickets`). This keeps all work tracked and visible.
 - **Investigate before coding** — thoroughly understand the relevant codebase before making changes. See [Investigation-First Approach](#investigation-first-approach) below.
 
@@ -40,10 +40,12 @@ When creating a PR, agents **must** use the repo's PR template at `.github/pull_
 
 ```
 todo → in_progress → in_review → done / merged
-                 ↓         ↓
-          needs_approval    failed / error
+                 ↓    ↓    ↓
+          needs_approval  failed / error
                  ↓
           on_hold (usage limit → auto-resume)
+
+          in_progress → done  (when agent skips PR creation)
 ```
 
 **Key statuses:**
@@ -68,7 +70,7 @@ The dispatcher runs a continuous health check (every 30s) that detects and recov
 
 2. **Stuck audit detection** — If `auditStatus` stays `running` for >10 minutes, the health check resets it and re-triggers the audit. Also resets stuck watchlist entries.
 
-3. **No-PR in-review** — If a ticket is `in_review` without a `prUrl` for >5 minutes, it's marked `failed` (agent exited before creating a PR).
+3. **No-PR in-review** — If a ticket is `in_review` without a `prUrl` for >5 minutes, it's marked `failed`. This is a safety net for cases where the agent intended to create a PR but the URL wasn't captured. Tickets where the agent intentionally skipped PR creation are routed to `done` instead of `in_review`, so they bypass this check entirely.
 
 All interventions are logged to `data/health-check-log.jsonl`.
 
